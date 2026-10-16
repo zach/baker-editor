@@ -1,0 +1,7 @@
+(pack core (level game) (owners "design" "engineering"))
+; The test project's vocabulary.
+
+(shapes
+   (unit (at units) (keyed)
+      (health int (range 1 1000))
+      (speed  float (range 0 10))))

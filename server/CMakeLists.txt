@@ -1,0 +1,39 @@
+if(MSVC)
+  add_compile_options(/W4 /permissive- /utf-8)
+else()
+  add_compile_options(-Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wno-sign-conversion)
+endif()
+
+# Everything but main, so the tests drive the same code.
+add_library(baker_lsp_core STATIC
+  src/diagnose.cpp
+  src/positions.cpp
+  src/protocol.cpp
+  src/server.cpp
+  src/setup.cpp
+  src/stubs.cpp)
+target_include_directories(baker_lsp_core PUBLIC src)
+target_link_libraries(baker_lsp_core PUBLIC baker::baker nlohmann_json::nlohmann_json)
+
+add_executable(baker-lsp src/main.cpp)
+target_link_libraries(baker-lsp PRIVATE baker_lsp_core)
+
+if(BAKER_EDITOR_BUILD_TESTS)
+  # doctest's single header (MIT).
+  FetchContent_Declare(doctest
+    URL https://github.com/doctest/doctest/releases/download/v2.4.11/doctest.h
+    URL_HASH SHA256=44faa038e9c3f9728efbda143748d01124ea0a27f4bf78f35a15d8fab2e039fb
+    DOWNLOAD_NO_EXTRACT TRUE)
+  FetchContent_MakeAvailable(doctest)
+  add_library(baker_lsp_doctest INTERFACE)
+  target_include_directories(baker_lsp_doctest SYSTEM INTERFACE ${doctest_SOURCE_DIR})
+  add_executable(baker_lsp_tests
+    tests/test_main.cpp
+    tests/test_diagnose.cpp
+    tests/test_positions.cpp
+    tests/test_server.cpp)
+  target_link_libraries(baker_lsp_tests PRIVATE baker_lsp_core baker_lsp_doctest)
+  target_compile_definitions(baker_lsp_tests PRIVATE
+    BAKER_LSP_TEST_DATA="${CMAKE_CURRENT_SOURCE_DIR}/tests/data")
+  add_test(NAME baker_lsp_tests COMMAND baker_lsp_tests)
+endif()

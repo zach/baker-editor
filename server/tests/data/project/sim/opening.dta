@@ -1,0 +1,1 @@
+(start {game.spawn archer 1} {game.wait 5})

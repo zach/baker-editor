@@ -1,0 +1,32 @@
+name: CI
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: ubuntu-24.04, name: gcc, cxx: g++, flags: ""}
+          - {os: ubuntu-24.04, name: clang-asan, cxx: clang++, flags: "-fsanitize=address,undefined -fno-sanitize-recover=all"}
+          - {os: windows-2022, name: msvc, cxx: cl, flags: ""}
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows'
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=${{ matrix.cxx }} "-DCMAKE_CXX_FLAGS=${{ matrix.flags }}"
+      - name: Build
+        run: cmake --build build
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  format:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: clang-format-18 --dry-run --Werror server/src/* server/tests/*.cpp

@@ -1,0 +1,8 @@
+; A small project for the server's tests.
+#require "../packs/game/core.dta"
+
+(units
+   (knight (health 100) (speed 2.5))
+   (archer (health 60) (speed 3)))
+
+#autorun {game.spawn knight 2}
