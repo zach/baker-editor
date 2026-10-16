@@ -35,7 +35,10 @@ if(BAKER_EDITOR_BUILD_TESTS)
     tests/test_positions.cpp
     tests/test_server.cpp)
   target_link_libraries(baker_lsp_tests PRIVATE baker_lsp_core baker_lsp_doctest)
+  # USE_STD_HEADERS: doctest prints std::string_view through <ostream>, which MSVC's
+  # <string_view> does not bring in.
   target_compile_definitions(baker_lsp_tests PRIVATE
-    BAKER_LSP_TEST_DATA="${CMAKE_CURRENT_SOURCE_DIR}/tests/data")
+    BAKER_LSP_TEST_DATA="${CMAKE_CURRENT_SOURCE_DIR}/tests/data"
+    DOCTEST_CONFIG_USE_STD_HEADERS)
   add_test(NAME baker_lsp_tests COMMAND baker_lsp_tests)
 endif()
