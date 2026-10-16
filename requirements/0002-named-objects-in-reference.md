@@ -25,9 +25,7 @@ the type's methods, which the reference already lists.
 
 ## Today
 
-The server takes `--object NAME` for each such object, and does not report calls on them.
-The names must be kept by hand beside the game's setup, and method calls on those objects
-are not checked at all.
+Met by Baker at 2b38a4d (D173 to D175); the server uses it and its workaround is gone.
 
 ## Not included
 

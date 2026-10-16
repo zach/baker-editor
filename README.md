@@ -20,18 +20,20 @@ its layers as the game would, with the text of open editors in place of the file
 (the project file's too), and reports:
 
 - **the project file's errors:** an unknown key, a malformed layer, a layer whose file is
-  missing (on the project file);
+  missing (at the entry that names it);
 - **load errors:** syntax, directives, includes, located to the column. A layer that does not
   read does not stop the layers above it from being checked;
-- **calls:** a call with the wrong number of arguments for every overload, in the data and in
-  `#autorun` commands, counted against the game's reference; a call to a function nothing
-  defines (not a stub) is an error, a likely typo;
+- **calls:** a call with the wrong number of arguments for every overload, or a literal
+  argument of the wrong type, in the data and in `#autorun` commands, checked against the
+  game's functions as its reference describes them; a call to a function nothing defines (not
+  a stub) is an error, a likely typo;
 - **the one-way rule:** a harder pack calling a softer pack's script function (a warning);
 - **shapes:** a value of the wrong type or out of range (an error), a field no shape declares
   (information).
 
-An open `.dta` file the layers do not read, such as a scenario or an objective, is read on
-its own and checked beside them, as a game's `check` command checks its scenarios.
+An open `.dta` file of the project that its layers do not read, such as a scenario or an
+objective, is read on its own and checked beside them, as a game's `check` command checks
+its scenarios.
 
 Problems Baker locates by line alone (shape and call errors) underline the array the error's
 path or message names on that line, else the line's first token. Columns are converted to
@@ -45,56 +47,60 @@ cmake --build build
 ctest --test-dir build
 ```
 
-The server reads `baker-project.dta` at the root of the workspace the editor opens: open the
-game's directory (for Baker's stacks, `stacks/duel`). `--project FILE` names another,
-`--skip local` leaves a layer out. A game without a project file can give the same setup
-as arguments instead (`--layer NAME=FILE`, `--optional-layer`, `--pack-levels`, `--include`,
-`--define`).
+Each open file is checked in its project: the nearest `baker-project.dta` at or above it.
+A workspace can hold several games (Baker's `stacks/` holds seven); each is checked with its
+own layers and reference. `--project FILE` names one project instead, and `--skip local`
+leaves a layer out. A game without a project file can give the same setup as arguments
+(`--layer NAME=FILE`, `--optional-layer`, `--pack-levels`, `--include`, `--define`).
+
+The game's reference JSON (`write_reference_json`, which the game writes in its build) tells
+the server the game's functions and the objects it names. A project file names it with
+`(reference "build/reference.json")`; `--reference FILE` gives one for every project the
+server checks. Without one, calls are not checked and undefined calls are not reported.
+Baker's stacks name none yet: their reference comes from `stacks_duel reference --json`.
 
 ```sh
-build/server/baker-lsp --reference build/reference.json
+build/server/baker-lsp                                  # projects found from the open files
+build/server/baker-lsp --reference build/reference.json  # one game, its reference given
 ```
 
-`baker-lsp --help` lists the options. `--reference` is the game's reference JSON, which the
-game writes in its build (for Baker's stacks, `stacks_duel reference --json`). Without it,
-calls are not counted and undefined calls are not reported. `--object NAME` names an object
-the game adds to its Context (`clock` in Hearth), whose calls are not undefined functions.
-
-`tools/lsp_client.py` drives the server from a shell: it opens files, applies an edit, and
-prints the diagnostics.
+`baker-lsp --help` lists the options. `tools/lsp_client.py` drives the server from a shell: it
+opens files, applies an edit, and prints the diagnostics.
 
 ```sh
-tools/lsp_client.py --replace data/default.dta "(health 1000)" "(health 0)" -- build/server/baker-lsp ...
+tools/lsp_client.py --replace data/default.dta "(health 1000)" "(health 0)" -- build/server/baker-lsp
 ```
 
 ### Limits of this pass
 
-- Argument types are not checked, only their number: each of the game's functions is
-  registered as a stand-in that takes any value (`requirements/0003`).
-- Calls on objects (`{clock thread_task ...}`) need `--object`, because the reference does
-  not list a game's named objects (`requirements/0002`). Method calls are not checked.
+- Method calls are not checked: the reference describes the game's types and their methods,
+  but `Context::declare` declares functions only. Calls on the objects the game names are not
+  reported as undefined.
+- A parameter whose type `Context::declare` does not know takes any value: a type of the
+  game's own, and `name`, which Baker's own config tools take (`requirements/0008`).
 - An inline `(range ...)` on a value is tweak metadata, which only the running game
   enforces; shapes are what the server checks, as the game's own `check` does.
-- The project file is found only at the workspace's root, not above an open file
-  (`requirements/0006`), and a missing layer is reported at the project file's first line,
-  not its entry (`requirements/0004`).
 - No editor extension yet: point an LSP client at the binary, language id `baker`.
 
 ### Measurements
 
-Linux, Release build (Clang), the server's own timer around one check:
+Linux, Release build (Clang), the server's own timer around one check, at Baker 2b38a4d:
 
 | Data | Check |
 |---|---|
-| Hearth, the largest stack (about 10 KB) | 2–3 ms |
-| Duel grown to 2 MB (1,776 fighters) | 110–160 ms clean; 50–60 ms when a syntax error stops the load |
+| Hearth, the largest stack (about 10 KB) | 0.4 ms (2–3 ms in a GCC Debug build) |
+| Duel grown to 2 MB (1,776 fighters) | 100–120 ms clean, the first run 326 ms (cold); 49–54 ms when a syntax error stops the load |
+
+At Baker fb613b4 and before, the same 2 MB check took 110–160 ms clean and 50–60 ms with a
+syntax error (one run each of three to six).
 
 A syntax error in the stacks shows about 155 ms after the keystroke, within the plan's 200 ms.
 
 ## Baker
 
 Baker is fetched at a pinned commit of its development repository, because no release has
-E3, E4 and the project file yet; move to a `zach/baker` tag once one ships. `-DBAKER_EDITOR_BAKER_DIR=PATH`
+what the server uses yet (E3, E4, the project file, `Context::declare`); move to a
+`zach/baker` tag once one does. `-DBAKER_EDITOR_BAKER_DIR=PATH`
 builds against a local checkout instead.
 
 ## Requirements for Baker

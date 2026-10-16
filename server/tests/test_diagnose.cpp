@@ -1,5 +1,5 @@
 #include "diagnose.hpp"
-#include "stubs.hpp"
+#include "reference.hpp"
 
 #include <doctest.h>
 
@@ -52,11 +52,15 @@ struct Fixture {
     baker::Context ctx;
     Buffers buffers;
 
+    Reference reference;
+
     Fixture() {
-        StubCount count;
         std::string error;
-        REQUIRE(register_stubs(ctx, setup.reference, count, error));
-        CHECK(count.functions == 4);
+        REQUIRE(load_reference(ctx, setup.reference, reference, error));
+        CHECK(reference.functions == 5);
+        CHECK(reference.widened == 1);  // game.aim takes a vec2, a type of the game's own
+        CHECK(reference.failed.empty());
+        setup.objects = reference.objects;
     }
     Diagnosis run() { return diagnose(setup, ctx, buffers, true); }
 };
@@ -137,7 +141,7 @@ TEST_CASE("without a reference, undefined calls are not reported") {
 
 TEST_CASE("a named object's calls are not undefined functions") {
     Fixture f;
-    f.setup.objects = {"clock"};
+    CHECK(f.reference.objects == std::vector<std::string>{"clock"});
     f.buffers.set(kDefault, replaced(kDefault, "{game.spawn knight 2}", "{clock tick 1}"));
     CHECK(f.run().problems.empty());
 }
@@ -167,11 +171,30 @@ TEST_CASE("a missing required layer is an error without a file") {
 
 TEST_CASE("the reference must be one") {
     baker::Context ctx;
-    StubCount count;
+    Reference r;
     std::string error;
-    CHECK(!register_stubs(ctx, kDefault, count, error));
+    CHECK(!load_reference(ctx, kDefault, r, error));
     CHECK(error.find("not a baker.reference/1") != std::string::npos);
-    CHECK(!register_stubs(ctx, kProject + "/none.json", count, error));
+    CHECK(!load_reference(ctx, kProject + "/none.json", r, error));
+}
+
+TEST_CASE("a literal argument of the wrong type is an error") {
+    Fixture f;
+    f.buffers.set(kDefault, replaced(kDefault, "{game.spawn knight 2}", "{game.spawn 3}"));
+    const Diagnosis d = f.run();
+    REQUIRE(d.problems.size() == 1);
+    CHECK(d.problems[0].code == "type");
+    CHECK(d.problems[0].key == "game.spawn");
+}
+
+TEST_CASE("a parameter of the game's own type takes any value, and is still counted") {
+    Fixture f;
+    f.buffers.set(kDefault, replaced(kDefault, "{game.spawn knight 2}", "{game.aim (1 2)}"));
+    CHECK(f.run().problems.empty());
+    f.buffers.set(kDefault, replaced(kDefault, "{game.spawn knight 2}", "{game.aim}"));
+    const Diagnosis d = f.run();
+    REQUIRE(d.problems.size() == 1);
+    CHECK(d.problems[0].key == "game.aim");
 }
 
 TEST_CASE("the project file gives the stack the command line gives") {
@@ -199,14 +222,16 @@ TEST_CASE("an error in the project file is located in it, from its buffer") {
     CHECK(d.problems[0].line == 3);
 }
 
-TEST_CASE("a missing layer the project names is reported on the project file") {
+TEST_CASE("a missing layer is reported at the project entry that names it") {
     Fixture f;
     f.setup = from_file();
-    f.buffers.set(kProjectPath, "(project (layers (default \"data/none.dta\")))\n");
+    f.buffers.set(kProjectPath, "(project\n   (layers (default \"data/none.dta\")))\n");
     const Diagnosis d = f.run();
     REQUIRE(!d.problems.empty());
     CHECK(d.problems[0].file == kProjectPath);
     CHECK(d.problems[0].severity == Severity::Error);
+    CHECK(d.problems[0].line == 2);
+    CHECK(d.problems[0].column == 21);  // the path's opening quote
 }
 
 TEST_CASE("a layer that does not read does not stop the layers above it") {

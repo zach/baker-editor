@@ -3,6 +3,7 @@
 
 #include <doctest.h>
 
+#include <set>
 #include <vector>
 
 using namespace baker_lsp;
@@ -144,6 +145,40 @@ TEST_CASE("without a setup, the project file at the workspace's root is the setu
         if (m.value("method", "") == "textDocument/publishDiagnostics")
             published = published || !m["params"]["diagnostics"].empty();
     CHECK(published);
+}
+
+TEST_CASE("each open file is checked in its nearest project") {
+    const std::string data = canonical_path(BAKER_LSP_TEST_DATA);
+    const std::string second = data + "/second/data/main.dta";
+    std::vector<json> sent;
+    Server server(Setup{}, [&sent](const json& m) { sent.push_back(m); });
+    const Server::Clock::time_point now{};
+    // A workspace holding both games: no project file at its root.
+    server.handle({{"jsonrpc", "2.0"},
+                   {"id", 1},
+                   {"method", "initialize"},
+                   {"params", {{"rootUri", uri_from_path(data)}}}},
+                  now);
+    CHECK(server.projects().empty());
+    const auto open = [&](const std::string& path, const std::string& text) {
+        server.handle(
+            {{"jsonrpc", "2.0"},
+             {"method", "textDocument/didOpen"},
+             {"params", {{"textDocument", {{"uri", uri_from_path(path)}, {"text", text}}}}}},
+            now);
+    };
+    open(second, "(settings (volume 3)\n");
+    open(kDefault, "#require \"../packs/game/core.dta\"\n(units (knight (health 0)))\n");
+    CHECK(server.projects() == std::vector<std::string>{kProject + "/baker-project.dta",
+                                                        data + "/second/baker-project.dta"});
+    sent.clear();
+    server.check_now();
+    std::set<std::string> uris;
+    for (const json& m : sent)
+        if (m.value("method", "") == "textDocument/publishDiagnostics" &&
+            !m["params"]["diagnostics"].empty())
+            uris.insert(m["params"]["uri"].get<std::string>());
+    CHECK(uris == std::set<std::string>{uri_from_path(kDefault), uri_from_path(second)});
 }
 
 TEST_CASE("no project and no layers: nothing is checked") {

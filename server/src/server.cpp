@@ -1,9 +1,12 @@
 #include "server.hpp"
 
 #include "positions.hpp"
-#include "stubs.hpp"
+#include "reference.hpp"
+
+#include <baker/project.hpp>
 
 #include <cstdio>
+#include <filesystem>
 #include <utility>
 
 namespace baker_lsp {
@@ -19,29 +22,79 @@ json to_json(const Range& r) {
             {"end", {{"line", r.end.line}, {"character", r.end.character}}}};
 }
 
+std::string parent_of(const std::string& path) {
+    return std::filesystem::path(path).parent_path().generic_string();
+}
+
 }  // namespace
 
-Server::Server(Setup setup, Send send) : setup_(std::move(setup)), send_(std::move(send)) {
-    if (setup_.reference.empty()) {
-        startup_log_.push_back(
-            "no --reference: calls are not counted against the game's functions, and calls to "
-            "undefined functions are not reported");
-        return;
+Server::Server(Setup setup, Send send) : given_(std::move(setup)), send_(std::move(send)) {
+    fixed_ = !given_.project.empty() || given_.by_hand();
+    if (fixed_) add(given_);
+}
+
+std::vector<std::string> Server::projects() const {
+    std::vector<std::string> out;
+    for (const auto& [file, checked] : projects_) out.push_back(file);
+    return out;
+}
+
+void Server::add(Setup setup) {
+    const std::string key = setup.project;
+    if (projects_.count(key)) return;
+    Checked& c = projects_[key];
+    const std::string name = key.empty() ? std::string("the command line's setup") : key;
+    log(kLogInfo, "checking " + name);
+    // --reference wins; else the project file's (reference ...).
+    if (setup.reference.empty() && !key.empty()) {
+        const baker::LoadSession::Reader reader = [this](std::string_view path,
+                                                         baker::TextSink sink) {
+            std::string text;
+            if (!buffers_.read(canonical_path(std::string(path)), text)) return false;
+            sink(text);
+            return true;
+        };
+        if (auto p = baker::read_project(key, reader); p && !p->reference.str().empty())
+            setup.reference = canonical_path(std::string(p->reference.str()));
     }
-    StubCount count;
-    std::string error;
-    if (!register_stubs(ctx_, setup_.reference, count, error)) {
-        startup_log_.push_back(error + "; checking without the game's functions");
-        return;
+    if (setup.reference.empty()) {
+        log(kLogWarning,
+            name +
+                ": no reference (--reference, or (reference ...) in the project file): calls "
+                "are not checked against the game's functions");
+    } else {
+        Reference r;
+        std::string error;
+        if (!load_reference(*c.ctx, setup.reference, r, error)) {
+            log(kLogWarning, error + "; checking without the game's functions");
+        } else {
+            c.have_reference = true;
+            setup.objects = r.objects;
+            log(kLogInfo, "the game's reference: " + std::to_string(r.functions) + " functions, " +
+                              std::to_string(r.overloads) + " overloads, " +
+                              std::to_string(r.objects.size()) + " named objects, from " +
+                              setup.reference);
+            if (r.widened > 0)
+                log(kLogInfo, std::to_string(r.widened) +
+                                  " functions take a type this server cannot declare; any "
+                                  "value is accepted for it");
+            for (const std::string& f : r.failed) log(kLogWarning, "not declared: " + f);
+        }
     }
-    have_reference_ = true;
-    startup_log_.push_back("the game's reference: " + std::to_string(count.functions) +
-                           " functions, " + std::to_string(count.overloads) + " overloads, from " +
-                           setup_.reference);
-    if (count.approximate > 0)
-        startup_log_.push_back(std::to_string(count.approximate) +
-                               " overloads take more arguments than the server counts; any "
-                               "number is accepted for them");
+    c.setup = std::move(setup);
+}
+
+void Server::find_project(const std::string& path) {
+    if (fixed_ || path.empty()) return;
+    const baker::LoadSession::Reader reader = [this](std::string_view candidate, baker::TextSink) {
+        std::string text;
+        return buffers_.read(canonical_path(std::string(candidate)), text);
+    };
+    const baker::Symbol found = baker::find_project(path, reader);
+    if (found.str().empty()) return;
+    Setup s = given_;
+    s.project = canonical_path(std::string(found.str()));
+    add(std::move(s));
 }
 
 void Server::handle(const json& message, Clock::time_point now) {
@@ -56,7 +109,11 @@ void Server::request(const json& message) {
     const std::string method = message.value("method", "");
     json reply = {{"jsonrpc", "2.0"}, {"id", message["id"]}};
     if (method == "initialize") {
-        find_project(message.value("params", json::object()));
+        const json params = message.value("params", json::object());
+        if (const json folders = params.value("workspaceFolders", json()); folders.is_array())
+            for (const json& f : folders) find_project(path_from_uri(f.value("uri", "")));
+        if (params.contains("rootUri") && params["rootUri"].is_string())
+            find_project(path_from_uri(params["rootUri"].get<std::string>()));
         reply["result"] = {{"capabilities",
                             {{"textDocumentSync",
                               {{"openClose", true},
@@ -72,28 +129,6 @@ void Server::request(const json& message) {
     send_(reply);
 }
 
-void Server::find_project(const json& params) {
-    if (!setup_.project.empty() || setup_.by_hand()) return;
-    std::vector<std::string> roots;
-    if (const json folders = params.value("workspaceFolders", json()); folders.is_array())
-        for (const json& f : folders) roots.push_back(path_from_uri(f.value("uri", "")));
-    if (params.contains("rootUri") && params["rootUri"].is_string())
-        roots.push_back(path_from_uri(params["rootUri"].get<std::string>()));
-    for (const std::string& root : roots) {
-        if (root.empty()) continue;
-        const std::string file = canonical_path(root + "/" + kProjectFile);
-        std::string text;
-        if (buffers_.read(file, text)) {
-            setup_.project = file;
-            startup_log_.push_back("the project: " + file);
-            return;
-        }
-    }
-    startup_log_.push_back(std::string("no ") + kProjectFile +
-                           " at the workspace's root, and no --project or --layer: nothing to "
-                           "check");
-}
-
 void Server::notification(const json& message, Clock::time_point now) {
     const std::string method = message.value("method", "");
     const json params = message.value("params", json::object());
@@ -101,8 +136,13 @@ void Server::notification(const json& message, Clock::time_point now) {
         return path_from_uri(params.value("textDocument", json::object()).value("uri", ""));
     };
     if (method == "initialized") {
-        for (const std::string& line : startup_log_)
-            log(have_reference_ ? kLogInfo : kLogWarning, line);
+        initialized_ = true;
+        for (const auto& [type, text] : pending_log_) log(type, text);
+        pending_log_.clear();
+        if (projects_.empty())
+            log(kLogWarning, std::string("no ") + std::string(baker::kProjectFileName) +
+                                 " in the workspace yet: a file is checked once one is found at "
+                                 "or above it");
         schedule(now);
     } else if (method == "exit") {
         exit_code_ = shutdown_ ? 0 : 1;
@@ -111,6 +151,7 @@ void Server::notification(const json& message, Clock::time_point now) {
         const std::string path = canonical_path(document_path());
         uris_[path] = doc.value("uri", "");
         buffers_.set(path, doc.value("text", ""));
+        find_project(parent_of(path));
         schedule(now);
     } else if (method == "textDocument/didChange") {
         const json& changes = params.value("contentChanges", json::array());
@@ -133,22 +174,28 @@ void Server::schedule(Clock::time_point when, bool push_back) {
 
 void Server::check_now() {
     due_.reset();
-    if (setup_.project.empty() && !setup_.by_hand()) return;
-    const Diagnosis d = diagnose(setup_, ctx_, buffers_, have_reference_);
     std::map<std::string, json> by_uri;
-    for (const Problem& p : d.problems) {
-        if (p.file.empty()) {
-            log(p.severity == Severity::Error ? kLogError : kLogWarning, p.message);
-            continue;
+    for (const auto& [key, c] : projects_) {
+        const Diagnosis d = diagnose(c.setup, *c.ctx, buffers_, c.have_reference);
+        for (const Problem& p : d.problems) {
+            if (p.file.empty()) {
+                log(p.severity == Severity::Error ? kLogError : kLogWarning, p.message);
+                continue;
+            }
+            std::string text;
+            buffers_.read(p.file, text);
+            json diagnostic = {{"range", to_json(problem_range(text, p.line, p.column, p.key))},
+                               {"severity", static_cast<int>(p.severity)},
+                               {"source", "baker"},
+                               {"code", p.code},
+                               {"message", p.message}};
+            by_uri[uri_for(p.file)].push_back(std::move(diagnostic));
         }
-        std::string text;
-        buffers_.read(p.file, text);
-        json diagnostic = {{"range", to_json(problem_range(text, p.line, p.column, p.key))},
-                           {"severity", static_cast<int>(p.severity)},
-                           {"source", "baker"},
-                           {"code", p.code},
-                           {"message", p.message}};
-        by_uri[uri_for(p.file)].push_back(std::move(diagnostic));
+        char took[160];
+        std::snprintf(took, sizeof took, "%s: checked %zu files in %.1f ms: %zu problems",
+                      key.empty() ? "the command line's setup" : key.c_str(), d.files.size(),
+                      d.milliseconds, d.problems.size());
+        log(kLogInfo, took);
     }
     std::set<std::string> now_published;
     for (auto& [uri, list] : by_uri) {
@@ -163,13 +210,13 @@ void Server::check_now() {
                    {"method", "textDocument/publishDiagnostics"},
                    {"params", {{"uri", uri}, {"diagnostics", json::array()}}}});
     published_ = std::move(now_published);
-    char took[96];
-    std::snprintf(took, sizeof took, "checked %zu files in %.1f ms: %zu problems", d.files.size(),
-                  d.milliseconds, d.problems.size());
-    log(kLogInfo, took);
 }
 
 void Server::log(int type, const std::string& text) {
+    if (!initialized_) {  // the client takes window/logMessage only after initialize
+        pending_log_.emplace_back(type, text);
+        return;
+    }
     send_({{"jsonrpc", "2.0"},
            {"method", "window/logMessage"},
            {"params", {{"type", type}, {"message", text}}}});

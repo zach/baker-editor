@@ -1,0 +1,4 @@
+; A second game, beside the first, for finding each file's project.
+(project
+   (layers
+      (main "data/main.dta")))

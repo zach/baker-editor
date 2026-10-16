@@ -26,8 +26,7 @@ point at the file's first line.
 
 ## Today
 
-The editor's server reports a missing layer on the project file's first line, with the
-missing path in the message.
+Met by Baker at 2b38a4d (D173 to D175); the server uses it and its workaround is gone.
 
 ## Not included
 

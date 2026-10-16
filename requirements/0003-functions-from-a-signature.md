@@ -30,9 +30,7 @@ the editor and fails in the game.
 
 ## Today
 
-The server registers each overload as a stand-in taking that many `Node` parameters (up to 8
-required and 4 optional), plus a rest parameter where the overload has one. Argument counts
-are checked; types are not, and overloads that differ only in types collapse into one.
+Met by Baker at 2b38a4d (D173 to D175); the server uses it and its workaround is gone.
 
 ## Not included
 

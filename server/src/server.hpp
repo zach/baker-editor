@@ -1,17 +1,25 @@
 #pragma once
 // The language server: documents in, diagnostics out. It holds no thread or stream; main
 // feeds it messages and calls check_now() when due(), so tests drive it directly.
+//
+// It checks one project per project file it finds: each open file belongs to the nearest
+// baker-project.dta above it (Baker's find_project), so a workspace can hold several games.
+// A setup given on the command line (--project, or --layer and the rest) is the only one.
 #include "diagnose.hpp"
 #include "setup.hpp"
+
+#include <baker/script.hpp>
 
 #include <nlohmann/json.hpp>
 
 #include <chrono>
 #include <functional>
 #include <map>
+#include <memory>
 #include <optional>
 #include <set>
 #include <string>
+#include <vector>
 
 namespace baker_lsp {
 
@@ -29,26 +37,38 @@ public:
     void handle(const nlohmann::json& message, Clock::time_point now);
     // When a check is due; empty when none is.
     [[nodiscard]] std::optional<Clock::time_point> due() const { return due_; }
-    // Checks the project and publishes what changed.
+    // Checks every project and publishes what changed.
     void check_now();
     // After `exit`: the process's status (0 if `shutdown` came first).
     [[nodiscard]] std::optional<int> exit_code() const { return exit_code_; }
+    // The project files being checked, canonical ("" for a command-line setup).
+    [[nodiscard]] std::vector<std::string> projects() const;
 
 private:
+    // A project and the game's vocabulary for it.
+    struct Checked {
+        Setup setup;
+        std::unique_ptr<baker::Context> ctx = std::make_unique<baker::Context>();
+        bool have_reference = false;
+    };
+
     void request(const nlohmann::json& message);
-    // Without a project or layers, the project file at the root of the workspace.
-    void find_project(const nlohmann::json& params);
     void notification(const nlohmann::json& message, Clock::time_point now);
+    // Starts checking a project: reads its reference, from --reference or the project file.
+    void add(Setup setup);
+    // The project governing `path` (a file or a directory), added if it is new.
+    void find_project(const std::string& path);
     void schedule(Clock::time_point when, bool push_back = false);
     void log(int type, const std::string& text);
     std::string uri_for(const std::string& path) const;
 
-    Setup setup_;
-    Send send_;
-    baker::Context ctx_;
-    bool have_reference_ = false;
-    std::vector<std::string> startup_log_;
+    Setup given_;         // the command line's: --reference, --skip, and maybe the project
+    bool fixed_ = false;  // the command line named the project or the layers
+    std::map<std::string, Checked> projects_;
+    bool initialized_ = false;
+    std::vector<std::pair<int, std::string>> pending_log_;  // until `initialized`
 
+    Send send_;
     Buffers buffers_;
     std::map<std::string, std::string> uris_;  // canonical path -> the client's URI
     std::set<std::string> published_;          // URIs that last got a non-empty list

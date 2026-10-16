@@ -13,7 +13,7 @@ add_library(baker_lsp_core STATIC
   src/protocol.cpp
   src/server.cpp
   src/setup.cpp
-  src/stubs.cpp)
+  src/reference.cpp)
 target_include_directories(baker_lsp_core PUBLIC src)
 target_link_libraries(baker_lsp_core PUBLIC baker::baker nlohmann_json::nlohmann_json)
 

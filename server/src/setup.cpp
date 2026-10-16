@@ -45,8 +45,6 @@ bool parse_args(std::span<const std::string> args, Setup& setup, std::string& er
             setup.include_dirs.push_back(canonical_path(v));
         } else if (a == "--define") {
             setup.defines.push_back(v);
-        } else if (a == "--object") {
-            setup.objects.push_back(v);
         } else if (a == "--reference") {
             setup.reference = canonical_path(v);
         } else {

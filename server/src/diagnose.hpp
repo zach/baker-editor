@@ -1,8 +1,8 @@
 #pragma once
-// One check of the whole project: read the project file, load every layer as the game would,
-// with open editors' text in place of the files on disk, then run Baker's check and the
-// shapes. Unlike Baker's open_project, a layer that does not read does not stop the load:
-// the layers above it are read too, so the editor shows every file's errors. An open .dta
+// One check of the whole project: read the project file, open it as the game would (Baker's
+// open_project), with open editors' text in place of the files on disk, then run Baker's
+// check and the shapes. A layer that does not read does not stop the load (go_on): the
+// layers above it are read too, so the editor shows every file's errors. An open .dta
 // file the layers do not read (a scenario, an objective) is read on its own and checked
 // beside them, as the game's `check` command checks its scenarios.
 #include "setup.hpp"
@@ -51,9 +51,13 @@ struct Diagnosis {
     double milliseconds = 0;
 };
 
-// `ctx` holds the game's functions (stubs.hpp); `undefined_fails`: a call to a function
+// `ctx` holds the game's functions (reference.hpp); `undefined_fails`: a call to a function
 // nothing defines is an error (with a reference), else not reported.
 Diagnosis diagnose(const Setup& setup, const baker::Context& ctx, const Buffers& buffers,
                    bool undefined_fails);
+
+// Whether an open file belongs to the project: under the project file's directory. Every
+// file does without a project file.
+bool under(const std::string& path, const Setup& setup);
 
 }  // namespace baker_lsp

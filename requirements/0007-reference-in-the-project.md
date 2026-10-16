@@ -24,8 +24,7 @@ drift the project file exists to end.
 
 ## Today
 
-The editor's server takes `--reference FILE` on its command line, so the editor's
-configuration repeats a path the game's build already knows.
+Met by Baker at 2b38a4d (D173 to D175); the server uses it and its workaround is gone.
 
 ## Not included
 

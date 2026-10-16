@@ -26,8 +26,7 @@ repository root) slightly differently.
 
 ## Today
 
-The editor's server looks only at the root of the workspace the editor opened. A workspace
-holding several games finds no project, and nothing is checked.
+Met by Baker at 2b38a4d (D173 to D175); the server uses it and its workaround is gone.
 
 ## Not included
 

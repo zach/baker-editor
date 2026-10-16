@@ -23,10 +23,7 @@ layer is right to; a tool is not.
 
 ## Today
 
-The editor's server does not call `open_project`. It reads the project with `read_project`
-and repeats `open_project`'s steps itself (pack levels, include directories, defines, then
-each layer with its `optional` and `enabled`), going on past a layer that fails. That is a
-second copy of `open_project`, which drifts as soon as the project file gains a setting.
+Met by Baker at 2b38a4d (D173 to D175); the server uses it and its workaround is gone.
 
 ## Not included
 

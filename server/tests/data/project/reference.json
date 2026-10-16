@@ -1,14 +1,134 @@
-{"reference": {
-  "schema": "baker.reference/1",
+{
+ "reference": {
+  "schema": "baker.reference/1.1",
   "functions": [
-    {"name": "game.spawn", "tier": "native", "status": "normal", "replacement": "", "doc": "", "file": "", "line": 0,
-     "overloads": [{"params": [{"type": "symbol", "kind": "value", "raw": false}, {"type": "int", "kind": "optional", "raw": false}], "result": "value", "min_args": 1, "max_args": 2}]},
-    {"name": "game.wait", "tier": "native", "status": "normal", "replacement": "", "doc": "", "file": "", "line": 0,
-     "overloads": [{"params": [{"type": "int", "kind": "value", "raw": false}], "result": "value", "min_args": 1, "max_args": 1}]},
-    {"name": "game.log", "tier": "native", "status": "normal", "replacement": "", "doc": "", "file": "", "line": 0,
-     "overloads": [{"params": [{"type": "values...", "kind": "rest", "raw": false}], "result": "value", "min_args": 0, "max_args": null}]},
-    {"name": "game.later", "tier": "native", "status": "stub", "replacement": "", "doc": "", "file": "", "line": 0,
-     "overloads": [{"params": [], "result": "value", "min_args": 0, "max_args": 0}]}
+   {
+    "name": "game.spawn",
+    "tier": "native",
+    "status": "normal",
+    "replacement": "",
+    "doc": "",
+    "file": "",
+    "line": 0,
+    "overloads": [
+     {
+      "params": [
+       {
+        "type": "symbol",
+        "kind": "value",
+        "raw": false
+       },
+       {
+        "type": "int",
+        "kind": "optional",
+        "raw": false
+       }
+      ],
+      "result": "value",
+      "min_args": 1,
+      "max_args": 2
+     }
+    ]
+   },
+   {
+    "name": "game.wait",
+    "tier": "native",
+    "status": "normal",
+    "replacement": "",
+    "doc": "",
+    "file": "",
+    "line": 0,
+    "overloads": [
+     {
+      "params": [
+       {
+        "type": "int",
+        "kind": "value",
+        "raw": false
+       }
+      ],
+      "result": "value",
+      "min_args": 1,
+      "max_args": 1
+     }
+    ]
+   },
+   {
+    "name": "game.log",
+    "tier": "native",
+    "status": "normal",
+    "replacement": "",
+    "doc": "",
+    "file": "",
+    "line": 0,
+    "overloads": [
+     {
+      "params": [
+       {
+        "type": "values...",
+        "kind": "rest",
+        "raw": false
+       }
+      ],
+      "result": "value",
+      "min_args": 0,
+      "max_args": null
+     }
+    ]
+   },
+   {
+    "name": "game.later",
+    "tier": "native",
+    "status": "stub",
+    "replacement": "",
+    "doc": "",
+    "file": "",
+    "line": 0,
+    "overloads": [
+     {
+      "params": [],
+      "result": "value",
+      "min_args": 0,
+      "max_args": 0
+     }
+    ]
+   },
+   {
+    "name": "game.aim",
+    "tier": "native",
+    "status": "normal",
+    "replacement": "",
+    "doc": "",
+    "file": "",
+    "line": 0,
+    "overloads": [
+     {
+      "params": [
+       {
+        "type": "vec2",
+        "kind": "value",
+        "raw": false
+       }
+      ],
+      "result": "value",
+      "min_args": 1,
+      "max_args": 1
+     }
+    ]
+   }
   ],
-  "types": [], "script_classes": [], "globals": [], "packs": [], "origins": []},
- "tweaks": {}, "shapes": {}}
+  "types": [],
+  "script_classes": [],
+  "globals": [],
+  "packs": [],
+  "origins": [],
+  "objects": [
+   {
+    "name": "clock",
+    "type": "Scheduler"
+   }
+  ]
+ },
+ "tweaks": {},
+ "shapes": {}
+}

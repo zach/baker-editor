@@ -15,8 +15,6 @@ struct Layer {
     bool enabled = true;  // in the stack, skipped by the merge
 };
 
-inline constexpr const char* kProjectFile = "baker-project.dta";
-
 struct Setup {
     // The project file, canonical. It is read again for every check, so an edit to it takes
     // effect at once. Empty: the layers and the rest below, from the command line.
@@ -28,10 +26,11 @@ struct Setup {
     std::vector<std::string> include_dirs;  // absolute
     std::vector<std::string> defines;
 
-    // Objects the game names in its Context ({clock thread_task ...}): calls on them are not
-    // calls to undefined functions. The reference does not list them yet.
+    // The game's reference JSON: from --reference, else the project file's (reference ...).
+    std::string reference;
+    // The objects the game names ({clock thread_task ...}), from the reference: calls on
+    // them are not calls to undefined functions.
     std::vector<std::string> objects;
-    std::string reference;  // the game's reference JSON; empty for none
 
     [[nodiscard]] bool by_hand() const {
         return !layers.empty() || !pack_levels.empty() || !include_dirs.empty() || !defines.empty();
@@ -40,8 +39,8 @@ struct Setup {
 
 inline constexpr const char* kUsage =
     "usage: baker-lsp [options]\n"
-    "  --project FILE              the project file; by default, baker-project.dta at the\n"
-    "                              root of the workspace the editor opens\n"
+    "  --project FILE              the project file; by default, each open file's nearest\n"
+    "                              baker-project.dta, at or above it\n"
     "  --skip LAYER                leave one of the project's layers out, such as local\n"
     "for a game without a project file, instead:\n"
     "  --layer NAME=FILE           a layer, bottom first\n"
@@ -51,15 +50,15 @@ inline constexpr const char* kUsage =
     "  --define NAME               a define, for #ifdef\n"
     "either way:\n"
     "  --reference FILE            the game's reference JSON (baker.reference/1, or the\n"
-    "                              stacks' {reference, tweaks, shapes}): its functions'\n"
-    "                              arities, and calls to undefined functions are errors\n"
-    "  --object NAME               an object the game names, such as clock\n"
+    "                              stacks' {reference, tweaks, shapes}), if the project\n"
+    "                              file names none: its functions and named objects, so\n"
+    "                              calls are checked and undefined ones are errors\n"
     "  --stdio                     speak LSP on stdin and stdout (the default)\n"
     "Relative paths are taken from the working directory.\n";
 
 // Reads `args` (without the program name) into `setup`, or says what is wrong in `error`.
-// Neither a project nor layers is not an error: the server then looks for the project file
-// in the workspace the editor opens.
+// Neither a project nor layers is not an error: the server then finds each open file's
+// project.
 bool parse_args(std::span<const std::string> args, Setup& setup, std::string& error);
 
 // `path` absolute and normalized, resolving symbolic links where it exists, as the server
