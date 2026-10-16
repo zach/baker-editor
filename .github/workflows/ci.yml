@@ -9,9 +9,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {os: ubuntu-24.04, name: gcc, cxx: g++, flags: ""}
+          - {os: ubuntu-24.04, name: gcc, cxx: g++}
           - {os: ubuntu-24.04, name: clang-asan, cxx: clang++, flags: "-fsanitize=address,undefined -fno-sanitize-recover=all"}
-          - {os: windows-2022, name: msvc, cxx: cl, flags: ""}
+          - {os: windows-2022, name: msvc, cxx: cl}
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     steps:
@@ -19,7 +19,7 @@ jobs:
       - uses: ilammy/msvc-dev-cmd@v1
         if: runner.os == 'Windows'
       - name: Configure
-        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=${{ matrix.cxx }} "-DCMAKE_CXX_FLAGS=${{ matrix.flags }}"
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=${{ matrix.cxx }} ${{ matrix.flags && format('"-DCMAKE_CXX_FLAGS={0}"', matrix.flags) || '' }}
       - name: Build
         run: cmake --build build
       - name: Test

@@ -1,5 +1,7 @@
 if(MSVC)
-  add_compile_options(/W4 /permissive- /utf-8)
+  # The server and its libraries (JSON, doctest) use exceptions, unlike Baker; say so here
+  # rather than rely on CMake's default flags, which a -DCMAKE_CXX_FLAGS replaces.
+  add_compile_options(/W4 /permissive- /utf-8 /EHsc)
 else()
   add_compile_options(-Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wno-sign-conversion)
 endif()
