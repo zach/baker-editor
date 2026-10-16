@@ -1,0 +1,7 @@
+; The test project's stack, as the game would read it.
+(project
+   (pack_levels engine game task)
+   (include_dirs "data")
+   (layers
+      (default "data/default.dta")
+      (local "data/local.dta" optional)))

@@ -56,10 +56,10 @@ The file's presence also marks a directory as a Baker project, so a tool knows t
 
 ## Today
 
-The editor's server takes the setup as command-line arguments: each layer (`--layer
-NAME=FILE`, `--optional-layer`), `--pack-levels`, `--include` and `--define`. That duplicates
-each game's setup by hand: the stacks' `base::Live::open` states the same three layers, pack
-levels and include directory in C++, and the two drift apart as soon as either changes.
+Met by Baker's `read_project` and `open_project`, and the stacks' `baker-project.dta`. The
+server reads the project file at the workspace's root through its buffers, and keeps the
+command-line form for games without one. What the first version leaves open is in notes
+0004 to 0007.
 
 ## Not included
 

@@ -14,6 +14,7 @@ const std::string kProject = canonical_path(BAKER_LSP_TEST_DATA "/project");
 const std::string kDefault = kProject + "/data/default.dta";
 const std::string kLocal = kProject + "/data/local.dta";  // optional, not on disk
 const std::string kScenario = kProject + "/sim/opening.dta";
+const std::string kProjectPath = kProject + "/baker-project.dta";
 
 Setup project() {
     Setup s;
@@ -36,6 +37,14 @@ std::string replaced(const std::string& path, const std::string& from, const std
     const size_t at = text.find(from);
     REQUIRE(at != std::string::npos);
     return text.replace(at, from.size(), to);
+}
+
+// The same stack, from the project file.
+Setup from_file() {
+    Setup s;
+    s.project = kProjectPath;
+    s.reference = kProject + "/reference.json";
+    return s;
 }
 
 struct Fixture {
@@ -163,4 +172,68 @@ TEST_CASE("the reference must be one") {
     CHECK(!register_stubs(ctx, kDefault, count, error));
     CHECK(error.find("not a baker.reference/1") != std::string::npos);
     CHECK(!register_stubs(ctx, kProject + "/none.json", count, error));
+}
+
+TEST_CASE("the project file gives the stack the command line gives") {
+    Fixture f;
+    f.setup = from_file();
+    Diagnosis d = f.run();
+    CHECK(d.problems.empty());
+    CHECK(d.files.size() == 3);  // the project file, default.dta and its pack
+
+    f.buffers.set(kLocal, "(units (knight (health 5000)))\n");
+    d = f.run();
+    REQUIRE(d.problems.size() == 1);
+    CHECK(d.problems[0].file == kLocal);
+    CHECK(d.problems[0].key == "health");
+}
+
+TEST_CASE("an error in the project file is located in it, from its buffer") {
+    Fixture f;
+    f.setup = from_file();
+    f.buffers.set(kProjectPath,
+                  "(project\n   (layers (default \"data/default.dta\"))\n   (colour red))\n");
+    const Diagnosis d = f.run();
+    REQUIRE(d.problems.size() == 1);
+    CHECK(d.problems[0].file == kProjectPath);
+    CHECK(d.problems[0].line == 3);
+}
+
+TEST_CASE("a missing layer the project names is reported on the project file") {
+    Fixture f;
+    f.setup = from_file();
+    f.buffers.set(kProjectPath, "(project (layers (default \"data/none.dta\")))\n");
+    const Diagnosis d = f.run();
+    REQUIRE(!d.problems.empty());
+    CHECK(d.problems[0].file == kProjectPath);
+    CHECK(d.problems[0].severity == Severity::Error);
+}
+
+TEST_CASE("a layer that does not read does not stop the layers above it") {
+    Fixture f;
+    f.setup = from_file();
+    f.buffers.set(kDefault, replaced(kDefault, "(speed 2.5))", "(speed 2.5)"));
+    f.buffers.set(kLocal, "(units (knight (health 5))\n");
+    const Diagnosis d = f.run();
+    bool in_default = false, in_local = false;
+    for (const Problem& p : d.problems) {
+        in_default = in_default || (p.file == kDefault && p.code == "syntax");
+        in_local = in_local || (p.file == kLocal && p.code == "syntax");
+    }
+    CHECK(in_default);
+    CHECK(in_local);
+}
+
+TEST_CASE("skipped and disabled layers are left out of the merge") {
+    Fixture f;
+    f.setup = from_file();
+    f.setup.skip = {"local"};
+    f.buffers.set(kLocal, "(units (knight (health 5000)))\n");
+    CHECK(f.run().problems.empty());
+
+    f.setup.skip.clear();
+    f.buffers.set(kProjectPath,
+                  "(project (pack_levels engine game task) (layers (default "
+                  "\"data/default.dta\") (local \"data/local.dta\" optional disabled)))\n");
+    CHECK(f.run().problems.empty());
 }

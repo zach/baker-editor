@@ -6,7 +6,7 @@ Baker's integration plans.
 
 | Step | What | Status |
 |---|---|---|
-| 1 | The project file (in Baker) | Waiting: `requirements/0001-project-file.md`; the server takes the setup on its command line meanwhile |
+| 1 | The project file (in Baker) | Done in Baker; the server reads it |
 | 2 | Diagnostics | First pass: below |
 | 3 | Hover and completion | Not started |
 | 4 | Go-to-definition | Not started |
@@ -15,10 +15,14 @@ Baker's integration plans.
 
 ## Diagnostics
 
-On every change (150 ms after the last keystroke), the server loads the project's layers as
-the game would, with the text of open editors in place of the files on disk, and reports:
+On every change (150 ms after the last keystroke), the server reads the project file and loads
+its layers as the game would, with the text of open editors in place of the files on disk
+(the project file's too), and reports:
 
-- **load errors:** syntax, directives, includes, a missing layer, located to the column;
+- **the project file's errors:** an unknown key, a malformed layer, a layer whose file is
+  missing (on the project file);
+- **load errors:** syntax, directives, includes, located to the column. A layer that does not
+  read does not stop the layers above it from being checked;
 - **calls:** a call with the wrong number of arguments for every overload, in the data and in
   `#autorun` commands, counted against the game's reference; a call to a function nothing
   defines (not a stub) is an error, a likely typo;
@@ -41,14 +45,14 @@ cmake --build build
 ctest --test-dir build
 ```
 
-The server takes the game's load setup as arguments, run from the game's directory:
+The server reads `baker-project.dta` at the root of the workspace the editor opens: open the
+game's directory (for Baker's stacks, `stacks/duel`). `--project FILE` names another,
+`--skip local` leaves a layer out. A game without a project file can give the same setup
+as arguments instead (`--layer NAME=FILE`, `--optional-layer`, `--pack-levels`, `--include`,
+`--define`).
 
 ```sh
-build/server/baker-lsp \
-  --layer default=data/default.dta \
-  --optional-layer local=data/local.dta --optional-layer agent=data/agent.dta \
-  --pack-levels engine,game,task --include data \
-  --reference build/reference.json
+build/server/baker-lsp --reference build/reference.json
 ```
 
 `baker-lsp --help` lists the options. `--reference` is the game's reference JSON, which the
@@ -71,6 +75,9 @@ tools/lsp_client.py --replace data/default.dta "(health 1000)" "(health 0)" -- b
   not list a game's named objects (`requirements/0002`). Method calls are not checked.
 - An inline `(range ...)` on a value is tweak metadata, which only the running game
   enforces; shapes are what the server checks, as the game's own `check` does.
+- The project file is found only at the workspace's root, not above an open file
+  (`requirements/0006`), and a missing layer is reported at the project file's first line,
+  not its entry (`requirements/0004`).
 - No editor extension yet: point an LSP client at the binary, language id `baker`.
 
 ### Measurements
@@ -87,7 +94,7 @@ A syntax error in the stacks shows about 155 ms after the keystroke, within the 
 ## Baker
 
 Baker is fetched at a pinned commit of its development repository, because no release has
-E3 and E4 yet; move to a `zach/baker` tag once one ships. `-DBAKER_EDITOR_BAKER_DIR=PATH`
+E3, E4 and the project file yet; move to a `zach/baker` tag once one ships. `-DBAKER_EDITOR_BAKER_DIR=PATH`
 builds against a local checkout instead.
 
 ## Requirements for Baker

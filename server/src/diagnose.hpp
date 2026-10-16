@@ -1,6 +1,8 @@
 #pragma once
-// One check of the whole project: load every layer as the game would, with open editors'
-// text in place of the files on disk, then run Baker's check and the shapes. An open .dta
+// One check of the whole project: read the project file, load every layer as the game would,
+// with open editors' text in place of the files on disk, then run Baker's check and the
+// shapes. Unlike Baker's open_project, a layer that does not read does not stop the load:
+// the layers above it are read too, so the editor shows every file's errors. An open .dta
 // file the layers do not read (a scenario, an objective) is read on its own and checked
 // beside them, as the game's `check` command checks its scenarios.
 #include "setup.hpp"

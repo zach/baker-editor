@@ -36,6 +36,8 @@ public:
 
 private:
     void request(const nlohmann::json& message);
+    // Without a project or layers, the project file at the root of the workspace.
+    void find_project(const nlohmann::json& params);
     void notification(const nlohmann::json& message, Clock::time_point now);
     void schedule(Clock::time_point when, bool push_back = false);
     void log(int type, const std::string& text);

@@ -113,6 +113,52 @@ TEST_CASE("each edit pushes the check back; an open brings it forward") {
     CHECK(*c.server.due() == c.now + Server::kDebounce);
 }
 
+TEST_CASE("without a setup, the project file at the workspace's root is the setup") {
+    std::vector<json> sent;
+    Server server(Setup{}, [&sent](const json& m) { sent.push_back(m); });
+    const Server::Clock::time_point now{};
+    server.handle({{"jsonrpc", "2.0"},
+                   {"id", 1},
+                   {"method", "initialize"},
+                   {"params", {{"rootUri", uri_from_path(kProject)}}}},
+                  now);
+    server.handle({{"jsonrpc", "2.0"}, {"method", "initialized"}, {"params", json::object()}}, now);
+    bool found = false;
+    for (const json& m : sent)
+        if (m.value("method", "") == "window/logMessage")
+            found = found || m["params"]["message"].get<std::string>().find("baker-project.dta") !=
+                                 std::string::npos;
+    CHECK(found);
+    sent.clear();
+    server.handle(
+        {{"jsonrpc", "2.0"},
+         {"method", "textDocument/didOpen"},
+         {"params",
+          {{"textDocument",
+            {{"uri", uri_from_path(kDefault)},
+             {"text", "#require \"../packs/game/core.dta\"\n(units (knight (health 0)))\n"}}}}}},
+        now);
+    server.check_now();
+    bool published = false;
+    for (const json& m : sent)
+        if (m.value("method", "") == "textDocument/publishDiagnostics")
+            published = published || !m["params"]["diagnostics"].empty();
+    CHECK(published);
+}
+
+TEST_CASE("no project and no layers: nothing is checked") {
+    std::vector<json> sent;
+    Server server(Setup{}, [&sent](const json& m) { sent.push_back(m); });
+    server.handle({{"jsonrpc", "2.0"},
+                   {"id", 1},
+                   {"method", "initialize"},
+                   {"params", {{"rootUri", "file:///nowhere"}}}},
+                  {});
+    sent.clear();
+    server.check_now();
+    CHECK(sent.empty());
+}
+
 TEST_CASE("exit after shutdown is a clean exit") {
     Client c;
     c.request(1, "shutdown");

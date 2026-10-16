@@ -56,6 +56,7 @@ void Server::request(const json& message) {
     const std::string method = message.value("method", "");
     json reply = {{"jsonrpc", "2.0"}, {"id", message["id"]}};
     if (method == "initialize") {
+        find_project(message.value("params", json::object()));
         reply["result"] = {{"capabilities",
                             {{"textDocumentSync",
                               {{"openClose", true},
@@ -69,6 +70,28 @@ void Server::request(const json& message) {
         reply["error"] = {{"code", -32601}, {"message", "not supported: " + method}};
     }
     send_(reply);
+}
+
+void Server::find_project(const json& params) {
+    if (!setup_.project.empty() || setup_.by_hand()) return;
+    std::vector<std::string> roots;
+    if (const json folders = params.value("workspaceFolders", json()); folders.is_array())
+        for (const json& f : folders) roots.push_back(path_from_uri(f.value("uri", "")));
+    if (params.contains("rootUri") && params["rootUri"].is_string())
+        roots.push_back(path_from_uri(params["rootUri"].get<std::string>()));
+    for (const std::string& root : roots) {
+        if (root.empty()) continue;
+        const std::string file = canonical_path(root + "/" + kProjectFile);
+        std::string text;
+        if (buffers_.read(file, text)) {
+            setup_.project = file;
+            startup_log_.push_back("the project: " + file);
+            return;
+        }
+    }
+    startup_log_.push_back(std::string("no ") + kProjectFile +
+                           " at the workspace's root, and no --project or --layer: nothing to "
+                           "check");
 }
 
 void Server::notification(const json& message, Clock::time_point now) {
@@ -110,6 +133,7 @@ void Server::schedule(Clock::time_point when, bool push_back) {
 
 void Server::check_now() {
     due_.reset();
+    if (setup_.project.empty() && !setup_.by_hand()) return;
     const Diagnosis d = diagnose(setup_, ctx_, buffers_, have_reference_);
     std::map<std::string, json> by_uri;
     for (const Problem& p : d.problems) {

@@ -29,6 +29,10 @@ bool parse_args(std::span<const std::string> args, Setup& setup, std::string& er
             }
             setup.layers.push_back(
                 {v.substr(0, eq), canonical_path(v.substr(eq + 1)), a == "--optional-layer"});
+        } else if (a == "--project") {
+            setup.project = canonical_path(v);
+        } else if (a == "--skip") {
+            setup.skip.push_back(v);
         } else if (a == "--pack-levels") {
             setup.pack_levels.clear();
             for (size_t start = 0; start <= v.size();) {
@@ -50,9 +54,21 @@ bool parse_args(std::span<const std::string> args, Setup& setup, std::string& er
             return false;
         }
     }
-    if (setup.layers.empty()) {
-        error = "no layers: give at least one --layer NAME=FILE";
-        return false;
+    if (setup.by_hand()) {
+        if (!setup.project.empty()) {
+            error =
+                "--project with --layer, --pack-levels, --include or --define: the project "
+                "file says those";
+            return false;
+        }
+        if (!setup.skip.empty()) {
+            error = "--skip leaves out a project's layer; without a project, omit the --layer";
+            return false;
+        }
+        if (setup.layers.empty()) {
+            error = "no layers: give at least one --layer NAME=FILE";
+            return false;
+        }
     }
     return true;
 }

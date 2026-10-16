@@ -4,6 +4,7 @@
 
 #include <baker/config.hpp>
 #include <baker/parse.hpp>
+#include <baker/project.hpp>
 #include <baker/shape.hpp>
 
 #include <algorithm>
@@ -66,6 +67,17 @@ public:
     std::vector<Problem> problems;
 };
 
+Diagnosis finish(Diagnosis& out, Collector& found, const std::set<std::string>& files,
+                 std::chrono::steady_clock::time_point start) {
+    out.problems = std::move(found.problems);
+    std::sort(out.problems.begin(), out.problems.end());
+    out.problems.erase(std::unique(out.problems.begin(), out.problems.end()), out.problems.end());
+    out.files.assign(files.begin(), files.end());
+    out.milliseconds =
+        std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+    return std::move(out);
+}
+
 }  // namespace
 
 Diagnosis diagnose(const Setup& setup, const baker::Context& ctx, const Buffers& buffers,
@@ -75,35 +87,66 @@ Diagnosis diagnose(const Setup& setup, const baker::Context& ctx, const Buffers&
     Collector found;
     std::set<std::string> files;
 
-    baker::Config cfg;
-    cfg.set_warning_handler([&found](const baker::Error& e) { found.add(e, Severity::Warning); });
-    baker::LoadSession& session = cfg.session();
-    if (!setup.pack_levels.empty()) {
-        std::vector<baker::Symbol> levels(setup.pack_levels.begin(), setup.pack_levels.end());
-        session.set_pack_levels(std::span<const baker::Symbol>(levels.data(), levels.size()));
-    }
-    for (const std::string& dir : setup.include_dirs) session.add_include_dir(dir);
-    for (const std::string& name : setup.defines) session.define(baker::Symbol(name));
-    session.set_reader([&buffers, &files](std::string_view path, baker::TextSink sink) {
+    // Every file is read through the editor's buffers, the project file too.
+    const baker::LoadSession::Reader reader = [&buffers, &files](std::string_view path,
+                                                                 baker::TextSink sink) {
         const std::string file = canonical_path(std::string(path));
         std::string text;
         if (!buffers.read(file, text)) return false;
         files.insert(file);
         sink(text);
         return true;
-    });
+    };
+
+    Setup stack = setup;  // with the project file's layers and session
+    if (!setup.project.empty()) {
+        auto project = baker::read_project(setup.project, reader);
+        if (!project) {
+            found.add(project.error(), Severity::Error);
+            if (found.problems.back().file.empty()) found.problems.back().file = setup.project;
+            return finish(out, found, files, start);
+        }
+        for (const baker::ProjectLayer& l : project->layers)
+            if (std::find(setup.skip.begin(), setup.skip.end(), l.name.str()) == setup.skip.end())
+                stack.layers.push_back({std::string(l.name.str()),
+                                        canonical_path(std::string(l.path.str())), l.optional,
+                                        l.enabled});
+        for (const baker::Symbol level : project->pack_levels)
+            stack.pack_levels.emplace_back(level.str());
+        for (const baker::Symbol dir : project->include_dirs)
+            stack.include_dirs.push_back(canonical_path(std::string(dir.str())));
+        for (const baker::Symbol flag : project->defines) stack.defines.emplace_back(flag.str());
+    }
+
+    baker::Config cfg;
+    cfg.set_warning_handler([&found](const baker::Error& e) { found.add(e, Severity::Warning); });
+    baker::LoadSession& session = cfg.session();
+    if (!stack.pack_levels.empty()) {
+        std::vector<baker::Symbol> levels(stack.pack_levels.begin(), stack.pack_levels.end());
+        session.set_pack_levels(std::span<const baker::Symbol>(levels.data(), levels.size()));
+    }
+    for (const std::string& dir : stack.include_dirs) session.add_include_dir(dir);
+    for (const std::string& name : stack.defines) session.define(baker::Symbol(name));
+    session.set_reader(reader);
 
     // Extra files read with the same setup, before the layers add their macros and packs.
     baker::LoadSession extra_session = session;
 
-    for (const Layer& layer : setup.layers)
-        if (auto r = cfg.push_layer(layer.name, layer.path, {.optional = layer.optional}); !r)
+    for (const Layer& layer : stack.layers)
+        if (auto r = cfg.push_layer(layer.name, layer.path,
+                                    {.optional = layer.optional, .enabled = layer.enabled});
+            !r) {
             found.add(r.error(), Severity::Error);
+            // A layer that is not there at all: say so on the project file, which names it.
+            if (found.problems.back().file.empty() && !setup.project.empty())
+                found.problems.back().file = setup.project;
+        }
 
     std::vector<baker::Ref<baker::Array>> extra;
     const std::set<std::string> layered = files;
     for (const auto& [path, text] : buffers.all()) {
-        if (layered.count(path) || path.size() < 4 || path.compare(path.size() - 4, 4, ".dta"))
+        if (layered.count(path) || path == setup.project || path.size() < 4 ||
+            path.compare(path.size() - 4, 4, ".dta"))
             continue;
         if (auto tree = baker::read_file(path, extra_session))
             extra.push_back(*tree);
@@ -124,8 +167,8 @@ Diagnosis diagnose(const Setup& setup, const baker::Context& ctx, const Buffers&
                 // A method's class is the game's, which the reference does not give the
                 // server yet: only functions are reported.
                 if (d.stub || !d.on.str().empty()) continue;
-                if (std::find(setup.objects.begin(), setup.objects.end(), d.name.str()) !=
-                    setup.objects.end())
+                if (std::find(stack.objects.begin(), stack.objects.end(), d.name.str()) !=
+                    stack.objects.end())
                     continue;
                 for (const baker::CheckReport::Site& s : d.sites) {
                     Problem p;
@@ -149,13 +192,7 @@ Diagnosis diagnose(const Setup& setup, const baker::Context& ctx, const Buffers&
         found.add(shaped.warnings, Severity::Information);
     }
 
-    out.problems = std::move(found.problems);
-    std::sort(out.problems.begin(), out.problems.end());
-    out.problems.erase(std::unique(out.problems.begin(), out.problems.end()), out.problems.end());
-    out.files.assign(files.begin(), files.end());
-    out.milliseconds =
-        std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
-    return out;
+    return finish(out, found, files, start);
 }
 
 }  // namespace baker_lsp
