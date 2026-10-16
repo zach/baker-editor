@@ -57,11 +57,12 @@ The game's reference JSON (`write_reference_json`, which the game writes in its 
 the server the game's functions and the objects it names. A project file names it with
 `(reference "build/reference.json")`; `--reference FILE` gives one for every project the
 server checks. Without one, calls are not checked and undefined calls are not reported.
-Baker's stacks name none yet: their reference comes from `stacks_duel reference --json`.
+Baker's stacks write theirs at build time (`stacks/<game>/build/reference.json`) and name it,
+so after a build of the stacks, opening `stacks/` checks every game with no flags.
 
 ```sh
-build/server/baker-lsp                                  # projects found from the open files
-build/server/baker-lsp --reference build/reference.json  # one game, its reference given
+build/server/baker-lsp                                   # projects and references found
+build/server/baker-lsp --reference build/reference.json  # a game whose project names none
 ```
 
 `baker-lsp --help` lists the options. `tools/lsp_client.py` drives the server from a shell: it
@@ -99,7 +100,7 @@ A syntax error in the stacks shows about 155 ms after the keystroke, within the 
 ## Baker
 
 Baker is fetched at a pinned commit of its development repository, because no release has
-what the server uses yet (E3, E4, the project file, `Context::declare`, D173 to D176); move to a
+what the server uses yet (E3, E4, the project file, `Context::declare`, D173 to D177); move to a
 `zach/baker` tag once one does. `-DBAKER_EDITOR_BAKER_DIR=PATH`
 builds against a local checkout instead.
 

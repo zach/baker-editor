@@ -31,9 +31,8 @@ file's `(reference ...)` gets its first users.
 
 ## Today
 
-The editor's server takes `--reference FILE` for the stacks, which applies to every project it
-checks: a workspace holding several stacks cannot give each its own reference, so calls are
-checked in at most one of them.
+Met by Baker at d88816a (D177): after a build, each stack's `build/reference.json` is named by
+its project file, and the server finds it with no flags.
 
 ## Not included
 
