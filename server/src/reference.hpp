@@ -12,8 +12,8 @@ namespace baker_lsp {
 struct Reference {
     int functions = 0;  // declared
     int overloads = 0;
-    // Functions with a parameter of a type Context::declare does not know (one of the game's
-    // own, or `name`, which Baker's config tools take): declared with it taking any value.
+    // Functions with a parameter of a type Context::declare does not know, one of the game's
+    // own: declared with it taking any value.
     int widened = 0;
     std::vector<std::string> failed;   // functions that could not be declared at all
     std::vector<std::string> objects;  // the objects the game names, such as clock

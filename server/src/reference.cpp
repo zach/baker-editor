@@ -10,12 +10,12 @@
 namespace baker_lsp {
 namespace {
 
-// The types every Context knows (docs/reference-json.md); the game's own are not, here.
+// The types Context::declare knows (docs/reference-json.md); the game's own are not.
 bool baker_type(std::string_view t) {
     static constexpr std::string_view kTypes[] = {
-        "int",    "int8",   "int16", "int32",       "uint8",     "uint16",
-        "uint32", "uint64", "float", "float32",     "bool",      "symbol",
-        "string", "array",  "value", "unevaluated", "$variable", "values..."};
+        "int",    "int8",        "int16",     "int32",     "uint8",  "uint16", "uint32",
+        "uint64", "float",       "float32",   "bool",      "symbol", "string", "array",
+        "value",  "unevaluated", "$variable", "values...", "name"};
     return std::find(std::begin(kTypes), std::end(kTypes), t) != std::end(kTypes);
 }
 

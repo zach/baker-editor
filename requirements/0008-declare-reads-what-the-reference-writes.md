@@ -26,10 +26,8 @@ and an agent's data and scenarios call them.
 
 ## Today
 
-The editor's server declares a function whose description `declare` refuses again with each
-unknown parameter type replaced by `value`, so its arguments are counted but their types are
-not checked. That is right for a type of the game's own, which no tool can know; for `name`
-it loses a check Baker could make.
+Met by Baker at 31408f6 (D176): the config tools' `name` is declared and checked; the server's
+fallback to `value` is left for the game's own types.
 
 ## Not included
 

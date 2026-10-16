@@ -22,7 +22,7 @@ if(BAKER_EDITOR_BAKER_DIR)
 else()
   FetchContent_Declare(baker
     GIT_REPOSITORY https://github.com/zach/baker-dev.git
-    GIT_TAG 2b38a4dbb8ea6873f518ac45aaebc70a8e831dfc)  # main, 2026-10-16: the editor's notes 0002-0007
+    GIT_TAG 31408f69a86ac82afce1249557b2606ab96651c8)  # main, 2026-10-16: the editor's notes 0002-0008
   FetchContent_MakeAvailable(baker)
 endif()
 
