@@ -34,8 +34,11 @@ struct Client {
         sent.clear();
         server.handle({{"jsonrpc", "2.0"}, {"id", id}, {"method", method}, {"params", params}},
                       now);
-        REQUIRE(sent.size() == 1);
-        return sent[0];
+        // The reply; a check the request ran first sends diagnostics and logs too.
+        for (const json& m : sent)
+            if (m.contains("id") && m["id"] == id) return m;
+        FAIL("no reply to " << method);
+        return {};
     }
     void open(const std::string& text) {
         notify("textDocument/didOpen", {{"textDocument",
@@ -66,7 +69,8 @@ TEST_CASE("initialize offers full text sync") {
     const json reply = c.request(1, "initialize");
     CHECK(reply["id"] == 1);
     CHECK(reply["result"]["capabilities"]["textDocumentSync"]["change"] == 1);
-    CHECK(c.request(2, "textDocument/hover")["error"]["code"] == -32601);
+    CHECK(reply["result"]["capabilities"]["hoverProvider"] == true);
+    CHECK(c.request(2, "textDocument/definition")["error"]["code"] == -32601);
 }
 
 TEST_CASE("an edit is checked after the debounce, and a fix clears its diagnostics") {
@@ -192,6 +196,31 @@ TEST_CASE("no project and no layers: nothing is checked") {
     sent.clear();
     server.check_now();
     CHECK(sent.empty());
+}
+
+TEST_CASE("hover and completion answer at an LSP position, checking first if an edit waits") {
+    Client c;
+    c.request(1, "initialize");
+    c.notify("initialized", json::object());
+    c.open("#require \"../packs/game/core.dta\"\n(units (knight (health 100)))\n");
+    REQUIRE(c.server.due());
+    const json at = {{"textDocument", {{"uri", uri_from_path(kDefault)}}},
+                     {"position", {{"line", 1}, {"character", 23}}}};  // on 100
+    json reply = c.request(2, "textDocument/hover", at);
+    CHECK(!c.server.due());
+    const std::string value = reply["result"]["contents"]["value"];
+    CHECK(value.find("`units/knight/health`") != std::string::npos);
+    CHECK(reply["result"]["range"]["start"]["character"] == 23);
+    CHECK(reply["result"]["range"]["end"]["character"] == 26);
+
+    c.change("#require \"../packs/game/core.dta\"\n(units (knight (sp\n");
+    reply = c.request(3, "textDocument/completion",
+                      {{"textDocument", {{"uri", uri_from_path(kDefault)}}},
+                       {"position", {{"line", 1}, {"character", 18}}}});
+    const json items = reply["result"]["items"];
+    REQUIRE(items.size() == 1);
+    CHECK(items[0]["label"] == "speed");
+    CHECK(items[0]["textEdit"]["range"]["start"]["character"] == 16);
 }
 
 TEST_CASE("exit after shutdown is a clean exit") {

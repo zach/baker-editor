@@ -55,6 +55,20 @@ struct Described {
     std::string_view keep(std::string s) { return text.emplace_back(std::move(s)); }
 };
 
+// {name symbol [int] values...}: an optional parameter in brackets.
+std::string signature(const std::string& name, const nlohmann::json& overload) {
+    std::string s = "{" + name;
+    for (const nlohmann::json& p : overload.value("params", nlohmann::json::array())) {
+        const std::string type = p.value("type", "value");
+        const std::string kind = p.value("kind", "value");
+        s += kind == "optional" ? " [" + type + "]" : " " + type;
+    }
+    s += "}";
+    const std::string result = overload.value("result", "value");
+    if (result != "value" && result != "nothing") s += " -> " + result;
+    return s;
+}
+
 }  // namespace
 
 bool load_reference(baker::Context& ctx, const std::string& path, Reference& out,
@@ -71,6 +85,16 @@ bool load_reference(baker::Context& ctx, const std::string& path, Reference& out
         !doc.contains("functions") || !doc["functions"].is_array()) {
         error = path + " is not a baker.reference/1 document";
         return false;
+    }
+    for (const nlohmann::json& f : doc["functions"]) {
+        if (!f.is_object() || f.value("name", "").empty()) continue;
+        FunctionInfo& info = out.all.emplace_back();
+        info.name = f.value("name", "");
+        info.doc = f.value("doc", "");
+        info.status = f.value("status", "normal");
+        info.tier = f.value("tier", "native");
+        for (const nlohmann::json& o : f.value("overloads", nlohmann::json::array()))
+            info.signatures.push_back(signature(info.name, o));
     }
     for (const nlohmann::json& f : doc["functions"]) {
         if (!f.is_object() || f.value("tier", "") != "native") continue;  // script: the data's

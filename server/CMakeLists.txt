@@ -9,8 +9,10 @@ endif()
 # Everything but main, so the tests drive the same code.
 add_library(baker_lsp_core STATIC
   src/diagnose.cpp
+  src/features.cpp
   src/positions.cpp
   src/protocol.cpp
+  src/scan.cpp
   src/server.cpp
   src/setup.cpp
   src/reference.cpp)
@@ -32,7 +34,9 @@ if(BAKER_EDITOR_BUILD_TESTS)
   add_executable(baker_lsp_tests
     tests/test_main.cpp
     tests/test_diagnose.cpp
+    tests/test_features.cpp
     tests/test_positions.cpp
+    tests/test_scan.cpp
     tests/test_server.cpp)
   target_link_libraries(baker_lsp_tests PRIVATE baker_lsp_core baker_lsp_doctest)
   # USE_STD_HEADERS: doctest prints std::string_view through <ostream>, which MSVC's

@@ -1,5 +1,6 @@
 #include "server.hpp"
 
+#include "features.hpp"
 #include "positions.hpp"
 #include "reference.hpp"
 
@@ -70,6 +71,7 @@ void Server::add(Setup setup) {
         } else {
             c.have_reference = true;
             setup.objects = r.objects;
+            c.reference = r;
             log(kLogInfo, "the game's reference: " + std::to_string(r.functions) + " functions, " +
                               std::to_string(r.overloads) + " overloads, " +
                               std::to_string(r.objects.size()) + " named objects, from " +
@@ -114,12 +116,17 @@ void Server::request(const json& message) {
             for (const json& f : folders) find_project(path_from_uri(f.value("uri", "")));
         if (params.contains("rootUri") && params["rootUri"].is_string())
             find_project(path_from_uri(params["rootUri"].get<std::string>()));
-        reply["result"] = {{"capabilities",
-                            {{"textDocumentSync",
-                              {{"openClose", true},
-                               {"change", 1 /* full */},
-                               {"save", {{"includeText", false}}}}}}},
-                           {"serverInfo", {{"name", "baker-lsp"}, {"version", "0.1.0"}}}};
+        reply["result"] = {
+            {"capabilities",
+             {{"textDocumentSync",
+               {{"openClose", true}, {"change", 1 /* full */}, {"save", {{"includeText", false}}}}},
+              {"hoverProvider", true},
+              {"completionProvider", {{"triggerCharacters", json::array({"(", "{", " "})}}}}},
+            {"serverInfo", {{"name", "baker-lsp"}, {"version", "0.1.0"}}}};
+    } else if (method == "textDocument/hover") {
+        reply["result"] = hover(message.value("params", json::object()));
+    } else if (method == "textDocument/completion") {
+        reply["result"] = complete(message.value("params", json::object()));
     } else if (method == "shutdown") {
         shutdown_ = true;
         reply["result"] = nullptr;
@@ -172,11 +179,78 @@ void Server::schedule(Clock::time_point when, bool push_back) {
     if (!due_ || push_back || when < *due_) due_ = when;
 }
 
+Server::Checked* Server::project_of(const std::string& path) {
+    Checked* best = nullptr;
+    size_t depth = 0;
+    for (auto& [key, c] : projects_)
+        if (under(path, c.setup) && (!best || key.size() > depth)) {
+            best = &c;
+            depth = key.size();
+        }
+    return best;
+}
+
+namespace {
+
+json range_json(std::string_view text, size_t begin, size_t end) {
+    const Position a = position_of(text, begin), b = position_of(text, end);
+    return {{"start", {{"line", a.line}, {"character", a.character}}},
+            {"end", {{"line", b.line}, {"character", b.character}}}};
+}
+
+// The document and the byte the request is at, or false.
+bool place(const json& params, const Buffers& buffers, std::string& path, std::string& text,
+           size_t& offset) {
+    path = canonical_path(
+        path_from_uri(params.value("textDocument", json::object()).value("uri", "")));
+    if (!buffers.read(path, text)) return false;
+    const json p = params.value("position", json::object());
+    offset = offset_of(text, {p.value("line", 0), p.value("character", 0)});
+    return true;
+}
+
+}  // namespace
+
+json Server::hover(const json& params) {
+    if (due_) check_now();  // answer from the text as it is now
+    std::string path, text;
+    size_t offset = 0;
+    if (!place(params, buffers_, path, text, offset)) return nullptr;
+    Checked* c = project_of(path);
+    if (!c || !c->loaded) return nullptr;
+    const auto h = baker_lsp::hover(text, offset, *c->loaded, c->reference);
+    if (!h) return nullptr;
+    return {{"contents", {{"kind", "markdown"}, {"value", h->markdown}}},
+            {"range", range_json(text, h->begin, h->end)}};
+}
+
+json Server::complete(const json& params) {
+    if (due_) check_now();
+    std::string path, text;
+    size_t offset = 0;
+    if (!place(params, buffers_, path, text, offset)) return json::array();
+    Checked* c = project_of(path);
+    if (!c || !c->loaded) return json::array();
+    const Completions found = baker_lsp::complete(text, offset, *c->loaded, c->reference);
+    json items = json::array();
+    const json range = range_json(text, found.begin, found.end);
+    for (const Completion& item : found.items)
+        items.push_back({{"label", item.label},
+                         {"kind", static_cast<int>(item.kind)},
+                         {"detail", item.detail},
+                         {"documentation", {{"kind", "markdown"}, {"value", item.documentation}}},
+                         {"textEdit", {{"range", range}, {"newText", item.label}}}});
+    return {{"isIncomplete", false}, {"items", std::move(items)}};
+}
+
 void Server::check_now() {
     due_.reset();
     std::map<std::string, json> by_uri;
-    for (const auto& [key, c] : projects_) {
+    for (auto& [key, c] : projects_) {
         const Diagnosis d = diagnose(c.setup, *c.ctx, buffers_, c.have_reference);
+        // While a file is mid-edit it often does not read, and its layer, with the shapes
+        // and packs it brings, drops out; hover and completion keep the last whole stack.
+        if (d.loaded && (d.every_layer_read || !c.loaded)) c.loaded = d.loaded;
         for (const Problem& p : d.problems) {
             if (p.file.empty()) {
                 log(p.severity == Severity::Error ? kLogError : kLogWarning, p.message);

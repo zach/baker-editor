@@ -6,3 +6,5 @@
    (archer (health 60) (speed 3)))
 
 #autorun {game.spawn knight 2}
+
+[SPEEDY 9]

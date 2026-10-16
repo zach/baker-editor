@@ -67,6 +67,48 @@ public:
     std::vector<Problem> problems;
 };
 
+// Macros and script functions, found in the text of the files the load read. A session
+// does not list its macros, and a {func} is only known once its #autorun runs.
+void find_definitions(const std::vector<std::string>& files, const Buffers& buffers,
+                      Loaded& loaded) {
+    for (const std::string& file : files) {
+        std::string text;
+        if (!buffers.read(file, text)) continue;
+        int line = 0;
+        for (size_t start = 0; start <= text.size();) {
+            size_t nl = text.find('\n', start);
+            if (nl == std::string::npos) nl = text.size();
+            const std::string_view l = std::string_view(text).substr(start, nl - start);
+            ++line;
+            start = nl + 1;
+            size_t i = l.find_first_not_of(" \t");
+            if (i == std::string_view::npos) continue;
+            const auto word_at = [&l](size_t at) {
+                const size_t b = l.find_first_not_of(" \t", at);
+                if (b == std::string_view::npos) return std::string();
+                size_t e = b;
+                while (e < l.size() && l[e] != ' ' && l[e] != '\t' && l[e] != '(' && l[e] != ')' &&
+                       l[e] != '[' && l[e] != ']' && l[e] != '{' && l[e] != '}')
+                    ++e;
+                return std::string(l.substr(b, e - b));
+            };
+            if (l.compare(i, 7, "#define") == 0) {
+                if (std::string n = word_at(i + 7); !n.empty())
+                    loaded.macros.push_back({n, file, line});
+            } else if (i == 0 && l[0] == '[') {
+                if (std::string n = word_at(1); !n.empty())
+                    loaded.macros.push_back({n, file, line});
+            }
+            for (size_t f = l.find("{func"); f != std::string_view::npos;
+                 f = l.find("{func", f + 5)) {
+                if (f + 5 < l.size() && l[f + 5] != ' ' && l[f + 5] != '\t') continue;
+                if (std::string n = word_at(f + 5); !n.empty())
+                    loaded.functions.push_back({n, file, line});
+            }
+        }
+    }
+}
+
 Diagnosis finish(Diagnosis& out, Collector& found, const std::set<std::string>& files,
                  std::chrono::steady_clock::time_point start) {
     out.problems = std::move(found.problems);
@@ -107,15 +149,17 @@ Diagnosis diagnose(const Setup& setup, const baker::Context& ctx, const Buffers&
     const auto start = std::chrono::steady_clock::now();
     Diagnosis out;
     Collector found;
-    std::set<std::string> files;
+    // Shared with the reader, which the kept Config holds after this returns.
+    const auto read_files = std::make_shared<std::set<std::string>>();
+    std::set<std::string>& files = *read_files;
 
     // Every file is read through the editor's buffers, the project file too.
-    const baker::LoadSession::Reader reader = [&buffers, &files](std::string_view path,
-                                                                 baker::TextSink sink) {
+    const baker::LoadSession::Reader reader = [&buffers, read_files](std::string_view path,
+                                                                     baker::TextSink sink) {
         const std::string file = canonical_path(std::string(path));
         std::string text;
         if (!buffers.read(file, text)) return false;
-        files.insert(file);
+        read_files->insert(file);
         sink(text);
         return true;
     };
@@ -137,12 +181,15 @@ Diagnosis diagnose(const Setup& setup, const baker::Context& ctx, const Buffers&
             kept.push_back(l);
     project.layers = list_of(kept);
 
-    baker::Config cfg;
+    auto loaded = std::make_shared<Loaded>();
+    loaded->config = std::make_unique<baker::Config>();
+    baker::Config& cfg = *loaded->config;
     cfg.set_warning_handler([&found](const baker::Error& e) { found.add(e, Severity::Warning); });
     cfg.session().set_reader(reader);
     if (auto opened = baker::open_project(cfg, project, {.go_on = true}); !opened) {
         found.add(opened.error(), Severity::Error);
     } else {
+        out.every_layer_read = opened->empty();
         for (const baker::ProjectProblem& p : *opened) {
             found.add(p.error, Severity::Error);
             // A layer whose file is not there: on the project file, at the entry naming it.
@@ -209,7 +256,7 @@ Diagnosis diagnose(const Setup& setup, const baker::Context& ctx, const Buffers&
                 }
             }
 
-        baker::shape::Set shapes;
+        baker::shape::Set& shapes = loaded->shapes;
         baker::shape::Report shaped;
         shapes.add(*cfg.root(), shaped, &cfg.read_session());
         baker::shape::check(*cfg.root(), shapes, shaped);
@@ -217,6 +264,11 @@ Diagnosis diagnose(const Setup& setup, const baker::Context& ctx, const Buffers&
         // A field no shape declares: reported, never a failure.
         found.add(shaped.warnings, Severity::Information);
     }
+    cfg.set_warning_handler(nullptr);  // `found` goes with this call
+    for (const baker::Pack& p : cfg.read_session().packs())
+        loaded->packs.emplace_back(p.name.str());
+    find_definitions(std::vector<std::string>(files.begin(), files.end()), buffers, *loaded);
+    out.loaded = std::move(loaded);
     return finish(out, found, files, start);
 }
 

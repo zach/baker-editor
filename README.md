@@ -8,7 +8,7 @@ Baker's integration plans.
 |---|---|---|
 | 1 | The project file (in Baker) | Done in Baker; the server reads it |
 | 2 | Diagnostics | First pass: below |
-| 3 | Hover and completion | Not started |
+| 3 | Hover and completion | First pass: below |
 | 4 | Go-to-definition | Not started |
 | 5 | Live values from a running game | Not started |
 | 6 | tree-sitter grammar | Not started |
@@ -38,6 +38,26 @@ its scenarios.
 Problems Baker locates by line alone (shape and call errors) underline the array the error's
 path or message names on that line, else the line's first token. Columns are converted to
 UTF-16 for LSP.
+
+## Hover and completion
+
+**Hover** on a value or an array's name shows its path, the shape field that governs it (type,
+range, step, kind, `desc` and `note`, and where the shape is declared), and every layer that
+contributes to it from the files, with its value, file and line, and which one wins
+(`Config::explain`). On a command's head it shows the function's signatures and doc from the
+game's reference; on a macro or a script function, where it is defined.
+
+**Completion** offers, where the cursor is:
+
+- naming an array (after `(`): the fields of the shape that governs the enclosing array,
+  such as a fighter's in `(fighters (kestrel (`;
+- naming a command (after `{`): the game's functions with their signatures, the data's
+  script functions, and the objects the game names;
+- a value: the data's macros; in `(requires ...)`, the packs.
+
+Both read the cursor's place from the text, not a parse, so they work on text being typed,
+and they answer from the last check of the whole stack: while the file being edited does not
+read, they keep the last check in which every layer read.
 
 ### Running it
 
@@ -79,6 +99,10 @@ tools/lsp_client.py --replace data/default.dta "(health 1000)" "(health 0)" -- b
   reported as undefined.
 - A parameter of a type of the game's own takes any value: `Context::declare` knows Baker's
   types, not the game's.
+- Macros and script functions are found by reading the loaded files' text for `#define`,
+  top-level `[NAME ...]` and `{func NAME`, because a load does not list them
+  (`requirements/0010`).
+- Hover's layer chain is from the files; the live value from a running game is step 5.
 - An inline `(range ...)` on a value is tweak metadata, which only the running game
   enforces; shapes are what the server checks, as the game's own `check` does.
 - No editor extension yet: point an LSP client at the binary, language id `baker`.
@@ -91,6 +115,9 @@ Linux, Release build (Clang), the server's own timer around one check, at Baker 
 |---|---|
 | Hearth, the largest stack (about 10 KB) | 0.4 ms (2–3 ms in a GCC Debug build) |
 | Duel grown to 2 MB (1,776 fighters) | 100–120 ms clean, the first run 326 ms (cold); 49–54 ms when a syntax error stops the load |
+
+Finding the cursor's place scans the file's text up to the cursor: about 5 ms at the end of
+the 2 MB file, before `explain`.
 
 At Baker fb613b4 and before, the same 2 MB check took 110–160 ms clean and 50–60 ms with a
 syntax error (one run each of three to six).

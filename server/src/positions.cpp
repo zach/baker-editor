@@ -97,6 +97,31 @@ std::string_view line_text(std::string_view text, int line) {
     return l;
 }
 
+size_t offset_of(std::string_view text, Position p) {
+    size_t start = 0;
+    for (int n = 0; n < p.line; ++n) {
+        const size_t nl = text.find('\n', start);
+        if (nl == std::string_view::npos) return text.size();
+        start = nl + 1;
+    }
+    size_t i = start;
+    for (int units = 0; i < text.size() && text[i] != '\n' && units < p.character;) {
+        units += static_cast<unsigned char>(text[i]) >= 0xF0 ? 2 : 1;
+        ++i;
+        while (i < text.size() && is_continuation(text[i])) ++i;
+    }
+    return i;
+}
+
+Position position_of(std::string_view text, size_t offset) {
+    if (offset > text.size()) offset = text.size();
+    const size_t start = text.rfind('\n', offset == 0 ? 0 : offset - 1);
+    const size_t line_start = start == std::string_view::npos || offset == 0 ? 0 : start + 1;
+    int line = 0;
+    for (size_t i = 0; i < line_start; ++i) line += text[i] == '\n';
+    return {line, units_before(text.substr(line_start), offset - line_start)};
+}
+
 int utf16_units(std::string_view line, int code_points) {
     return units_before(line, byte_offset(line, code_points));
 }

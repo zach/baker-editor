@@ -6,6 +6,7 @@
 // baker-project.dta above it (Baker's find_project), so a workspace can hold several games.
 // A setup given on the command line (--project, or --layer and the rest) is the only one.
 #include "diagnose.hpp"
+#include "reference.hpp"
 #include "setup.hpp"
 
 #include <baker/script.hpp>
@@ -50,7 +51,14 @@ private:
         Setup setup;
         std::unique_ptr<baker::Context> ctx = std::make_unique<baker::Context>();
         bool have_reference = false;
+        Reference reference;
+        std::shared_ptr<Loaded> loaded;  // the last check's, for hover and completion
     };
+
+    // The project an open file belongs to: the one whose directory is nearest above it.
+    Checked* project_of(const std::string& path);
+    nlohmann::json hover(const nlohmann::json& params);
+    nlohmann::json complete(const nlohmann::json& params);
 
     void request(const nlohmann::json& message);
     void notification(const nlohmann::json& message, Clock::time_point now);

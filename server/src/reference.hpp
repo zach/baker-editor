@@ -9,6 +9,15 @@
 
 namespace baker_lsp {
 
+// A function of the game's, for hover and completion.
+struct FunctionInfo {
+    std::string name;
+    std::vector<std::string> signatures;  // one per overload: {name symbol [int] values...}
+    std::string doc;
+    std::string status;  // normal, stub, provisional or deprecated
+    std::string tier;    // native or script
+};
+
 struct Reference {
     int functions = 0;  // declared
     int overloads = 0;
@@ -17,6 +26,7 @@ struct Reference {
     int widened = 0;
     std::vector<std::string> failed;   // functions that could not be declared at all
     std::vector<std::string> objects;  // the objects the game names, such as clock
+    std::vector<FunctionInfo> all;     // every function the reference lists, Baker's too
 };
 
 // Reads the reference at `path` and declares its native functions in `ctx`, skipping names

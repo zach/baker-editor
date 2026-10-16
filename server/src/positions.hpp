@@ -22,6 +22,12 @@ std::string_view line_text(std::string_view text, int line);
 // UTF-16 code units in the first `code_points` code points of `line` (all of it if shorter).
 int utf16_units(std::string_view line, int code_points);
 
+// The byte offset in `text` of an LSP position (UTF-16 units), clamped to its line.
+size_t offset_of(std::string_view text, Position p);
+
+// The LSP position of byte `offset` in `text`.
+Position position_of(std::string_view text, size_t offset);
+
 // The range to underline for a problem at `line`:`column` (Baker's, 1-based):
 // - a known column: the token that starts there, at least one character;
 // - column 0 (a problem located by its array's line): the array `(key` on that line if

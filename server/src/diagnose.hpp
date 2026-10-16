@@ -7,9 +7,12 @@
 // beside them, as the game's `check` command checks its scenarios.
 #include "setup.hpp"
 
+#include <baker/config.hpp>
 #include <baker/script.hpp>
+#include <baker/shape.hpp>
 
 #include <map>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -45,10 +48,28 @@ private:
     std::map<std::string, std::string> text_;
 };
 
+// A name defined in the data, and where: a macro, or a script function ({func name ...}).
+struct Definition {
+    std::string name;
+    std::string file;  // canonical
+    int line = 0;      // 1-based
+};
+
+// What a check loaded, kept for hover and completion until the next check.
+struct Loaded {
+    std::unique_ptr<baker::Config> config;  // the stack as the game merges it
+    baker::shape::Set shapes;
+    std::vector<std::string> packs;     // the packs the files declare
+    std::vector<Definition> macros;     // #define NAME and top-level [NAME ...]
+    std::vector<Definition> functions;  // {func NAME ...}
+};
+
 struct Diagnosis {
     std::vector<Problem> problems;   // sorted, without duplicates
     std::vector<std::string> files;  // every file the load read, canonical
     double milliseconds = 0;
+    std::shared_ptr<Loaded> loaded;  // null if the project file did not read
+    bool every_layer_read = false;   // no layer failed: `loaded` is the whole stack
 };
 
 // `ctx` holds the game's functions (reference.hpp); `undefined_fails`: a call to a function

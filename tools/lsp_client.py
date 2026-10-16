@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """A minimal LSP client for trying baker-lsp from a shell.
 
-  tools/lsp_client.py [--open FILE] [--replace FILE OLD NEW] -- baker-lsp ARGS...
+  tools/lsp_client.py [--open FILE] [--replace FILE OLD NEW] [--text FILE TEXT]
+                     [--hover FILE LINE COL] [--complete FILE LINE COL] -- baker-lsp ARGS...
 
-Starts the server, opens each --open file (with its edit, if --replace names it), waits for
-the diagnostics to settle, prints them one a line as file:line:col: severity: message, and
-shuts the server down. Exit status: 1 if any error was published, else 0.
+Starts the server, opens each --open file (with its edit, if --replace names it; with TEXT
+instead of the file's, if --text names it), waits for the diagnostics to settle, prints them
+one a line as file:line:col: severity: message, then each hover's markdown and each
+completion's labels (LINE and COL 1-based, COL in characters), and shuts the server down.
+Exit status: 1 if any error was published, else 0.
 """
 import json
 import os
@@ -49,7 +52,7 @@ def main(argv):
         sys.exit(__doc__)
     split = argv.index("--")
     opts, server = argv[:split], argv[split + 1:]
-    opens, edits = [], {}
+    opens, edits, texts, asks = [], {}, {}, []
     i = 0
     while i < len(opts):
         if opts[i] == "--open":
@@ -57,6 +60,14 @@ def main(argv):
             i += 2
         elif opts[i] == "--replace":
             edits[opts[i + 1]] = (opts[i + 2], opts[i + 3])
+            opens.append(opts[i + 1])
+            i += 4
+        elif opts[i] == "--text":
+            texts[opts[i + 1]] = opts[i + 2].encode().decode("unicode_escape")
+            opens.append(opts[i + 1])
+            i += 3
+        elif opts[i] in ("--hover", "--complete"):
+            asks.append((opts[i][2:], opts[i + 1], int(opts[i + 2]) - 1, int(opts[i + 3]) - 1))
             opens.append(opts[i + 1])
             i += 4
         else:
@@ -68,7 +79,7 @@ def main(argv):
                 "params": {"processId": os.getpid(), "rootUri": uri("."), "capabilities": {}}})
     send(proc, {"jsonrpc": "2.0", "method": "initialized", "params": {}})
     for path in dict.fromkeys(opens):
-        text = pathlib.Path(path).read_text()
+        text = texts[path] if path in texts else pathlib.Path(path).read_text()
         send(proc, {"jsonrpc": "2.0", "method": "textDocument/didOpen",
                     "params": {"textDocument": {"uri": uri(path), "languageId": "baker",
                                                 "version": 1, "text": text}}})
@@ -85,6 +96,18 @@ def main(argv):
         time.sleep(0.05)
         if len(messages) != seen:
             seen, quiet_since = len(messages), time.time()
+    answers = {}
+    for n, (what, path, line, col) in enumerate(asks):
+        method = "textDocument/hover" if what == "hover" else "textDocument/completion"
+        send(proc, {"jsonrpc": "2.0", "id": 100 + n, "method": method,
+                    "params": {"textDocument": {"uri": uri(path)},
+                               "position": {"line": line, "character": col}}})
+    deadline = time.time() + 5
+    while len(answers) < len(asks) and time.time() < deadline:
+        time.sleep(0.02)
+        for m in messages:
+            if isinstance(m.get("id"), int) and m["id"] >= 100:
+                answers[m["id"]] = m.get("result")
     send(proc, {"jsonrpc": "2.0", "id": 2, "method": "shutdown"})
     send(proc, {"jsonrpc": "2.0", "method": "exit"})
     proc.wait(timeout=5)
@@ -104,6 +127,14 @@ def main(argv):
             errors += severity == "error"
             print(f"{path}:{start['line'] + 1}:{start['character'] + 1}: {severity}: "
                   f"{d['message']}")
+    for n, (what, path, line, col) in enumerate(asks):
+        result = answers.get(100 + n)
+        print(f"--- {what} {path}:{line + 1}:{col + 1}")
+        if what == "hover":
+            print(result["contents"]["value"] if result else "(nothing)")
+        else:
+            items = result["items"] if result else []
+            print(" ".join(item["label"] for item in items) or "(nothing)")
     return 1 if errors else 0
 
 
