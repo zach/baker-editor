@@ -99,9 +99,15 @@ tried at most once a second, so hover never waits on a game that is not there.
 
 When the game's winning value is a live edit, and the game binds `config.write_back`, the code
 action **Write the live value here** asks the game to write it back to the line it came from:
-the game's own write-back, so the edit is Baker's one-line diff. The stacks' games do not bind
-it (`requirements/0012` asks for an opt-in), so with them hover shows live values and offers no
-action.
+the game's own write-back, so the edit is Baker's one-line diff. The stacks' games bind it
+when started with `--console-write`:
+
+```sh
+build-stacks/bin/stacks_duel --headless --console-write   # from stacks/duel
+python3 stacks/tools/console.py "{config.set fighters.kestrel.health 1234}"
+# hover on (health 1000) in default.dta: Live shows scratch 1234 winning;
+# "Write the live value here" leaves `(health 1234)` on that line, one line changed
+```
 
 All three of hover, completion and definition read the cursor's place from the text, not a parse, so they work on text being typed,
 and they answer from the last check of the whole stack: while the file being edited does not
@@ -174,7 +180,7 @@ A syntax error in the stacks shows about 155 ms after the keystroke, within the 
 ## Baker
 
 Baker is fetched at a pinned commit of its development repository, because no release has
-what the server uses yet (E3, E4, the project file, `Context::declare`, D173 to D181); move to a
+what the server uses yet (E3, E4, the project file, `Context::declare`, D173 to D182); move to a
 `zach/baker` tag once one does. `-DBAKER_EDITOR_BAKER_DIR=PATH`
 builds against a local checkout instead.
 

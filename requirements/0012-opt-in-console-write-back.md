@@ -25,9 +25,8 @@ but never write one, and the stacks are where this is tried.
 
 ## Today
 
-The editor's server offers "Write the live value here" only when the running game binds
-`config.write_back` (it asks once per connection). With the stacks, it never does: their
-games show live values in hover, and nothing more.
+Met by Baker at 04ab7df (D182): with `--console-write`, "Write the live value here" on Duel
+writes `(health 1234)` back to `default.dta`, one line changed.
 
 ## Not included
 

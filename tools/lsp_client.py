@@ -3,7 +3,8 @@
 
   tools/lsp_client.py [--open FILE] [--replace FILE OLD NEW] [--text FILE TEXT]
                      [--hover FILE LINE COL] [--complete FILE LINE COL]
-                     [--definition FILE LINE COL] [--actions FILE LINE COL] -- baker-lsp ARGS...
+                     [--definition FILE LINE COL] [--actions FILE LINE COL]
+                     [--apply FILE LINE COL] -- baker-lsp ARGS...
 
 Starts the server, opens each --open file (with its edit, if --replace names it; with TEXT
 instead of the file's, if --text names it), waits for the diagnostics to settle, prints them
@@ -67,7 +68,7 @@ def main(argv):
             texts[opts[i + 1]] = opts[i + 2].encode().decode("unicode_escape")
             opens.append(opts[i + 1])
             i += 3
-        elif opts[i] in ("--hover", "--complete", "--definition", "--actions"):
+        elif opts[i] in ("--hover", "--complete", "--definition", "--actions", "--apply"):
             asks.append((opts[i][2:], opts[i + 1], int(opts[i + 2]) - 1, int(opts[i + 3]) - 1))
             opens.append(opts[i + 1])
             i += 4
@@ -100,7 +101,8 @@ def main(argv):
     answers = {}
     for n, (what, path, line, col) in enumerate(asks):
         method = "textDocument/" + {"hover": "hover", "complete": "completion",
-                                    "definition": "definition", "actions": "codeAction"}[what]
+                                    "definition": "definition", "actions": "codeAction",
+                                    "apply": "codeAction"}[what]
         where = {"line": line, "character": col}
         send(proc, {"jsonrpc": "2.0", "id": 100 + n, "method": method,
                     "params": {"textDocument": {"uri": uri(path)}, "position": where,
@@ -111,6 +113,20 @@ def main(argv):
         for m in messages:
             if isinstance(m.get("id"), int) and m["id"] >= 100:
                 answers[m["id"]] = m.get("result")
+    # --apply: run the first code action's command.
+    for n, (what, path, line, col) in enumerate(asks):
+        actions = answers.get(100 + n) or []
+        if what != "apply" or not actions:
+            continue
+        cmd = actions[0]["command"]
+        send(proc, {"jsonrpc": "2.0", "id": 900 + n, "method": "workspace/executeCommand",
+                    "params": {"command": cmd["command"], "arguments": cmd.get("arguments", [])}})
+        deadline = time.time() + 5
+        while time.time() < deadline and not any(m.get("id") == 900 + n for m in messages):
+            time.sleep(0.02)
+        for m in messages:
+            if m.get("method") == "window/showMessage":
+                print("message:", m["params"]["message"])
     send(proc, {"jsonrpc": "2.0", "id": 2, "method": "shutdown"})
     send(proc, {"jsonrpc": "2.0", "method": "exit"})
     proc.wait(timeout=5)
@@ -135,7 +151,7 @@ def main(argv):
         print(f"--- {what} {path}:{line + 1}:{col + 1}")
         if what == "hover":
             print(result["contents"]["value"] if result else "(nothing)")
-        elif what == "actions":
+        elif what in ("actions", "apply"):
             print(", ".join(a["title"] for a in result or []) or "(none)")
         elif what == "definition":
             for loc in result or []:
