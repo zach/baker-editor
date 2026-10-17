@@ -22,8 +22,7 @@ loads through a Config: the editor, a checker in CI, an agent.
 
 ## Today
 
-The editor's server walks `Config::autorun()` itself (about fifteen lines), repeating what
-`script_functions` does for a session.
+Met by Baker at eaba0d7 (D181): the server calls `script_functions(cfg.autorun().items())`.
 
 ## Not included
 

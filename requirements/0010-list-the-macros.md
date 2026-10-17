@@ -30,7 +30,7 @@ data must not do.
 ## Today
 
 Met by Baker at 22920a0 (D178): the server takes macros from `macro_definitions`. Script
-functions it still finds itself, for a Config (note 0011).
+functions come from `script_functions` (note 0011).
 
 ## Not included
 

@@ -67,26 +67,6 @@ public:
     std::vector<Problem> problems;
 };
 
-// The {func NAME ...}s in a command, nested ones too, where each is written. A Config's
-// #autorun commands are not in its session, which baker::script_functions reads
-// (requirements/0011), so the server walks Config::autorun() itself.
-void find_funcs_in(const baker::Array& a, std::vector<Definition>& out) {
-    if (a.size() >= 2) {
-        const auto head = a[0].try_sym();
-        const auto name = a[1].try_sym();
-        if (head && name && head->str() == "func")
-            out.push_back(
-                {std::string(name->str()), canonical_path(std::string(a.file().str())), a.line()});
-    }
-    for (const baker::Node& n : a)
-        if (const baker::Array* child = n.array()) find_funcs_in(*child, out);
-}
-
-void find_funcs(const baker::List<baker::Node>& commands, std::vector<Definition>& out) {
-    for (const baker::Node& command : commands)
-        if (const baker::Array* a = command.array()) find_funcs_in(*a, out);
-}
-
 Diagnosis finish(Diagnosis& out, Collector& found, const std::set<std::string>& files,
                  std::chrono::steady_clock::time_point start) {
     out.problems = std::move(found.problems);
@@ -263,7 +243,10 @@ Diagnosis diagnose(const Setup& setup, const baker::Context& ctx, const Buffers&
         if (!d.flag && read.is_defined(d.name))
             loaded->macros.push_back(
                 {std::string(d.name.str()), canonical_path(std::string(d.file.str())), d.line});
-    find_funcs(cfg.autorun(), loaded->functions);
+    const baker::List<baker::Node> autorun = cfg.autorun();
+    for (const baker::Definition& d : baker::script_functions(autorun.items()))
+        loaded->functions.push_back(
+            {std::string(d.name.str()), canonical_path(std::string(d.file.str())), d.line});
     out.loaded = std::move(loaded);
     return finish(out, found, files, start);
 }
