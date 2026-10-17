@@ -179,10 +179,10 @@ A syntax error in the stacks shows about 155 ms after the keystroke, within the 
 
 ## Baker
 
-Baker is fetched at a pinned commit of its development repository, because no release has
-what the server uses yet (E3, E4, the project file, `Context::declare`, D173 to D182); move to a
-`zach/baker` tag once one does. `-DBAKER_EDITOR_BAKER_DIR=PATH`
-builds against a local checkout instead.
+The server builds against a released Baker, `zach/baker` `v0.1.0`, through its public headers.
+`-DBAKER_EDITOR_BAKER_DIR=PATH` builds against a local checkout instead. The stacks it is
+tried on come from Baker's development repository, `zach/baker-dev` (`stacks/`), which the
+release leaves out.
 
 ## Requirements for Baker
 

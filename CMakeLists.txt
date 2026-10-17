@@ -12,8 +12,7 @@ set(BAKER_EDITOR_BAKER_DIR "" CACHE PATH "Baker source directory (empty: fetch t
 
 include(FetchContent)
 
-# Baker, as a library user takes it. No release has E3, E4 and the project file yet, so this
-# pins a commit of Baker's development repository; move to a zach/baker tag once one does.
+# Baker, as a library user takes it: a release, through its public headers.
 set(BAKER_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(BAKER_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
 set(BAKER_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
@@ -21,8 +20,8 @@ if(BAKER_EDITOR_BAKER_DIR)
   add_subdirectory(${BAKER_EDITOR_BAKER_DIR} ${CMAKE_BINARY_DIR}/_baker EXCLUDE_FROM_ALL)
 else()
   FetchContent_Declare(baker
-    GIT_REPOSITORY https://github.com/zach/baker-dev.git
-    GIT_TAG 04ab7df8248ee1d8adc9d5da8711d5536b9989ae)  # main, 2026-10-17: the editor's notes 0002-0012
+    GIT_REPOSITORY https://github.com/zach/baker.git
+    GIT_TAG v0.1.0)
   FetchContent_MakeAvailable(baker)
 endif()
 

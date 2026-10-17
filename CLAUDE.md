@@ -3,8 +3,8 @@
 This repository is Baker's editor support (plan B in baker-dev `dev/integration-plans.md` §3).
 It uses Baker as a library user would, and baker-dev's `INTEGRATIONS.md` is the policy:
 
-- **Use Baker through its public headers,** at the commit `CMakeLists.txt` pins (a release
-  once one has what the server needs). A workaround for a Baker limit lives here until Baker
+- **Use Baker through its public headers,** at the release `CMakeLists.txt` pins
+  (`zach/baker`). A note Baker has built but not yet released waits for the next release. A workaround for a Baker limit lives here until Baker
   ships the feature.
 - **A need goes to Baker as a requirement note,** in `requirements/`, from
   `requirements/0000-template.md`, in Baker's terms: what a host needs, why as a general use
