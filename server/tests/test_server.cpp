@@ -223,6 +223,24 @@ TEST_CASE("hover and completion answer at an LSP position, checking first if an 
     CHECK(items[0]["textEdit"]["range"]["start"]["character"] == 16);
 }
 
+TEST_CASE("a reference rebuilt on disk is read again") {
+    Client c;
+    c.request(1, "initialize");
+    c.notify("initialized", json::object());
+    c.sent.clear();
+    c.notify(
+        "workspace/didChangeWatchedFiles",
+        {{"changes",
+          json::array({{{"uri", uri_from_path(kProject + "/reference.json")}, {"type", 2}}})}});
+    bool reread = false;
+    for (const json& m : c.sent)
+        if (m.value("method", "") == "window/logMessage")
+            reread = reread || m["params"]["message"].get<std::string>().find(
+                                   "the game's reference") != std::string::npos;
+    CHECK(reread);
+    CHECK(c.server.due());
+}
+
 TEST_CASE("exit after shutdown is a clean exit") {
     Client c;
     c.request(1, "shutdown");

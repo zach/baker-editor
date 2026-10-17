@@ -12,6 +12,29 @@ Baker's integration plans.
 | 4 | Go-to-definition | First pass: below |
 | 5 | Live values from a running game | Not started |
 | 6 | tree-sitter grammar | Not started |
+| - | VS Code extension | First pass: below |
+
+## The VS Code extension
+
+`vscode/` is the extension: a TextMate grammar for highlighting, and a client that starts
+`baker-lsp`. A `.dta` file is Baker's when a `baker-project.dta` is at or above it (`.dta` is
+also another format's extension, which the extension leaves alone): the extension activates
+in a workspace that holds one and gives such files the language `baker`.
+
+```sh
+cmake --build build                                 # the server
+cd vscode && npm ci && npm run compile && npm test  # the extension, and its grammar's tests
+npm run bundle-server -- ../build/server            # copy baker-lsp into the extension
+npx vsce package --no-dependencies                  # baker-0.1.0.vsix
+code --install-extension baker-0.1.0.vsix
+```
+
+Settings: `baker.server.path` (default: the bundled server, else `baker-lsp` on the PATH)
+and `baker.server.args`. A rebuilt reference or an edited project file on disk is read
+again; **Baker: Restart the language server** restarts it.
+
+The extension's tests tokenize Baker text with the grammar and check which files it calls
+Baker's; it has not been run inside VS Code from CI, which cannot download VS Code here.
 
 ## Diagnostics
 
@@ -113,7 +136,8 @@ tools/lsp_client.py --replace data/default.dta "(health 1000)" "(health 0)" -- b
 - Hover's layer chain is from the files; the live value from a running game is step 5.
 - An inline `(range ...)` on a value is tweak metadata, which only the running game
   enforces; shapes are what the server checks, as the game's own `check` does.
-- No editor extension yet: point an LSP client at the binary, language id `baker`.
+- Other editors: point an LSP client at the binary, language id `baker`; a tree-sitter
+  grammar for Neovim, Helix and Zed is step 6.
 
 ### Measurements
 

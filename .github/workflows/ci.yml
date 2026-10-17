@@ -25,6 +25,21 @@ jobs:
       - name: Test
         run: ctest --test-dir build --output-on-failure
 
+  vscode:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: vscode
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npm run compile
+      - run: npm test
+      - run: npx vsce package --no-dependencies
+
   format:
     runs-on: ubuntu-24.04
     steps:

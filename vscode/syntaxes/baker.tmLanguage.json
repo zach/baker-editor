@@ -1,0 +1,143 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Baker",
+  "scopeName": "source.baker",
+  "patterns": [
+    {
+      "include": "#form"
+    }
+  ],
+  "repository": {
+    "form": {
+      "patterns": [
+        {
+          "include": "#comment"
+        },
+        {
+          "include": "#directive"
+        },
+        {
+          "include": "#string"
+        },
+        {
+          "include": "#quoted-symbol"
+        },
+        {
+          "include": "#command"
+        },
+        {
+          "include": "#array"
+        },
+        {
+          "include": "#macro"
+        },
+        {
+          "include": "#variable"
+        },
+        {
+          "include": "#number"
+        }
+      ]
+    },
+    "comment": {
+      "name": "comment.line.semicolon.baker",
+      "match": ";.*$"
+    },
+    "directive": {
+      "name": "keyword.control.directive.baker",
+      "match": "#[A-Za-z_]+\\b"
+    },
+    "string": {
+      "name": "string.quoted.double.baker",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape.baker",
+          "match": "\\\\."
+        }
+      ]
+    },
+    "quoted-symbol": {
+      "name": "string.quoted.single.baker",
+      "match": "'[^']*'"
+    },
+    "variable": {
+      "name": "variable.other.baker",
+      "match": "\\$[^\\s(){}\\[\\];\"']+"
+    },
+    "number": {
+      "name": "constant.numeric.baker",
+      "match": "(?<![^\\s(){}\\[\\]])-?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][-+]?\\d+)?(?![^\\s(){}\\[\\];])"
+    },
+    "command": {
+      "begin": "(\\{)\\s*([^\\s(){}\\[\\];\"']+)?",
+      "beginCaptures": {
+        "1": {
+          "name": "punctuation.section.braces.begin.baker"
+        },
+        "2": {
+          "name": "entity.name.function.baker"
+        }
+      },
+      "end": "\\}",
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.section.braces.end.baker"
+        }
+      },
+      "name": "meta.command.baker",
+      "patterns": [
+        {
+          "include": "#form"
+        }
+      ]
+    },
+    "array": {
+      "begin": "(\\()\\s*([^\\s(){}\\[\\];\"'$0-9-][^\\s(){}\\[\\];\"']*)?",
+      "beginCaptures": {
+        "1": {
+          "name": "punctuation.section.parens.begin.baker"
+        },
+        "2": {
+          "name": "entity.name.tag.baker"
+        }
+      },
+      "end": "\\)",
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.section.parens.end.baker"
+        }
+      },
+      "name": "meta.array.baker",
+      "patterns": [
+        {
+          "include": "#form"
+        }
+      ]
+    },
+    "macro": {
+      "begin": "(\\[)\\s*([^\\s(){}\\[\\];\"']+)?",
+      "beginCaptures": {
+        "1": {
+          "name": "punctuation.section.brackets.begin.baker"
+        },
+        "2": {
+          "name": "entity.name.macro.baker"
+        }
+      },
+      "end": "\\]",
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.section.brackets.end.baker"
+        }
+      },
+      "name": "meta.macro.baker",
+      "patterns": [
+        {
+          "include": "#form"
+        }
+      ]
+    }
+  }
+}

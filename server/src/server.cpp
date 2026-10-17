@@ -172,7 +172,22 @@ void Server::notification(const json& message, Clock::time_point now) {
     } else if (method == "textDocument/didClose") {
         buffers_.erase(canonical_path(document_path()));
         schedule(now);
-    } else if (method == "textDocument/didSave" || method == "workspace/didChangeWatchedFiles") {
+    } else if (method == "workspace/didChangeWatchedFiles") {
+        // A project file or a reference rebuilt on disk: read that project again.
+        std::set<std::string> again;
+        for (const json& change : params.value("changes", json::array())) {
+            const std::string path = canonical_path(path_from_uri(change.value("uri", "")));
+            for (const auto& [key, c] : projects_)
+                if (path == c.setup.reference || (!key.empty() && path == key)) again.insert(key);
+        }
+        for (const std::string& key : again) {
+            Setup s = given_;
+            s.project = key;
+            projects_.erase(key);
+            add(std::move(s));
+        }
+        schedule(now);
+    } else if (method == "textDocument/didSave") {
         schedule(now);
     }
 }
