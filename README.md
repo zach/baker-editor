@@ -11,7 +11,7 @@ Baker's integration plans.
 | 3 | Hover and completion | First pass: below |
 | 4 | Go-to-definition | First pass: below |
 | 5 | Live values from a running game | First pass: below |
-| 6 | tree-sitter grammar | Not started |
+| 6 | tree-sitter grammar | First pass: `tree-sitter-baker/` (registries not submitted) |
 | - | VS Code extension | First pass: below |
 
 ## The VS Code extension
@@ -157,8 +157,8 @@ tools/lsp_client.py --replace data/default.dta "(health 1000)" "(health 0)" -- b
   port for the whole workspace.
 - An inline `(range ...)` on a value is tweak metadata, which only the running game
   enforces; shapes are what the server checks, as the game's own `check` does.
-- Other editors: point an LSP client at the binary, language id `baker`; a tree-sitter
-  grammar for Neovim, Helix and Zed is step 6.
+- Other editors: point an LSP client at the binary, language id `baker`;
+  `tree-sitter-baker/` highlights for Neovim, Helix and Zed, set up by hand for now.
 
 ### Measurements
 

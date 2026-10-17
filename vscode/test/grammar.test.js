@@ -50,6 +50,8 @@ function scopeOf(list, token) {
         "[SPEEDY 9]",
         "#autorun {game.spawn 'bacon and eggs' $count -2.5e3}",
         "(units (knight (speed #remove)))",
+        "/* a block",
+        "   comment */ (mask 0x1F) (say \"a \\q(quoted)\\q\")",
     ].join("\n"));
     assert.strictEqual(scopeOf(t, "; a comment (with brackets)"), "comment.line.semicolon.baker");
     assert.strictEqual(scopeOf(t, "#require"), "keyword.control.directive.baker");
@@ -66,6 +68,10 @@ function scopeOf(list, token) {
     assert.strictEqual(scopeOf(t, "$count"), "variable.other.baker");
     assert.strictEqual(scopeOf(t, "-2.5e3"), "constant.numeric.baker");
     assert.strictEqual(scopeOf(t, "#remove"), "keyword.control.directive.baker");
+    assert.strictEqual(scopeOf(t, "a block"), "comment.block.baker");
+    assert.strictEqual(scopeOf(t, "*/"), "comment.block.baker");
+    assert.strictEqual(scopeOf(t, "0x1F"), "constant.numeric.baker");
+    assert.strictEqual(scopeOf(t, "\\q"), "constant.character.escape.baker");
     console.log(`grammar: ${t.length} tokens, all scopes as expected`);
 })().catch((e) => {
     console.error(e.message);

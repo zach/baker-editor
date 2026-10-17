@@ -14,6 +14,9 @@
           "include": "#comment"
         },
         {
+          "include": "#block-comment"
+        },
+        {
           "include": "#directive"
         },
         {
@@ -54,7 +57,7 @@
       "patterns": [
         {
           "name": "constant.character.escape.baker",
-          "match": "\\\\."
+          "match": "\\\\[nq]"
         }
       ]
     },
@@ -68,7 +71,7 @@
     },
     "number": {
       "name": "constant.numeric.baker",
-      "match": "(?<![^\\s(){}\\[\\]])-?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][-+]?\\d+)?(?![^\\s(){}\\[\\];])"
+      "match": "(?<![^\\s(){}\\[\\]])-?(?:0[xX][0-9A-Fa-f]+|\\d+\\.?\\d*(?:[eE][-+]?\\d+)?|\\.\\d+(?:[eE][-+]?\\d+)?)(?![^\\s(){}\\[\\];])"
     },
     "command": {
       "begin": "(\\{)\\s*([^\\s(){}\\[\\];\"']+)?",
@@ -138,6 +141,11 @@
           "include": "#form"
         }
       ]
+    },
+    "block-comment": {
+      "name": "comment.block.baker",
+      "begin": "/\\*",
+      "end": "\\*/"
     }
   }
 }

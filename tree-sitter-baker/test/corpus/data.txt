@@ -1,0 +1,57 @@
+==================
+Arrays, atoms and comments
+==================
+
+; Tuning.
+(fighters
+   (kestrel (health 1000) (width 0.6) (mask 0x1F) (bias -2.5e3)
+      (desc "a \q(string)\q") ('bacon and eggs' 1)))
+/* a block
+   comment */
+
+---
+
+(source_file
+  (comment)
+  (array
+    (symbol)
+    (array
+      (symbol)
+      (array (symbol) (number))
+      (array (symbol) (number))
+      (array (symbol) (number))
+      (array (symbol) (number))
+      (array (symbol) (string))
+      (array (quoted_symbol) (number))))
+  (block_comment))
+
+==================
+Directives, macros and script
+==================
+
+#require "../packs/game/core.dta"
+[SPEEDY 9]
+#ifdef HANDHELD
+(scale 0.5)
+#endif
+#autorun {func game.twice ($n) {game.wait $n} {+ $n 1}}
+(units (knight (speed #remove)))
+
+---
+
+(source_file
+  (directive)
+  (string)
+  (bracket (symbol) (number))
+  (directive)
+  (symbol)
+  (array (symbol) (number))
+  (directive)
+  (directive)
+  (command
+    (symbol)
+    (symbol)
+    (array (variable))
+    (command (symbol) (variable))
+    (command (symbol) (variable) (number)))
+  (array (symbol) (array (symbol) (array (symbol) (directive)))))

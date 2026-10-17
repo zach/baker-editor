@@ -58,6 +58,9 @@ TEST_CASE("comments and strings are quiet") {
     CHECK(at("(name \"a (str|ing\")").quiet);
     CHECK(!at("; done\n(x |1)").quiet);
     CHECK(at("(x \"a ) b\" (y |").data_path() == std::vector<std::string>{"x", "y"});
+    CHECK(at("/* (a (b |) */").quiet);
+    CHECK(at("/* (a\n (b */ (c |").data_path() == std::vector<std::string>{"c"});
+    CHECK(at("(x \"a\\\" (y |").data_path() == std::vector<std::string>{"x", "y"});  // "a\" ends
 }
 
 TEST_CASE("a quoted tag is unquoted, and quoted again in a path") {

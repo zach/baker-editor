@@ -69,6 +69,16 @@ Cursor scan(std::string_view text, size_t offset) {
             at_cursor(offset, offset, {});
             break;
         }
+        if (ch == '/' && i + 1 < text.size() && text[i + 1] == '*') {  // a block comment
+            const size_t close = text.find("*/", i + 2);
+            const size_t end = close == std::string_view::npos ? text.size() : close + 2;
+            if (offset < end) {
+                c.quiet = true;
+                return c;
+            }
+            i = end;
+            continue;
+        }
         if (ch == ';') {  // a comment, to the end of the line
             const size_t nl = text.find('\n', i);
             const size_t end = nl == std::string_view::npos ? text.size() : nl;
@@ -96,7 +106,7 @@ Cursor scan(std::string_view text, size_t offset) {
         size_t j = i;
         if (ch == '"' || ch == '\'') {
             j = i + 1;
-            while (j < text.size() && text[j] != ch) j += text[j] == '\\' ? 2 : 1;
+            while (j < text.size() && text[j] != ch) ++j;  // \n and \q hold no quote
             j = j < text.size() ? j + 1 : text.size();
             if (ch == '"' && offset > i && offset < j) {
                 at_cursor(i, j, text.substr(i, j - i));

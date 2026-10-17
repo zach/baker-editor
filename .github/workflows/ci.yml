@@ -40,6 +40,20 @@ jobs:
       - run: npm test
       - run: npx vsce package --no-dependencies
 
+  tree-sitter:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: tree-sitter-baker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npx tree-sitter generate && git diff --exit-code src  # src/ matches grammar.js
+      - run: npx tree-sitter test --config-path test/config.json
+
   format:
     runs-on: ubuntu-24.04
     steps:

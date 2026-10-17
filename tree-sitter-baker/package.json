@@ -1,0 +1,16 @@
+{
+  "name": "tree-sitter-baker",
+  "version": "0.1.0",
+  "description": "Baker data files (.dta) for tree-sitter",
+  "license": "MIT",
+  "repository": {"type": "git", "url": "https://github.com/zach/baker-editor"},
+  "keywords": ["tree-sitter", "baker", "dta"],
+  "files": ["grammar.js", "src/**", "queries/**", "tree-sitter.json"],
+  "scripts": {
+    "generate": "tree-sitter generate",
+    "test": "tree-sitter test"
+  },
+  "devDependencies": {
+    "tree-sitter-cli": "0.24.7"
+  }
+}

@@ -1,0 +1,13 @@
+(fighters (health 1000))
+; <- punctuation.bracket
+;^^^^^^^^ tag
+;                 ^^^^ number
+{game.spawn 'knight' $n}
+;^^^^^^^^^^ function.call
+;           ^^^^^^^^ string.special.symbol
+;                    ^^ variable
+#require "core.dta"
+; <- keyword.directive
+;        ^^^^^^^^^^ string
+[SPEEDY 9]
+;^^^^^^ constant.macro

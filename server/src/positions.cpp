@@ -42,7 +42,7 @@ size_t token_end(std::string_view line, size_t i) {
     if (i >= line.size()) return i;
     if (line[i] == '"') {
         size_t j = i + 1;
-        while (j < line.size() && line[j] != '"') j += line[j] == '\\' ? 2 : 1;
+        while (j < line.size() && line[j] != '"') ++j;  // \n and \q hold no quote
         return j < line.size() ? j + 1 : line.size();
     }
     if (is_bracket(line[i])) return i + 1;
