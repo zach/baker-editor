@@ -2,6 +2,7 @@
 // The server's configuration: how the game loads its data. A project file (baker-project.dta,
 // Baker's read_project) says it for the game and its tools alike; the same setup can also be
 // given on the command line, for a game without one.
+#include <cstdint>
 #include <span>
 #include <string>
 #include <vector>
@@ -31,6 +32,8 @@ struct Setup {
     // The objects the game names ({clock thread_task ...}), from the reference: calls on
     // them are not calls to undefined functions.
     std::vector<std::string> objects;
+    // The running game's console, on 127.0.0.1; 0: none.
+    uint16_t console_port = 4555;
 
     [[nodiscard]] bool by_hand() const {
         return !layers.empty() || !pack_levels.empty() || !include_dirs.empty() || !defines.empty();
@@ -53,6 +56,8 @@ inline constexpr const char* kUsage =
     "                              stacks' {reference, tweaks, shapes}), if the project\n"
     "                              file names none: its functions and named objects, so\n"
     "                              calls are checked and undefined ones are errors\n"
+    "  --console-port N            a running game's console on 127.0.0.1 (default 4555;\n"
+    "                              0: none): hover shows its live values\n"
     "  --stdio                     speak LSP on stdin and stdout (the default)\n"
     "Relative paths are taken from the working directory.\n";
 

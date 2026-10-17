@@ -29,7 +29,8 @@ std::string parent_of(const std::string& path) {
 
 }  // namespace
 
-Server::Server(Setup setup, Send send) : given_(std::move(setup)), send_(std::move(send)) {
+Server::Server(Setup setup, Send send)
+    : given_(std::move(setup)), live_(given_.console_port), send_(std::move(send)) {
     fixed_ = !given_.project.empty() || given_.by_hand();
     if (fixed_) add(given_);
 }
@@ -122,12 +123,18 @@ void Server::request(const json& message) {
                {{"openClose", true}, {"change", 1 /* full */}, {"save", {{"includeText", false}}}}},
               {"hoverProvider", true},
               {"definitionProvider", true},
+              {"codeActionProvider", true},
+              {"executeCommandProvider", {{"commands", json::array({"baker.writeBack"})}}},
               {"completionProvider", {{"triggerCharacters", json::array({"(", "{", " "})}}}}},
             {"serverInfo", {{"name", "baker-lsp"}, {"version", "0.1.0"}}}};
     } else if (method == "textDocument/hover") {
         reply["result"] = hover(message.value("params", json::object()));
     } else if (method == "textDocument/definition") {
         reply["result"] = definition(message.value("params", json::object()));
+    } else if (method == "textDocument/codeAction") {
+        reply["result"] = code_actions(message.value("params", json::object()));
+    } else if (method == "workspace/executeCommand") {
+        reply["result"] = execute(message.value("params", json::object()));
     } else if (method == "textDocument/completion") {
         reply["result"] = complete(message.value("params", json::object()));
     } else if (method == "shutdown") {
@@ -236,8 +243,19 @@ json Server::hover(const json& params) {
     if (!place(params, buffers_, path, text, offset)) return nullptr;
     Checked* c = project_of(path);
     if (!c || !c->loaded) return nullptr;
-    const auto h = baker_lsp::hover(text, offset, *c->loaded, c->reference);
+    auto h = baker_lsp::hover(text, offset, *c->loaded, c->reference);
     if (!h) return nullptr;
+    if (!h->path.empty())
+        if (const auto chain = live_chain(*c, h->path)) {
+            h->markdown += "\n\n**Live**, the game on 127.0.0.1:" + std::to_string(live_.port()) +
+                           ":\n\n| layer | value | where | |\n|---|---|---|---|";
+            for (const LiveEntry& e : *chain) {
+                std::string where = e.file.substr(e.file.rfind('/') + 1);
+                if (e.line > 0) where += ":" + std::to_string(e.line);
+                h->markdown += "\n| " + e.layer + " | `" + e.value + "` | " + where + " | " +
+                               e.standing + " |";
+            }
+        }
     return {{"contents", {{"kind", "markdown"}, {"value", h->markdown}}},
             {"range", range_json(text, h->begin, h->end)}};
 }
@@ -282,6 +300,66 @@ json Server::definition(const json& params) {
                          {"end", {{"line", row}, {"character", 0}}}}}});
     }
     return out;
+}
+
+std::optional<std::vector<LiveEntry>> Server::live_chain(const Checked& c,
+                                                         const std::string& path) {
+    auto chain = live_.explain(path);
+    if (!chain) return std::nullopt;
+    // The game on the port may be another project's: live only if its files are this one's.
+    for (const LiveEntry& e : *chain)
+        if (!e.file.empty() && under(canonical_path(e.file), c.setup)) return chain;
+    return std::nullopt;
+}
+
+json Server::code_actions(const json& params) {
+    json out = json::array();
+    std::string path, text;
+    size_t offset = 0;
+    json at = params;
+    at["position"] = params.value("range", json::object()).value("start", json::object());
+    if (!place(at, buffers_, path, text, offset)) return out;
+    Checked* c = project_of(path);
+    const std::string data = data_path_at(text, offset);
+    if (!c || data.empty()) return out;
+    const auto chain = live_chain(*c, data);
+    if (!chain) return out;
+    // A value tuned in the running game and not yet written: the game's own write-back
+    // writes it to the line it came from.
+    bool live_edit = false;
+    for (const LiveEntry& e : *chain)
+        live_edit = live_edit || (e.layer == "scratch" && e.standing == "wins");
+    if (!live_edit || !live_.can_write_back()) return out;
+    out.push_back({{"title", "Write the live value here"},
+                   {"kind", "quickfix"},
+                   {"command",
+                    {{"title", "Write the live value here"},
+                     {"command", "baker.writeBack"},
+                     {"arguments", json::array({data})}}}});
+    return out;
+}
+
+json Server::execute(const json& params) {
+    if (params.value("command", "") != "baker.writeBack") return nullptr;
+    const json args = params.value("arguments", json::array());
+    if (args.empty() || !args[0].is_string()) return nullptr;
+    const std::string path = args[0].get<std::string>();
+    const auto reply = live_.ask("{config.write_back " + path + "}");
+    std::string message;
+    int type = kLogError;
+    if (!reply) {
+        message = "no game answers on 127.0.0.1:" + std::to_string(live_.port());
+    } else if (!reply->value("ok", false)) {
+        message = "the game did not write " + path + ": " +
+                  reply->value("error", json::object()).value("message", "");
+    } else {
+        message = "the game wrote " + path + ": " + reply->value("text", "");
+        type = kLogInfo;
+    }
+    send_({{"jsonrpc", "2.0"},
+           {"method", "window/showMessage"},
+           {"params", {{"type", type}, {"message", message}}}});
+    return reply ? reply->value("text", json()) : json();
 }
 
 void Server::check_now() {

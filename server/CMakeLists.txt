@@ -10,6 +10,8 @@ endif()
 add_library(baker_lsp_core STATIC
   src/diagnose.cpp
   src/features.cpp
+  src/live.cpp
+  src/net.cpp
   src/positions.cpp
   src/protocol.cpp
   src/scan.cpp
@@ -18,6 +20,9 @@ add_library(baker_lsp_core STATIC
   src/reference.cpp)
 target_include_directories(baker_lsp_core PUBLIC src)
 target_link_libraries(baker_lsp_core PUBLIC baker::baker nlohmann_json::nlohmann_json)
+if(WIN32)
+  target_link_libraries(baker_lsp_core PUBLIC ws2_32)
+endif()
 
 add_executable(baker-lsp src/main.cpp)
 target_link_libraries(baker-lsp PRIVATE baker_lsp_core)
@@ -35,10 +40,12 @@ if(BAKER_EDITOR_BUILD_TESTS)
     tests/test_main.cpp
     tests/test_diagnose.cpp
     tests/test_features.cpp
+    tests/test_live.cpp
     tests/test_positions.cpp
     tests/test_scan.cpp
     tests/test_server.cpp)
-  target_link_libraries(baker_lsp_tests PRIVATE baker_lsp_core baker_lsp_doctest)
+  find_package(Threads REQUIRED)
+  target_link_libraries(baker_lsp_tests PRIVATE baker_lsp_core baker_lsp_doctest Threads::Threads)
   # USE_STD_HEADERS: doctest prints std::string_view through <ostream>, which MSVC's
   # <string_view> does not bring in.
   target_compile_definitions(baker_lsp_tests PRIVATE

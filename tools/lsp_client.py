@@ -3,7 +3,7 @@
 
   tools/lsp_client.py [--open FILE] [--replace FILE OLD NEW] [--text FILE TEXT]
                      [--hover FILE LINE COL] [--complete FILE LINE COL]
-                     [--definition FILE LINE COL] -- baker-lsp ARGS...
+                     [--definition FILE LINE COL] [--actions FILE LINE COL] -- baker-lsp ARGS...
 
 Starts the server, opens each --open file (with its edit, if --replace names it; with TEXT
 instead of the file's, if --text names it), waits for the diagnostics to settle, prints them
@@ -67,7 +67,7 @@ def main(argv):
             texts[opts[i + 1]] = opts[i + 2].encode().decode("unicode_escape")
             opens.append(opts[i + 1])
             i += 3
-        elif opts[i] in ("--hover", "--complete", "--definition"):
+        elif opts[i] in ("--hover", "--complete", "--definition", "--actions"):
             asks.append((opts[i][2:], opts[i + 1], int(opts[i + 2]) - 1, int(opts[i + 3]) - 1))
             opens.append(opts[i + 1])
             i += 4
@@ -100,10 +100,11 @@ def main(argv):
     answers = {}
     for n, (what, path, line, col) in enumerate(asks):
         method = "textDocument/" + {"hover": "hover", "complete": "completion",
-                                    "definition": "definition"}[what]
+                                    "definition": "definition", "actions": "codeAction"}[what]
+        where = {"line": line, "character": col}
         send(proc, {"jsonrpc": "2.0", "id": 100 + n, "method": method,
-                    "params": {"textDocument": {"uri": uri(path)},
-                               "position": {"line": line, "character": col}}})
+                    "params": {"textDocument": {"uri": uri(path)}, "position": where,
+                               "range": {"start": where, "end": where}, "context": {"diagnostics": []}}})
     deadline = time.time() + 5
     while len(answers) < len(asks) and time.time() < deadline:
         time.sleep(0.02)
@@ -134,6 +135,8 @@ def main(argv):
         print(f"--- {what} {path}:{line + 1}:{col + 1}")
         if what == "hover":
             print(result["contents"]["value"] if result else "(nothing)")
+        elif what == "actions":
+            print(", ".join(a["title"] for a in result or []) or "(none)")
         elif what == "definition":
             for loc in result or []:
                 p = urllib.parse.unquote(urllib.parse.urlparse(loc["uri"]).path)

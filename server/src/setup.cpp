@@ -1,5 +1,6 @@
 #include "setup.hpp"
 
+#include <cstdlib>
 #include <filesystem>
 
 namespace baker_lsp {
@@ -45,6 +46,14 @@ bool parse_args(std::span<const std::string> args, Setup& setup, std::string& er
             setup.include_dirs.push_back(canonical_path(v));
         } else if (a == "--define") {
             setup.defines.push_back(v);
+        } else if (a == "--console-port") {
+            char* end = nullptr;
+            const unsigned long port = std::strtoul(v.c_str(), &end, 10);
+            if (!end || *end || port > 65535) {
+                error = "--console-port takes a port, 0 to 65535, not " + v;
+                return false;
+            }
+            setup.console_port = static_cast<uint16_t>(port);
         } else if (a == "--reference") {
             setup.reference = canonical_path(v);
         } else {

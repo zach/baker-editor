@@ -6,6 +6,7 @@
 // baker-project.dta above it (Baker's find_project), so a workspace can hold several games.
 // A setup given on the command line (--project, or --layer and the rest) is the only one.
 #include "diagnose.hpp"
+#include "live.hpp"
 #include "reference.hpp"
 #include "setup.hpp"
 
@@ -60,6 +61,10 @@ private:
     nlohmann::json hover(const nlohmann::json& params);
     nlohmann::json complete(const nlohmann::json& params);
     nlohmann::json definition(const nlohmann::json& params);
+    nlohmann::json code_actions(const nlohmann::json& params);
+    nlohmann::json execute(const nlohmann::json& params);
+    // The running game's chain for `path`, if it answers and the value is the project's.
+    std::optional<std::vector<LiveEntry>> live_chain(const Checked& c, const std::string& path);
 
     void request(const nlohmann::json& message);
     void notification(const nlohmann::json& message, Clock::time_point now);
@@ -77,6 +82,7 @@ private:
     bool initialized_ = false;
     std::vector<std::pair<int, std::string>> pending_log_;  // until `initialized`
 
+    Live live_;
     Send send_;
     Buffers buffers_;
     std::map<std::string, std::string> uris_;  // canonical path -> the client's URI

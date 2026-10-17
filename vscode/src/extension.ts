@@ -30,8 +30,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     context.subscriptions.push(vscode.workspace.onDidOpenTextDocument(claim));
     for (const doc of vscode.workspace.textDocuments) await claim(doc);
 
-    const args = vscode.workspace.getConfiguration("baker").get<string[]>("server.args", []);
-    const run = {command: serverPath(context), args: [...args, "--stdio"]};
+    const settings = vscode.workspace.getConfiguration("baker");
+    const args = settings.get<string[]>("server.args", []);
+    const port = settings.get<number>("console.port", 4555);
+    const run = {
+        command: serverPath(context),
+        args: [...args, "--console-port", String(port), "--stdio"],
+    };
     const serverOptions: ServerOptions = {run, debug: run};
     const clientOptions: LanguageClientOptions = {
         documentSelector: [{scheme: "file", language: "baker"}],

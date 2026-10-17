@@ -111,7 +111,7 @@ std::optional<Hover> hover(std::string_view text, size_t offset, const Loaded& l
                            const Reference& reference) {
     const Cursor c = scan(text, offset);
     if (c.quiet || c.token.empty()) return std::nullopt;
-    Hover h{{}, c.begin, c.end};
+    Hover h{{}, c.begin, c.end, {}};
 
     // A command's head: one of the game's functions, or a script function or object.
     if (!c.stack.empty() && c.stack.back().open == '{' && c.index == 0) {
@@ -147,6 +147,7 @@ std::optional<Hover> hover(std::string_view text, size_t offset, const Loaded& l
     }
     if (tags.empty()) return std::nullopt;
     const std::string path = path_text(tags);
+    h.path = path;
     h.markdown = "`" + path + "`";
 
     if (tags.size() >= 2) {
@@ -170,6 +171,18 @@ std::optional<Hover> hover(std::string_view text, size_t offset, const Loaded& l
             h.markdown += "\n\n*from the files*";
         }
     return h;
+}
+
+std::string data_path_at(std::string_view text, size_t offset) {
+    const Cursor c = scan(text, offset);
+    if (c.quiet) return {};
+    std::vector<std::string> tags = c.data_path();
+    if (c.index == 0 && !c.token.empty()) {
+        tags = c.parent_path();
+        if (c.stack.size() > 1 && tags.empty()) return {};
+        tags.push_back(c.token);
+    }
+    return tags.empty() ? std::string() : path_text(tags);
 }
 
 std::vector<Location> definition(std::string_view text, size_t offset, const std::string& file,

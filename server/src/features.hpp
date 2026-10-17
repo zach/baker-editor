@@ -22,7 +22,11 @@ const baker::shape::Shape* governing(const baker::shape::Set& shapes,
 struct Hover {
     std::string markdown;
     size_t begin = 0, end = 0;  // the bytes it is about
+    std::string path;           // the data path it is about, as a Path's text; empty if none
 };
+
+// The data path the cursor's value or array name is at, as a Path's text; empty if none.
+std::string data_path_at(std::string_view text, size_t offset);
 
 std::optional<Hover> hover(std::string_view text, size_t offset, const Loaded& loaded,
                            const Reference& reference);

@@ -10,7 +10,7 @@ Baker's integration plans.
 | 2 | Diagnostics | First pass: below |
 | 3 | Hover and completion | First pass: below |
 | 4 | Go-to-definition | First pass: below |
-| 5 | Live values from a running game | Not started |
+| 5 | Live values from a running game | First pass: below |
 | 6 | tree-sitter grammar | Not started |
 | - | VS Code extension | First pass: below |
 
@@ -86,7 +86,24 @@ game's reference; on a macro or a script function, where it is defined.
 - a file `#include`, `#require` or `#merge` names, or a path in the project file (a layer's
   file, the reference), to that file.
 
-All three read the cursor's place from the text, not a parse, so they work on text being typed,
+## Live values
+
+While a game answers on its loopback console (`--console-port`, default 4555; the stacks'
+games serve it), hover also shows the running game's layer chain for the value
+(`{config.explain path}`), headed **Live**, with any value tuned in the game (`scratch`) on
+top. The file chain stays headed *from the files*; without a game, nothing says live. A
+game whose files are not the project's is not taken for its live value.
+
+Every request to the console waits at most 50 ms, and while no game answers, connecting is
+tried at most once a second, so hover never waits on a game that is not there.
+
+When the game's winning value is a live edit, and the game binds `config.write_back`, the code
+action **Write the live value here** asks the game to write it back to the line it came from:
+the game's own write-back, so the edit is Baker's one-line diff. The stacks' games do not bind
+it (`requirements/0012` asks for an opt-in), so with them hover shows live values and offers no
+action.
+
+All three of hover, completion and definition read the cursor's place from the text, not a parse, so they work on text being typed,
 and they answer from the last check of the whole stack: while the file being edited does not
 read, they keep the last check in which every layer read.
 
@@ -133,7 +150,8 @@ tools/lsp_client.py --replace data/default.dta "(health 1000)" "(health 0)" -- b
 - A Config's script functions are found by walking its `#autorun` commands in the server,
   because Baker's `script_functions` reads a session's, and a Config keeps them apart
   (`requirements/0011`). Macros come from the session (`macro_definitions`).
-- Hover's layer chain is from the files; the live value from a running game is step 5.
+- Live values are in hover only, not as inlay hints beside every value, and from one console
+  port for the whole workspace.
 - An inline `(range ...)` on a value is tweak metadata, which only the running game
   enforces; shapes are what the server checks, as the game's own `check` does.
 - Other editors: point an LSP client at the binary, language id `baker`; a tree-sitter
