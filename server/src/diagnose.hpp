@@ -61,8 +61,8 @@ struct Loaded {
     baker::shape::Set shapes;
     std::vector<Definition> packs;          // the packs the files declare
     std::vector<std::string> include_dirs;  // the project's, for files #include names
-    std::vector<Definition> macros;         // #define NAME and top-level [NAME ...]
-    std::vector<Definition> functions;      // {func NAME ...}
+    std::vector<Definition> macros;         // LoadSession::macro_definitions that stand
+    std::vector<Definition> functions;      // the {func}s the #autorun commands define
 };
 
 struct Diagnosis {

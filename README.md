@@ -107,9 +107,9 @@ tools/lsp_client.py --replace data/default.dta "(health 1000)" "(health 0)" -- b
   reported as undefined.
 - A parameter of a type of the game's own takes any value: `Context::declare` knows Baker's
   types, not the game's.
-- Macros and script functions are found by reading the loaded files' text for `#define`,
-  top-level `[NAME ...]` and `{func NAME`, because a load does not list them
-  (`requirements/0010`).
+- A Config's script functions are found by walking its `#autorun` commands in the server,
+  because Baker's `script_functions` reads a session's, and a Config keeps them apart
+  (`requirements/0011`). Macros come from the session (`macro_definitions`).
 - Hover's layer chain is from the files; the live value from a running game is step 5.
 - An inline `(range ...)` on a value is tweak metadata, which only the running game
   enforces; shapes are what the server checks, as the game's own `check` does.
@@ -135,7 +135,7 @@ A syntax error in the stacks shows about 155 ms after the keystroke, within the 
 ## Baker
 
 Baker is fetched at a pinned commit of its development repository, because no release has
-what the server uses yet (E3, E4, the project file, `Context::declare`, D173 to D177); move to a
+what the server uses yet (E3, E4, the project file, `Context::declare`, D173 to D178); move to a
 `zach/baker` tag once one does. `-DBAKER_EDITOR_BAKER_DIR=PATH`
 builds against a local checkout instead.
 

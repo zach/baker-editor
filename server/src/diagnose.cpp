@@ -67,46 +67,24 @@ public:
     std::vector<Problem> problems;
 };
 
-// Macros and script functions, found in the text of the files the load read. A session
-// does not list its macros, and a {func} is only known once its #autorun runs.
-void find_definitions(const std::vector<std::string>& files, const Buffers& buffers,
-                      Loaded& loaded) {
-    for (const std::string& file : files) {
-        std::string text;
-        if (!buffers.read(file, text)) continue;
-        int line = 0;
-        for (size_t start = 0; start <= text.size();) {
-            size_t nl = text.find('\n', start);
-            if (nl == std::string::npos) nl = text.size();
-            const std::string_view l = std::string_view(text).substr(start, nl - start);
-            ++line;
-            start = nl + 1;
-            size_t i = l.find_first_not_of(" \t");
-            if (i == std::string_view::npos) continue;
-            const auto word_at = [&l](size_t at) {
-                const size_t b = l.find_first_not_of(" \t", at);
-                if (b == std::string_view::npos) return std::string();
-                size_t e = b;
-                while (e < l.size() && l[e] != ' ' && l[e] != '\t' && l[e] != '(' && l[e] != ')' &&
-                       l[e] != '[' && l[e] != ']' && l[e] != '{' && l[e] != '}')
-                    ++e;
-                return std::string(l.substr(b, e - b));
-            };
-            if (l.compare(i, 7, "#define") == 0) {
-                if (std::string n = word_at(i + 7); !n.empty())
-                    loaded.macros.push_back({n, file, line});
-            } else if (i == 0 && l[0] == '[') {
-                if (std::string n = word_at(1); !n.empty())
-                    loaded.macros.push_back({n, file, line});
-            }
-            for (size_t f = l.find("{func"); f != std::string_view::npos;
-                 f = l.find("{func", f + 5)) {
-                if (f + 5 < l.size() && l[f + 5] != ' ' && l[f + 5] != '\t') continue;
-                if (std::string n = word_at(f + 5); !n.empty())
-                    loaded.functions.push_back({n, file, line});
-            }
-        }
+// The {func NAME ...}s in a command, nested ones too, where each is written. A Config's
+// #autorun commands are not in its session, which baker::script_functions reads
+// (requirements/0011), so the server walks Config::autorun() itself.
+void find_funcs_in(const baker::Array& a, std::vector<Definition>& out) {
+    if (a.size() >= 2) {
+        const auto head = a[0].try_sym();
+        const auto name = a[1].try_sym();
+        if (head && name && head->str() == "func")
+            out.push_back(
+                {std::string(name->str()), canonical_path(std::string(a.file().str())), a.line()});
     }
+    for (const baker::Node& n : a)
+        if (const baker::Array* child = n.array()) find_funcs_in(*child, out);
+}
+
+void find_funcs(const baker::List<baker::Node>& commands, std::vector<Definition>& out) {
+    for (const baker::Node& command : commands)
+        if (const baker::Array* a = command.array()) find_funcs_in(*a, out);
 }
 
 Diagnosis finish(Diagnosis& out, Collector& found, const std::set<std::string>& files,
@@ -278,7 +256,14 @@ Diagnosis diagnose(const Setup& setup, const baker::Context& ctx, const Buffers&
     }
     for (const baker::ProjectEntry& e : project.include_dirs)
         loaded->include_dirs.push_back(canonical_path(std::string(e.value.str())));
-    find_definitions(std::vector<std::string>(files.begin(), files.end()), buffers, *loaded);
+    // The data's own vocabulary: the macros that stand (not a flag for #ifdef, not one
+    // #undef took back), and the {func}s its #autorun commands define.
+    const baker::LoadSession& read = cfg.read_session();
+    for (const baker::Definition& d : read.macro_definitions())
+        if (!d.flag && read.is_defined(d.name))
+            loaded->macros.push_back(
+                {std::string(d.name.str()), canonical_path(std::string(d.file.str())), d.line});
+    find_funcs(cfg.autorun(), loaded->functions);
     out.loaded = std::move(loaded);
     return finish(out, found, files, start);
 }

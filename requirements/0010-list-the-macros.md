@@ -29,9 +29,8 @@ data must not do.
 
 ## Today
 
-The editor's server reads the text of every file the load read and looks for `#define`, a
-top-level `[`, and `{func`. It finds what is written plainly, and misses a macro or function
-made any other way, such as one a macro expands into.
+Met by Baker at 22920a0 (D178): the server takes macros from `macro_definitions`. Script
+functions it still finds itself, for a Config (note 0011).
 
 ## Not included
 
