@@ -172,6 +172,71 @@ std::optional<Hover> hover(std::string_view text, size_t offset, const Loaded& l
     return h;
 }
 
+std::vector<Location> definition(std::string_view text, size_t offset, const std::string& file,
+                                 const Loaded& loaded, const Reference& reference,
+                                 const std::function<bool(const std::string&)>& exists) {
+    const Cursor c = scan(text, offset);
+    std::vector<Location> out;
+    if (c.token.empty()) return out;
+    const std::string dir = file.substr(0, file.rfind('/') + 1);
+
+    if (c.in_string) {  // a file another names: a directive's, or a layer's in a project file
+        const bool directive = c.previous == "#include" || c.previous == "#require" ||
+                               c.previous == "#merge" || c.previous == "#include_opt";
+        const bool layer =
+            file.size() >= 17 && file.compare(file.size() - 17, 17, "baker-project.dta") == 0;
+        if (!directive && !layer) return out;
+        std::vector<std::string> candidates{c.token.front() == '/' ? c.token : dir + c.token};
+        if (directive)
+            for (const std::string& d : loaded.include_dirs)
+                candidates.push_back(d + "/" + c.token);
+        for (const std::string& candidate : candidates) {
+            const std::string path = canonical_path(candidate);
+            if (exists(path)) return {{path, 0}};
+        }
+        return out;
+    }
+    if (c.quiet) return out;
+
+    const auto at = [&out](const Definition& d) { out.push_back({d.file, d.line}); };
+    if (!c.stack.empty() && c.stack.back().open == '{' && c.index == 0) {
+        if (const FunctionInfo* f = function_named(reference, c.token); f && !f->file.empty()) {
+            out.push_back({canonical_path(f->file), f->line});
+            return out;
+        }
+        if (const Definition* d = defined(loaded.functions, c.token)) at(*d);
+        return out;
+    }
+    if (const Definition* d = defined(loaded.macros, c.token)) {
+        at(*d);
+        return out;
+    }
+    if (!c.stack.empty() && c.stack.back().tag == "requires" && c.index > 0) {
+        if (const Definition* d = defined(loaded.packs, c.token)) at(*d);
+        return out;
+    }
+
+    std::vector<std::string> tags = c.data_path();
+    if (c.index == 0) {
+        tags = c.parent_path();
+        if (c.stack.size() > 1 && tags.empty()) return out;
+        tags.push_back(c.token);
+    }
+    if (tags.empty() || !loaded.config) return out;
+    // The line the cursor is on, to leave out the contributor it is.
+    const int line =
+        1 + static_cast<int>(std::count(text.begin(),
+                                        text.begin() + static_cast<std::ptrdiff_t>(c.begin), '\n'));
+    if (auto chain = loaded.config->explain(baker::Path(path_text(tags))))
+        for (const baker::ExplainEntry& e : *chain) {
+            if (e.source.file.str().empty()) continue;
+            const std::string f = canonical_path(std::string(e.source.file.str()));
+            if (f == file && e.source.line == line) continue;
+            out.push_back({f, e.source.line});
+        }
+    return out;
+}
+
 Completions complete(std::string_view text, size_t offset, const Loaded& loaded,
                      const Reference& reference) {
     const Cursor c = scan(text, offset);
@@ -213,7 +278,9 @@ Completions complete(std::string_view text, size_t offset, const Loaded& loaded,
     }
     // A value. In (requires ...) of a pack: the packs.
     if (!c.stack.empty() && c.stack.back().tag == "requires") {
-        for (const std::string& p : loaded.packs) offer({p, Kind::Module, "pack", {}});
+        for (const Definition& p : loaded.packs)
+            offer({p.name, Kind::Module, "pack",
+                   "declared at " + where(baker::Symbol(p.file), p.line)});
         return out;
     }
     for (const Definition& d : loaded.macros)

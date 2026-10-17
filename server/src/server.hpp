@@ -59,6 +59,7 @@ private:
     Checked* project_of(const std::string& path);
     nlohmann::json hover(const nlohmann::json& params);
     nlohmann::json complete(const nlohmann::json& params);
+    nlohmann::json definition(const nlohmann::json& params);
 
     void request(const nlohmann::json& message);
     void notification(const nlohmann::json& message, Clock::time_point now);

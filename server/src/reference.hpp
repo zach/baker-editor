@@ -16,6 +16,8 @@ struct FunctionInfo {
     std::string doc;
     std::string status;  // normal, stub, provisional or deprecated
     std::string tier;    // native or script
+    std::string file;    // where a script function is defined; empty for a native one
+    int line = 0;
 };
 
 struct Reference {

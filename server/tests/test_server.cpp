@@ -70,7 +70,7 @@ TEST_CASE("initialize offers full text sync") {
     CHECK(reply["id"] == 1);
     CHECK(reply["result"]["capabilities"]["textDocumentSync"]["change"] == 1);
     CHECK(reply["result"]["capabilities"]["hoverProvider"] == true);
-    CHECK(c.request(2, "textDocument/definition")["error"]["code"] == -32601);
+    CHECK(c.request(2, "textDocument/formatting")["error"]["code"] == -32601);
 }
 
 TEST_CASE("an edit is checked after the debounce, and a fix clears its diagnostics") {

@@ -113,11 +113,68 @@ TEST_CASE("completion offers functions in a command, macros as values, packs in 
     auto [text, at] = cursor("(start {game.|");
     const std::vector<std::string> functions = labels(complete(text, at, *f.loaded, f.reference));
     CHECK(functions == std::vector<std::string>{"game.spawn", "game.wait", "game.log", "game.later",
-                                                "game.aim"});
+                                                "game.aim", "game.twice"});
     std::tie(text, at) = cursor("(units (archer (speed S|");
     CHECK(labels(complete(text, at, *f.loaded, f.reference)) == std::vector<std::string>{"SPEEDY"});
     std::tie(text, at) = cursor("(pack extra (level task) (requires |");
     CHECK(labels(complete(text, at, *f.loaded, f.reference)) == std::vector<std::string>{"core"});
     std::tie(text, at) = cursor("; (units (archer (|");
     CHECK(complete(text, at, *f.loaded, f.reference).items.empty());
+}
+
+namespace {
+const auto on_disk = [](const std::string& f) {
+    std::ifstream in(f);
+    return static_cast<bool>(in);
+};
+}  // namespace
+
+TEST_CASE("definition: from local.dta's override to the default.dta line it shadows") {
+    Fixture f("(units (knight (health 50)))\n");
+    const std::string local = "(units (knight (health 50)))\n";
+    const auto defs = definition(local, local.find("50"), kLocal, *f.loaded, f.reference, on_disk);
+    REQUIRE(defs.size() == 1);
+    CHECK(defs[0].file == kDefault);
+    CHECK(defs[0].line == 5);
+
+    // And from default.dta, to the override above it.
+    const std::string text = f.text_of(kDefault);
+    const auto up = definition(text, text.find("100"), kDefault, *f.loaded, f.reference, on_disk);
+    REQUIRE(up.size() == 1);
+    CHECK(up[0].file == kLocal);
+    CHECK(up[0].line == 1);
+}
+
+TEST_CASE("definition: macros, script functions, packs, and files") {
+    Fixture f;
+    auto [text, at] = cursor("(units (knight (speed SPE|EDY)))");
+    auto defs = definition(text, at, kLocal, *f.loaded, f.reference, on_disk);
+    REQUIRE(defs.size() == 1);
+    CHECK(defs[0].file == kDefault);
+    CHECK(defs[0].line == 10);
+
+    std::tie(text, at) = cursor("(start {game.tw|ice 3})");
+    defs = definition(text, at, kLocal, *f.loaded, f.reference, on_disk);
+    REQUIRE(defs.size() == 1);
+    CHECK(defs[0].line == 11);
+
+    std::tie(text, at) = cursor("(pack extra (level task) (requires co|re))");
+    defs = definition(text, at, kLocal, *f.loaded, f.reference, on_disk);
+    REQUIRE(defs.size() == 1);
+    CHECK(defs[0].file == kProject + "/packs/game/core.dta");
+    CHECK(defs[0].line == 1);
+
+    const std::string text2 = f.text_of(kDefault);
+    defs = definition(text2, text2.find("core.dta"), kDefault, *f.loaded, f.reference, on_disk);
+    REQUIRE(defs.size() == 1);
+    CHECK(defs[0].file == kProject + "/packs/game/core.dta");
+
+    const std::string project = f.text_of(kProject + "/baker-project.dta");
+    defs = definition(project, project.find("data/default.dta") + 2,
+                      kProject + "/baker-project.dta", *f.loaded, f.reference, on_disk);
+    REQUIRE(defs.size() == 1);
+    CHECK(defs[0].file == kDefault);
+    CHECK(definition(project, project.find("data/local.dta") + 2, kProject + "/baker-project.dta",
+                     *f.loaded, f.reference, on_disk)
+              .empty());  // not on disk
 }

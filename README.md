@@ -9,7 +9,7 @@ Baker's integration plans.
 | 1 | The project file (in Baker) | Done in Baker; the server reads it |
 | 2 | Diagnostics | First pass: below |
 | 3 | Hover and completion | First pass: below |
-| 4 | Go-to-definition | Not started |
+| 4 | Go-to-definition | First pass: below |
 | 5 | Live values from a running game | Not started |
 | 6 | tree-sitter grammar | Not started |
 
@@ -55,7 +55,15 @@ game's reference; on a macro or a script function, where it is defined.
   script functions, and the objects the game names;
 - a value: the data's macros; in `(requires ...)`, the packs.
 
-Both read the cursor's place from the text, not a parse, so they work on text being typed,
+**Go-to-definition** jumps from:
+
+- a value or an array's name to every other layer that sets it: from `local.dta`'s override
+  to the `default.dta` line it shadows, and back;
+- a macro, a script function or a pack (in `(requires ...)`) to where it is defined;
+- a file `#include`, `#require` or `#merge` names, or a path in the project file (a layer's
+  file, the reference), to that file.
+
+All three read the cursor's place from the text, not a parse, so they work on text being typed,
 and they answer from the last check of the whole stack: while the file being edited does not
 read, they keep the last check in which every layer read.
 

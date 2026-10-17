@@ -93,6 +93,8 @@ bool load_reference(baker::Context& ctx, const std::string& path, Reference& out
         info.doc = f.value("doc", "");
         info.status = f.value("status", "normal");
         info.tier = f.value("tier", "native");
+        info.file = f.value("file", "");
+        info.line = f.value("line", 0);
         for (const nlohmann::json& o : f.value("overloads", nlohmann::json::array()))
             info.signatures.push_back(signature(info.name, o));
     }

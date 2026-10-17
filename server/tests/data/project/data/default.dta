@@ -8,3 +8,4 @@
 #autorun {game.spawn knight 2}
 
 [SPEEDY 9]
+#autorun {func game.twice ($n) {game.wait $n} {game.wait $n}}

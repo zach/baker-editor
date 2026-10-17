@@ -20,8 +20,10 @@ struct Cursor {
     // begin == end == the cursor.
     std::string token;
     size_t begin = 0, end = 0;
-    int index = 0;       // the token's place in the innermost frame: 0 is the tag (or command)
-    bool quiet = false;  // in a comment or a string: nothing to offer
+    int index = 0;           // the token's place in the innermost frame: 0 is the tag (or command)
+    bool quiet = false;      // in a comment or a string: nothing to complete
+    bool in_string = false;  // in a string: `token` is its text, which may name a file
+    std::string previous;    // the token before the cursor's, in the same bracket or file
 
     // The tags of the enclosing arrays, if every enclosing bracket is an array, so the
     // cursor is in data with a path; else empty.

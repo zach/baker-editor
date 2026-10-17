@@ -265,8 +265,19 @@ Diagnosis diagnose(const Setup& setup, const baker::Context& ctx, const Buffers&
         found.add(shaped.warnings, Severity::Information);
     }
     cfg.set_warning_handler(nullptr);  // `found` goes with this call
-    for (const baker::Pack& p : cfg.read_session().packs())
-        loaded->packs.emplace_back(p.name.str());
+    for (const baker::Pack& p : cfg.read_session().packs()) {
+        // A pack is declared by its file's first form: the line of its (pack.
+        Definition d{std::string(p.name.str()), canonical_path(std::string(p.file.str())), 1};
+        std::string text;
+        if (buffers.read(d.file, text))
+            if (const size_t at = text.find("(pack"); at != std::string::npos)
+                d.line =
+                    1 + static_cast<int>(std::count(
+                            text.begin(), text.begin() + static_cast<std::ptrdiff_t>(at), '\n'));
+        loaded->packs.push_back(std::move(d));
+    }
+    for (const baker::ProjectEntry& e : project.include_dirs)
+        loaded->include_dirs.push_back(canonical_path(std::string(e.value.str())));
     find_definitions(std::vector<std::string>(files.begin(), files.end()), buffers, *loaded);
     out.loaded = std::move(loaded);
     return finish(out, found, files, start);

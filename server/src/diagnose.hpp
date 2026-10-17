@@ -59,9 +59,10 @@ struct Definition {
 struct Loaded {
     std::unique_ptr<baker::Config> config;  // the stack as the game merges it
     baker::shape::Set shapes;
-    std::vector<std::string> packs;     // the packs the files declare
-    std::vector<Definition> macros;     // #define NAME and top-level [NAME ...]
-    std::vector<Definition> functions;  // {func NAME ...}
+    std::vector<Definition> packs;          // the packs the files declare
+    std::vector<std::string> include_dirs;  // the project's, for files #include names
+    std::vector<Definition> macros;         // #define NAME and top-level [NAME ...]
+    std::vector<Definition> functions;      // {func NAME ...}
 };
 
 struct Diagnosis {

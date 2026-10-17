@@ -8,6 +8,7 @@
 #include "reference.hpp"
 #include "scan.hpp"
 
+#include <functional>
 #include <optional>
 #include <string>
 #include <vector>
@@ -43,5 +44,20 @@ struct Completions {
 
 Completions complete(std::string_view text, size_t offset, const Loaded& loaded,
                      const Reference& reference);
+
+struct Location {
+    std::string file;  // canonical
+    int line = 0;      // 1-based; 0 for the file's start
+};
+
+// Where the thing under the cursor in `file` is defined:
+// - a macro, a script function, a pack: where it is written;
+// - a value or an array's name: every other layer that sets it (Config::explain), so from
+//   local.dta's override to the default.dta line it shadows;
+// - a file named in #include, #require or #merge, or a layer's file in the project file.
+// `exists` says whether a file can be read (the editor's buffers, else the disk).
+std::vector<Location> definition(std::string_view text, size_t offset, const std::string& file,
+                                 const Loaded& loaded, const Reference& reference,
+                                 const std::function<bool(const std::string&)>& exists);
 
 }  // namespace baker_lsp

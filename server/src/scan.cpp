@@ -45,6 +45,7 @@ Cursor scan(std::string_view text, size_t offset) {
     Cursor c;
     if (offset > text.size()) offset = text.size();
     std::vector<Frame> stack;
+    std::string previous;  // the last token in the current bracket (or at the top)
     bool found = false;
     const auto at_cursor = [&](size_t begin, size_t end, std::string_view token) {
         c.stack = stack;
@@ -52,6 +53,7 @@ Cursor scan(std::string_view text, size_t offset) {
         c.begin = begin;
         c.end = end;
         c.index = stack.empty() ? 0 : stack.back().count;
+        c.previous = previous;
         found = true;
     };
     size_t i = 0;
@@ -80,11 +82,13 @@ Cursor scan(std::string_view text, size_t offset) {
         if (is_open(ch)) {
             if (!stack.empty()) ++stack.back().count;
             stack.push_back({ch, {}, 0});
+            previous.clear();
             ++i;
             continue;
         }
         if (is_close(ch)) {
             if (!stack.empty()) stack.pop_back();
+            previous.clear();
             ++i;
             continue;
         }
@@ -95,7 +99,8 @@ Cursor scan(std::string_view text, size_t offset) {
             while (j < text.size() && text[j] != ch) j += text[j] == '\\' ? 2 : 1;
             j = j < text.size() ? j + 1 : text.size();
             if (ch == '"' && offset > i && offset < j) {
-                c.quiet = true;
+                at_cursor(i, j, text.substr(i, j - i));
+                c.quiet = c.in_string = true;
                 return c;
             }
         } else {
@@ -113,6 +118,7 @@ Cursor scan(std::string_view text, size_t offset) {
             if (f.count == 0) f.tag = unquote(token);
             ++f.count;
         }
+        previous = std::string(token);
         i = j;
     }
     if (!found) at_cursor(offset, offset, {});

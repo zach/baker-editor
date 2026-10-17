@@ -121,10 +121,13 @@ void Server::request(const json& message) {
              {{"textDocumentSync",
                {{"openClose", true}, {"change", 1 /* full */}, {"save", {{"includeText", false}}}}},
               {"hoverProvider", true},
+              {"definitionProvider", true},
               {"completionProvider", {{"triggerCharacters", json::array({"(", "{", " "})}}}}},
             {"serverInfo", {{"name", "baker-lsp"}, {"version", "0.1.0"}}}};
     } else if (method == "textDocument/hover") {
         reply["result"] = hover(message.value("params", json::object()));
+    } else if (method == "textDocument/definition") {
+        reply["result"] = definition(message.value("params", json::object()));
     } else if (method == "textDocument/completion") {
         reply["result"] = complete(message.value("params", json::object()));
     } else if (method == "shutdown") {
@@ -241,6 +244,29 @@ json Server::complete(const json& params) {
                          {"documentation", {{"kind", "markdown"}, {"value", item.documentation}}},
                          {"textEdit", {{"range", range}, {"newText", item.label}}}});
     return {{"isIncomplete", false}, {"items", std::move(items)}};
+}
+
+json Server::definition(const json& params) {
+    if (due_) check_now();
+    std::string path, text;
+    size_t offset = 0;
+    if (!place(params, buffers_, path, text, offset)) return nullptr;
+    Checked* c = project_of(path);
+    if (!c || !c->loaded) return nullptr;
+    const auto exists = [this](const std::string& f) {
+        std::string ignored;
+        return buffers_.read(f, ignored);
+    };
+    json out = json::array();
+    for (const Location& l :
+         baker_lsp::definition(text, offset, path, *c->loaded, c->reference, exists)) {
+        const int row = l.line > 0 ? l.line - 1 : 0;
+        out.push_back({{"uri", uri_for(l.file)},
+                       {"range",
+                        {{"start", {{"line", row}, {"character", 0}}},
+                         {"end", {{"line", row}, {"character", 0}}}}}});
+    }
+    return out;
 }
 
 void Server::check_now() {
