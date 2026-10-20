@@ -132,19 +132,14 @@ Diagnosis diagnose(const Setup& setup, const baker::Context& ctx, const Buffers&
         if (found.problems.back().file.empty()) found.problems.back().file = setup.project;
         return finish(out, found, files, start);
     }
-    // The skipped layers: ProjectOptions::skip takes a list written in the code.
-    std::vector<baker::ProjectLayer> kept;
-    for (const baker::ProjectLayer& l : project.layers)
-        if (std::find(setup.skip.begin(), setup.skip.end(), l.name.str()) == setup.skip.end())
-            kept.push_back(l);
-    project.layers = list_of(kept);
-
     auto loaded = std::make_shared<Loaded>();
     loaded->config = std::make_unique<baker::Config>();
     baker::Config& cfg = *loaded->config;
     cfg.set_warning_handler([&found](const baker::Error& e) { found.add(e, Severity::Warning); });
     cfg.session().set_reader(reader);
-    if (auto opened = baker::open_project(cfg, project, {.go_on = true}); !opened) {
+    baker::ProjectOptions options{.go_on = true};
+    for (const std::string& name : setup.skip) options.skip.add(name);  // too many: refused
+    if (auto opened = baker::open_project(cfg, project, options); !opened) {
         found.add(opened.error(), Severity::Error);
     } else {
         out.every_layer_read = opened->empty();
