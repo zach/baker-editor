@@ -185,6 +185,77 @@ TEST_CASE("each open file is checked in its nearest project") {
     CHECK(uris == std::set<std::string>{uri_from_path(kDefault), uri_from_path(second)});
 }
 
+TEST_CASE("which layer wins: a hint on both values, and the shadowed one faded") {
+    const std::string local = kProject + "/data/local.dta";
+    std::vector<json> sent;
+    Server server(Setup{}, [&sent](const json& m) { sent.push_back(m); });
+    const Server::Clock::time_point now{};
+    server.handle(
+        {{"jsonrpc", "2.0"},
+         {"id", 1},
+         {"method", "initialize"},
+         {"params",
+          {{"rootUri", uri_from_path(kProject)},
+           {"capabilities", {{"workspace", {{"inlayHint", {{"refreshSupport", true}}}}}}}}}},
+        now);
+    server.handle({{"jsonrpc", "2.0"}, {"method", "initialized"}, {"params", json::object()}}, now);
+    const auto open = [&](const std::string& path, const std::string& text) {
+        server.handle(
+            {{"jsonrpc", "2.0"},
+             {"method", "textDocument/didOpen"},
+             {"params", {{"textDocument", {{"uri", uri_from_path(path)}, {"text", text}}}}}},
+            now);
+    };
+    const auto hints = [&](const std::string& path) {
+        sent.clear();
+        server.handle({{"jsonrpc", "2.0"},
+                       {"id", 7},
+                       {"method", "textDocument/inlayHint"},
+                       {"params",
+                        {{"textDocument", {{"uri", uri_from_path(path)}}},
+                         {"range",
+                          {{"start", {{"line", 0}, {"character", 0}}},
+                           {"end", {{"line", 99}, {"character", 0}}}}}}}},
+                      now);
+        for (const json& m : sent)
+            if (m.contains("id") && m["id"] == 7) return m["result"];
+        return json();
+    };
+    std::string text;
+    REQUIRE(Buffers().read(kDefault, text));
+    open(kDefault, text);
+    open(local, "; tuned\n(units (knight (health 50)))\n");
+    sent.clear();
+    server.check_now();
+    json shadowed;
+    for (const json& m : sent)
+        if (m.value("method", "") == "textDocument/publishDiagnostics" &&
+            m["params"]["uri"] == uri_from_path(kDefault))
+            for (const json& d : m["params"]["diagnostics"])
+                if (d["code"] == "shadowed") shadowed = d;  // underlines the (health 100) array
+    REQUIRE(shadowed.is_object());
+    CHECK(shadowed["severity"] == 4);
+    CHECK(shadowed["tags"] == json::array({1}));
+    CHECK(shadowed["range"]["start"] == json{{"line", 4}, {"character", 11}});  // health
+    bool refreshed = false;
+    for (const json& m : sent)
+        refreshed = refreshed || m.value("method", "") == "workspace/inlayHint/refresh";
+    CHECK(refreshed);
+
+    const json below = hints(kDefault);
+    REQUIRE(below.size() == 1);
+    CHECK(below[0]["label"] == "\u2190 local.dta:2 (50)");
+    CHECK(below[0]["position"] == json{{"line", 4}, {"character", 23}});  // after (health 100)
+    const json above = hints(local);
+    REQUIRE(above.size() == 1);
+    CHECK(above[0]["label"] == "over default.dta:5 (100)");
+    CHECK(above[0]["position"] == json{{"line", 1}, {"character", 26}});
+
+    sent.clear();
+    server.check_now();  // nothing moved: no refresh
+    for (const json& m : sent) CHECK(m.value("method", "") != "workspace/inlayHint/refresh");
+}
+
 TEST_CASE("no project and no layers: nothing is checked") {
     std::vector<json> sent;
     Server server(Setup{}, [&sent](const json& m) { sent.push_back(m); });

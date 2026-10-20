@@ -63,6 +63,11 @@
           "minimum": 0,
           "maximum": 65535,
           "description": "The running game's console on 127.0.0.1, for live values in hover and \"Write the live value here\". 0: none."
+        },
+        "baker.live.inlays": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show the running game's value beside each value a live edit in the game has changed, as an inlay hint."
         }
       }
     },

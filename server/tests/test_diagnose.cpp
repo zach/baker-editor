@@ -95,13 +95,20 @@ TEST_CASE("an unsaved optional layer is read from its buffer") {
     Fixture f;
     f.buffers.set(kLocal, "(units (knight (health 5000)))\n");
     const Diagnosis d = f.run();
-    REQUIRE(d.problems.size() == 1);
-    const Problem& p = d.problems[0];
+    REQUIRE(d.problems.size() == 2);
+    const Problem& p = d.problems[1];
     CHECK(p.file == kLocal);
     CHECK(p.line == 1);
     CHECK(p.severity == Severity::Error);
     CHECK(p.key == "health");
     CHECK(p.message.find("5000") != std::string::npos);
+    // The value it overrides is shadowed: a hint, shown faded.
+    const Problem& shadowed = d.problems[0];
+    CHECK(shadowed.file == kDefault);
+    CHECK(shadowed.line == 5);
+    CHECK(shadowed.severity == Severity::Hint);
+    CHECK(shadowed.unnecessary);
+    CHECK(shadowed.message == "shadowed: local.dta:1 sets it to 5000");
 }
 
 TEST_CASE("a field no shape declares is information") {
@@ -206,9 +213,9 @@ TEST_CASE("the project file gives the stack the command line gives") {
 
     f.buffers.set(kLocal, "(units (knight (health 5000)))\n");
     d = f.run();
-    REQUIRE(d.problems.size() == 1);
-    CHECK(d.problems[0].file == kLocal);
-    CHECK(d.problems[0].key == "health");
+    REQUIRE(d.problems.size() == 2);  // and the shadowed (health 100) first
+    CHECK(d.problems[1].file == kLocal);
+    CHECK(d.problems[1].key == "health");
 }
 
 TEST_CASE("an error in the project file is located in it, from its buffer") {

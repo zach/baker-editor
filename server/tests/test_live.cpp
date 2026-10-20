@@ -43,12 +43,13 @@ private:
             if (!c) continue;
             std::string buffer;
             while (!stop_ && c->open()) {
-                if (!c->read_until(buffer, "\n", 20)) {
-                    if (!c->open()) break;
+                const size_t newline = buffer.find('\n');
+                if (newline == std::string::npos) {
+                    if (!c->read_until(buffer, "\n", 20) && !c->open()) break;
                     continue;
                 }
-                const std::string line = buffer.substr(0, buffer.size() - 1);
-                buffer.clear();
+                const std::string line = buffer.substr(0, newline);  // requests may come at once
+                buffer.erase(0, newline + 1);
                 // (ID {command})
                 const size_t space = line.find(' ');
                 const int id = std::stoi(line.substr(1, space - 1));
@@ -72,12 +73,12 @@ private:
     std::thread thread_;
 };
 
-json explained(const std::string& file, bool live_edit) {
+json explained(const std::string& file, bool live_edit, int line = 5) {
     json chain = json::array({{{"layer", "default"},
                                {"value", 100},
                                {"standing", live_edit ? "shadowed" : "wins"},
                                {"file", file},
-                               {"line", 5}}});
+                               {"line", line}}});
     if (live_edit) chain.push_back({{"layer", "scratch"}, {"value", 140}, {"standing", "wins"}});
     return {{"ok", true}, {"text", "(...)"}, {"value", chain}};
 }
@@ -89,8 +90,8 @@ json not_a_function(const std::string& name) {
 struct Client {
     std::vector<json> sent;
     Server server;
-    explicit Client(uint16_t port)
-        : server(setup(port), [this](const json& m) { sent.push_back(m); }) {
+    explicit Client(uint16_t port, bool live_inlays = false)
+        : server(setup(port, live_inlays), [this](const json& m) { sent.push_back(m); }) {
         server.handle(
             {{"jsonrpc", "2.0"}, {"id", 1}, {"method", "initialize"}, {"params", json::object()}},
             {});
@@ -105,8 +106,9 @@ struct Client {
             {});
         server.check_now();
     }
-    static Setup setup(uint16_t port) {
+    static Setup setup(uint16_t port, bool live_inlays) {
         Setup s;
+        s.live_inlays = live_inlays;
         s.project = kProject + "/baker-project.dta";
         s.reference = kProject + "/reference.json";
         s.console_port = port;
@@ -198,4 +200,33 @@ TEST_CASE("write the live value: offered for a live edit when the game can write
         told = told || (m.value("method", "") == "window/showMessage" &&
                         m["params"]["message"].get<std::string>().find("the game wrote") == 0);
     CHECK(told);
+}
+
+TEST_CASE("pipelined requests: every reply, in the commands' order") {
+    MockConsole game([](const std::string& cmd) { return json{{"ok", true}, {"value", cmd}}; });
+    Live live(game.port());
+    const auto replies = live.ask_many({"{a}", "{b}", "{c}"});
+    REQUIRE(replies);
+    REQUIRE(replies->size() == 3);
+    CHECK((*replies)[0]["value"] == "{a}");
+    CHECK((*replies)[2]["value"] == "{c}");
+    CHECK(live.ask("{d}").value()["value"] == "{d}");  // still in step
+}
+
+TEST_CASE("live inlays: the game's value beside the file value a live edit overrides") {
+    MockConsole game([](const std::string& cmd) {
+        if (cmd == "{config.explain units/knight/health}") return explained(kDefault, true, 2);
+        return json{{"ok", false}, {"error", {{"message", "no such value"}}}};
+    });
+    const json range = {
+        {"textDocument", {{"uri", uri_from_path(kDefault)}}},
+        {"range",
+         {{"start", {{"line", 0}, {"character", 0}}}, {"end", {{"line", 3}, {"character", 0}}}}}};
+    Client off(game.port());
+    CHECK(off.request(2, "textDocument/inlayHint", range).empty());
+    Client on(game.port(), true);
+    const json hints = on.request(2, "textDocument/inlayHint", range);
+    REQUIRE(hints.size() == 1);
+    CHECK(hints[0]["label"] == "live 140");
+    CHECK(hints[0]["position"] == json{{"line", 1}, {"character", 27}});  // after (health 100)
 }

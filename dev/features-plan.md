@@ -191,8 +191,8 @@ for it, and a requirement note asks for the project file to name the tool binary
 | Step | Status |
 |---|---|
 | C1 Outline, folding, references, rename | Done (first pass) |
-| C2 Which layer wins, in the text | Next |
-| C3 Evaluate in the running game | |
+| C2 Which layer wins, in the text | Done (first pass); Baker note 0013 for the console's replies |
+| C3 Evaluate in the running game | Next |
 | C4 The merged stack, and what a layer changes | |
 | C5 Completion that knows the values, and Baker's hints | One Baker note, for allowed symbols |
 | C6 Scenarios and objectives as tests | Waits for Baker 0.2.0 |

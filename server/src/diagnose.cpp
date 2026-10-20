@@ -6,6 +6,7 @@
 #include <baker/parse.hpp>
 #include <baker/project.hpp>
 #include <baker/shape.hpp>
+#include <baker/std_interop.hpp>
 
 #include <algorithm>
 #include <chrono>
@@ -66,6 +67,75 @@ public:
     }
     std::vector<Problem> problems;
 };
+
+// The file name a hint shows: its last part.
+std::string short_name(std::string_view file) {
+    const size_t slash = file.find_last_of("/\\");
+    return std::string(slash == std::string_view::npos ? file : file.substr(slash + 1));
+}
+
+// The last element of a dotted path, unquoted: fighters.'big one'.health -> health.
+std::string last_dotted(std::string_view path) {
+    size_t start = 0;
+    bool quoted = false;
+    for (size_t i = 0; i < path.size(); ++i) {
+        if (path[i] == '\'')
+            quoted = !quoted;
+        else if ((path[i] == '.' || path[i] == '/') && !quoted)
+            start = i + 1;
+    }
+    std::string_view last = path.substr(start);
+    if (last.size() >= 2 && last.front() == '\'' && last.back() == '\'')
+        last = last.substr(1, last.size() - 2);
+    return std::string(last);
+}
+
+// The hints of every layer but the bottom one, and of what they override.
+void find_hints(const baker::Config& cfg, const baker::Project& project, Loaded& loaded,
+                Collector& found) {
+    bool bottom = true;
+    for (const baker::ProjectLayer& layer : project.layers) {
+        if (!layer.enabled) continue;
+        if (bottom) {  // its values are found as what the layers above override
+            bottom = false;
+            continue;
+        }
+        const auto effect = cfg.layer_effect(layer.name.str());
+        if (!effect) continue;
+        for (const baker::LayerEffectEntry& e : *effect) {
+            if (e.source.file.str().empty()) continue;
+            const std::string file = canonical_path(std::string(e.source.file.str()));
+            const std::string value = baker::to_string(e.value);
+            const std::string key = last_dotted(e.path.str());
+            if (e.below && e.below_source && !e.below_source->file.str().empty()) {
+                const std::string below_file =
+                    canonical_path(std::string(e.below_source->file.str()));
+                const std::string below = baker::to_string(*e.below);
+                loaded.hints.push_back({file, e.source.line, std::string(e.path.str()), key,
+                                        "over " + short_name(below_file) + ":" +
+                                            std::to_string(e.below_source->line) + " (" + below +
+                                            ")",
+                                        e.shadowed, value});
+                // The value below is shadowed by this one.
+                loaded.hints.push_back({below_file, e.below_source->line, std::string(e.path.str()),
+                                        key,
+                                        "\u2190 " + short_name(file) + ":" +
+                                            std::to_string(e.source.line) + " (" + value + ")",
+                                        true, below});
+                Problem p;
+                p.file = below_file;
+                p.line = e.below_source->line;
+                p.severity = Severity::Hint;
+                p.code = "shadowed";
+                p.key = key;
+                p.unnecessary = true;
+                p.message = "shadowed: " + short_name(file) + ":" + std::to_string(e.source.line) +
+                            " sets it to " + value;
+                found.problems.push_back(std::move(p));
+            }
+        }
+    }
+}
 
 Diagnosis finish(Diagnosis& out, Collector& found, const std::set<std::string>& files,
                  std::chrono::steady_clock::time_point start) {
@@ -242,6 +312,7 @@ Diagnosis diagnose(const Setup& setup, const baker::Context& ctx, const Buffers&
     for (const baker::Definition& d : baker::script_functions(autorun.items()))
         loaded->functions.push_back(
             {std::string(d.name.str()), canonical_path(std::string(d.file.str())), d.line});
+    find_hints(cfg, project, *loaded, found);
     loaded->files.assign(files.begin(), files.end());
     out.loaded = std::move(loaded);
     return finish(out, found, files, start);

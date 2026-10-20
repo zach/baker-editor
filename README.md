@@ -14,9 +14,9 @@ Baker's integration plans.
 | 6 | tree-sitter grammar | First pass: `tree-sitter-baker/` (registries not submitted) |
 | - | VS Code extension | First pass: below |
 
-What comes next is `dev/features-plan.md` (plan C): outline and rename, which layer wins in
-the text, evaluating in the running game, the merged stack, value completion, and scenarios as
-tests.
+Plan C (`dev/features-plan.md`) comes next, one step at a time: outline and rename and which
+layer wins in the text are done (first passes, below); evaluating in the running game, the
+merged stack, value completion, and scenarios as tests follow.
 
 ## The VS Code extension
 
@@ -33,8 +33,9 @@ npx vsce package --no-dependencies                  # baker-0.1.0.vsix
 code --install-extension baker-0.1.0.vsix
 ```
 
-Settings: `baker.server.path` (default: the bundled server, else `baker-lsp` on the PATH)
-and `baker.server.args`. A rebuilt reference or an edited project file on disk is read
+Settings: `baker.server.path` (default: the bundled server, else `baker-lsp` on the PATH),
+`baker.server.args`, `baker.console.port`, and `baker.live.inlays` (live values as inlay
+hints, off by default). A rebuilt reference or an edited project file on disk is read
 again; **Baker: Restart the language server** restarts it.
 
 The extension's tests tokenize Baker text with the grammar and check which files it calls
@@ -107,6 +108,26 @@ game's reference; on a macro or a script function, where it is defined.
 All four read each file's structure from its text in one pass (`structure.cpp`), so they work
 on text that does not parse.
 
+## Which layer wins, in the text
+
+Where one layer overrides another's value, both lines say so, as inlay hints at the end of
+the value's array (`Config::layer_effect`, for each layer above the bottom one):
+
+```
+default.dta    (health 1000) ← local.dta:2 (1200)       ; faded: a higher layer overrides it
+local.dta      (health 1200) over default.dta:18 (1000)
+```
+
+The overridden value is also a hint-level diagnostic, `shadowed`, tagged *unnecessary*, so
+the editor fades it and a stale default reads as stale. Editing one layer refreshes the
+hints in the other layers' open editors (`workspace/inlayHint/refresh`).
+
+With `--live-inlays` (`baker.live.inlays`) and a game answering, a value a live edit has
+changed in the game shows it: `(health 1000) live 1234`. The server asks the game about
+every value in the visible lines at once (at most 200), within the console's 50 ms; without
+a game, or past the budget, nothing is shown. The hints are asked for when the editor
+scrolls or the text changes, not when the game changes a value.
+
 ## Live values
 
 While a game answers on its loopback console (`--console-port`, default 4555; the stacks'
@@ -174,8 +195,10 @@ tools/lsp_client.py --replace data/default.dta "(health 1000)" "(health 0)" -- b
   reported as undefined.
 - A parameter of a type of the game's own takes any value: `Context::declare` knows Baker's
   types, not the game's.
-- Live values are in hover only, not as inlay hints beside every value, and from one console
-  port for the whole workspace.
+- Live values come from one console port for the whole workspace, and their inlay hints
+  are not refreshed when only the game changes.
+- A layer's hints are from the last check in which every layer read, so while a file does
+  not read, its hints can sit a line off.
 - An inline `(range ...)` on a value is tweak metadata, which only the running game
   enforces; shapes are what the server checks, as the game's own `check` does.
 - Other editors: point an LSP client at the binary, language id `baker`;
@@ -203,9 +226,27 @@ syntax error (one run each of three to six).
 
 A syntax error in the stacks shows about 155 ms after the keystroke, within the plan's 200 ms.
 
+Which layer wins (C2), Release build (Clang), against the previous commit built the same way:
+
+| | Before | After |
+|---|---|---|
+| Check of the 2 MB Duel with a three-value `local.dta` (six runs, two checks each) | 157–207 ms | 150–216 ms |
+| Inlay hints for a screen of the 2 MB file, top and bottom | - | 20–21 ms, the shell client's polling floor |
+| Live inlays: 113 values of Duel's `default.dta`, one batch to the game | - | 18–22 ms, about one frame |
+
+The check is no slower: only the layers above the bottom one are asked for their effect
+(0.02 ms for a small `local.dta`), and the bottom layer's hints come from what they
+override; asking the 2 MB bottom layer itself would cost about 100 ms. These checks are
+slower than the table above's 100–120 ms on this machine today, before and after alike.
+
+The game sends each reply as its own write, so without the server asking for immediate
+acknowledgements (`TCP_QUICKACK`, Linux), the same 113 values took about 50 ms, the console's
+whole budget: Nagle's algorithm holds each reply for a delayed acknowledgement. On other
+platforms it still does; `requirements/0013` asks Baker's console to send them together.
+
 ## Baker
 
-The server builds against a released Baker, `zach/baker` `v0.1.0`, through its public headers.
+The server builds against a released Baker, `zach/baker` `v0.1.1`, through its public headers.
 `-DBAKER_EDITOR_BAKER_DIR=PATH` builds against a local checkout instead. The stacks it is
 tried on come from Baker's development repository, `zach/baker-dev` (`stacks/`), which the
 release leaves out.

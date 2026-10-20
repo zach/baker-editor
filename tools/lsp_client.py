@@ -5,12 +5,14 @@
                      [--hover FILE LINE COL] [--complete FILE LINE COL]
                      [--definition FILE LINE COL] [--actions FILE LINE COL]
                      [--apply FILE LINE COL]
-                     [--outline FILE] [--references FILE LINE COL] -- baker-lsp ARGS...
+                     [--outline FILE] [--references FILE LINE COL]
+                     [--inlays FILE FIRST LAST] -- baker-lsp ARGS...
 
 Starts the server, opens each --open file (with its edit, if --replace names it; with TEXT
 instead of the file's, if --text names it), waits for the diagnostics to settle, prints them
 one a line as file:line:col: severity: message, then each hover's markdown and each
-completion's labels (LINE and COL 1-based, COL in characters), and shuts the server down.
+completion's labels (LINE and COL 1-based, COL in characters), each inlay hint on lines
+FIRST to LAST, and shuts the server down.
 Exit status: 1 if any error was published, else 0.
 """
 import json
@@ -77,6 +79,10 @@ def main(argv):
             asks.append(("references", opts[i + 1], int(opts[i + 2]) - 1, int(opts[i + 3]) - 1))
             opens.append(opts[i + 1])
             i += 4
+        elif opts[i] == "--inlays":
+            asks.append(("inlays", opts[i + 1], int(opts[i + 2]) - 1, int(opts[i + 3]) - 1))
+            opens.append(opts[i + 1])
+            i += 4
         elif opts[i] in ("--hover", "--complete", "--definition", "--actions", "--apply"):
             asks.append((opts[i][2:], opts[i + 1], int(opts[i + 2]) - 1, int(opts[i + 3]) - 1))
             opens.append(opts[i + 1])
@@ -114,11 +120,14 @@ def main(argv):
         method = "textDocument/" + {"hover": "hover", "complete": "completion",
                                     "definition": "definition", "actions": "codeAction",
                                     "apply": "codeAction", "outline": "documentSymbol",
-                                    "references": "references"}[what]
+                                    "references": "references", "inlays": "inlayHint"}[what]
         where = {"line": line, "character": col}
+        span = {"start": where, "end": where}
+        if what == "inlays":  # lines `line` to `col`
+            span = {"start": {"line": line, "character": 0}, "end": {"line": col + 1, "character": 0}}
         send(proc, {"jsonrpc": "2.0", "id": 100 + n, "method": method,
                     "params": {"textDocument": {"uri": uri(path)}, "position": where,
-                               "range": {"start": where, "end": where}, "context": {"diagnostics": []}}})
+                               "range": span, "context": {"diagnostics": []}}})
     deadline = time.time() + 5
     while len(answers) < len(asks) and time.time() < deadline:
         time.sleep(0.02)
@@ -175,6 +184,12 @@ def main(argv):
                 p = urllib.parse.unquote(urllib.parse.urlparse(loc["uri"]).path)
                 print(f"{p}:{loc['range']['start']['line'] + 1}:{loc['range']['start']['character'] + 1}")
             print(f"{len(result or [])} references")
+            continue
+        if what == "inlays":
+            for h in result or []:
+                print(f"{path}:{h['position']['line'] + 1}:{h['position']['character'] + 1}: "
+                      f"{h['label']}")
+            print(f"{len(result or [])} inlay hints")
             continue
         if what == "hover":
             print(result["contents"]["value"] if result else "(nothing)")

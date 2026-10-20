@@ -17,6 +17,10 @@ bool parse_args(std::span<const std::string> args, Setup& setup, std::string& er
     for (size_t i = 0; i < args.size(); ++i) {
         const std::string& a = args[i];
         if (a == "--stdio") continue;
+        if (a == "--live-inlays") {
+            setup.live_inlays = true;
+            continue;
+        }
         if (i + 1 >= args.size()) {
             error = a.rfind("--", 0) == 0 ? a + " needs a value" : "unexpected argument " + a;
             return false;

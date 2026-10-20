@@ -34,6 +34,8 @@ struct Setup {
     std::vector<std::string> objects;
     // The running game's console, on 127.0.0.1; 0: none.
     uint16_t console_port = 4555;
+    // Inlay hints show the running game's value where a live edit differs from the files.
+    bool live_inlays = false;
 
     [[nodiscard]] bool by_hand() const {
         return !layers.empty() || !pack_levels.empty() || !include_dirs.empty() || !defines.empty();
@@ -58,6 +60,8 @@ inline constexpr const char* kUsage =
     "                              calls are checked and undefined ones are errors\n"
     "  --console-port N            a running game's console on 127.0.0.1 (default 4555;\n"
     "                              0: none): hover shows its live values\n"
+    "  --live-inlays               show the game's live value beside each value it\n"
+    "                              differs from, as an inlay hint\n"
     "  --stdio                     speak LSP on stdin and stdout (the default)\n"
     "Relative paths are taken from the working directory.\n";
 

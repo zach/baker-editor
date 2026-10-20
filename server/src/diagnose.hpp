@@ -27,7 +27,8 @@ struct Problem {
     Severity severity = Severity::Error;
     std::string code;  // the ErrorCode's name, or "undefined" for a call nothing defines
     std::string message;
-    std::string key;  // what to underline on the line when the column is unknown
+    std::string key;           // what to underline on the line when the column is unknown
+    bool unnecessary = false;  // LSP's Unnecessary tag: shown faded (a shadowed value)
 
     friend bool operator<(const Problem& a, const Problem& b);
     friend bool operator==(const Problem& a, const Problem& b) = default;
@@ -55,6 +56,19 @@ struct Definition {
     int line = 0;      // 1-based
 };
 
+// A value one layer sets that another layer's value meets: shown at the end of its line.
+struct LayerHint {
+    std::string file;       // canonical: where the value is written
+    int line = 0;           // 1-based
+    std::string path;       // dotted, as Config::layer_effect gives it
+    std::string key;        // the path's last element, unquoted: the array's tag
+    std::string label;      // "← local.dta:3 (1200)" or "over default.dta:18 (1000)"
+    bool shadowed = false;  // a higher layer overrides it
+    std::string value;      // as Baker text, the value written here
+
+    friend bool operator==(const LayerHint&, const LayerHint&) = default;
+};
+
 // What a check loaded, kept for hover and completion until the next check.
 struct Loaded {
     std::unique_ptr<baker::Config> config;  // the stack as the game merges it
@@ -64,6 +78,9 @@ struct Loaded {
     std::vector<Definition> macros;         // LoadSession::macro_definitions that stand
     std::vector<Definition> functions;      // the {func}s the #autorun commands define
     std::vector<std::string> files;         // every file the load read, canonical
+    // Each overridden or overriding value, from the layers above the bottom one
+    // (Config::layer_effect): their entries name the value below and where it is.
+    std::vector<LayerHint> hints;
 };
 
 struct Diagnosis {

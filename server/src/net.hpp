@@ -23,9 +23,10 @@ public:
     void close();
 
     bool send(std::string_view data);
-    // Reads until `out` ends with `terminator`, waiting at most `timeout_ms` in all; false
-    // (and the connection closed) on a timeout or when the peer closes.
-    bool read_until(std::string& out, std::string_view terminator, int timeout_ms);
+    // Reads until `out` ends with the `count`th `terminator`, waiting at most `timeout_ms` in
+    // all; false (and the connection closed) on a timeout or when the peer closes.
+    bool read_until(std::string& out, std::string_view terminator, int timeout_ms,
+                    size_t count = 1);
 
 private:
     friend class Listener;

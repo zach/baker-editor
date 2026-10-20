@@ -188,7 +188,8 @@ TEST_CASE("rename over LSP: every file's edits; the game's functions are not ren
     server.check_now();
     for (const json& m : sent)
         if (m.value("method", "") == "textDocument/publishDiagnostics")
-            CHECK(m["params"]["diagnostics"].empty());
+            for (const json& d : m["params"]["diagnostics"])
+                CHECK(d["code"] == "shadowed");  // local's speed shadows default's
 
     const json at_native = {{"textDocument", {{"uri", uri_from_path(kLocal)}}},
                             {"position", {{"line", 1}, {"character", 3}}},

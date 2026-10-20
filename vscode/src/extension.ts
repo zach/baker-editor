@@ -33,9 +33,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const settings = vscode.workspace.getConfiguration("baker");
     const args = settings.get<string[]>("server.args", []);
     const port = settings.get<number>("console.port", 4555);
+    const live = settings.get<boolean>("live.inlays", false) ? ["--live-inlays"] : [];
     const run = {
         command: serverPath(context),
-        args: [...args, "--console-port", String(port), "--stdio"],
+        args: [...args, "--console-port", String(port), ...live, "--stdio"],
     };
     const serverOptions: ServerOptions = {run, debug: run};
     const clientOptions: LanguageClientOptions = {

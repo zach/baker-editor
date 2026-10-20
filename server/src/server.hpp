@@ -34,6 +34,8 @@ public:
     static constexpr std::chrono::milliseconds kDebounce{150};
     // The most outline symbols, and folds, one reply carries.
     static constexpr size_t kMaxSymbols = 5000;
+    // The most values one inlay request asks the running game about.
+    static constexpr size_t kMaxLiveInlays = 200;
 
     Server(Setup setup, Send send);
 
@@ -71,6 +73,7 @@ private:
     // The rename's workspace edit, or an error message in `error`.
     nlohmann::json rename(const nlohmann::json& params, std::string& error);
     nlohmann::json execute(const nlohmann::json& params);
+    nlohmann::json inlay_hints(const nlohmann::json& params);
     // The running game's chain for `path`, if it answers and the value is the project's.
     std::optional<std::vector<LiveEntry>> live_chain(const Checked& c, const std::string& path);
 
@@ -95,6 +98,8 @@ private:
     Buffers buffers_;
     std::map<std::string, std::string> uris_;  // canonical path -> the client's URI
     std::set<std::string> published_;          // URIs that last got a non-empty list
+    bool refresh_inlays_ = false;              // the client takes workspace/inlayHint/refresh
+    int next_request_ = 1;                     // the id of our next request to the client
     std::optional<Clock::time_point> due_;
     bool shutdown_ = false;
     std::optional<int> exit_code_;

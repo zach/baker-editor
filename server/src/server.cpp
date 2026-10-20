@@ -4,10 +4,12 @@
 #include "outline.hpp"
 #include "positions.hpp"
 #include "reference.hpp"
+#include "scan.hpp"
 #include "structure.hpp"
 
 #include <baker/project.hpp>
 
+#include <algorithm>
 #include <cstdio>
 #include <filesystem>
 #include <utility>
@@ -117,6 +119,10 @@ void Server::request(const json& message) {
         const json params = message.value("params", json::object());
         if (const json folders = params.value("workspaceFolders", json()); folders.is_array())
             for (const json& f : folders) find_project(path_from_uri(f.value("uri", "")));
+        refresh_inlays_ = params.value("capabilities", json::object())
+                              .value("workspace", json::object())
+                              .value("inlayHint", json::object())
+                              .value("refreshSupport", false);
         if (params.contains("rootUri") && params["rootUri"].is_string())
             find_project(path_from_uri(params["rootUri"].get<std::string>()));
         reply["result"] = {
@@ -130,6 +136,7 @@ void Server::request(const json& message) {
               {"referencesProvider", true},
               {"renameProvider", {{"prepareProvider", true}}},
               {"codeActionProvider", true},
+              {"inlayHintProvider", true},
               {"executeCommandProvider", {{"commands", json::array({"baker.writeBack"})}}},
               {"completionProvider", {{"triggerCharacters", json::array({"(", "{", " "})}}}}},
             {"serverInfo", {{"name", "baker-lsp"}, {"version", "0.1.0"}}}};
@@ -152,6 +159,8 @@ void Server::request(const json& message) {
             reply["result"] = std::move(edit);
         else
             reply["error"] = {{"code", -32602}, {"message", error}};
+    } else if (method == "textDocument/inlayHint") {
+        reply["result"] = inlay_hints(message.value("params", json::object()));
     } else if (method == "textDocument/codeAction") {
         reply["result"] = code_actions(message.value("params", json::object()));
     } else if (method == "workspace/executeCommand") {
@@ -536,14 +545,113 @@ json Server::rename(const json& params, std::string& error) {
     return {{"changes", std::move(changes)}};
 }
 
+namespace {
+
+// The start of each line of `text`, and one past its end.
+std::vector<size_t> line_starts(std::string_view text) {
+    std::vector<size_t> out{0};
+    for (size_t i = 0; i < text.size(); ++i)
+        if (text[i] == '\n') out.push_back(i + 1);
+    out.push_back(text.size() + 1);
+    return out;
+}
+
+// Where a hint for the array tagged `key` that opens on 1-based `line` goes: after the array,
+// or at the line's end when no such array opens and closes there. Only the line is read.
+std::optional<size_t> hint_place(std::string_view text, const std::vector<size_t>& starts, int line,
+                                 std::string_view key) {
+    if (line < 1 || static_cast<size_t>(line) + 1 >= starts.size()) return std::nullopt;
+    const size_t begin = starts[line - 1];
+    size_t end = std::min(starts[line] - 1, text.size());
+    const std::string_view here = text.substr(begin, end - begin);
+    const Structure s = read_structure(here);
+    for (size_t b = 0; b < s.brackets.size(); ++b)
+        if (s.brackets[b].open == '(' && s.tag(static_cast<int>(b)) == key &&
+            s.brackets[b].end <= here.size() && here[s.brackets[b].end - 1] == ')')
+            return begin + s.brackets[b].end;
+    while (end > begin && (text[end - 1] == '\r' || text[end - 1] == ' ' || text[end - 1] == '\t'))
+        --end;
+    return end;
+}
+
+json hint_json(const LineIndex& lines, size_t at, const std::string& label,
+               const std::string& tooltip) {
+    const auto [line, character] = lines.position(at);
+    return {{"position", {{"line", line}, {"character", character}}},
+            {"label", label},
+            {"tooltip", tooltip},
+            {"paddingLeft", true}};
+}
+
+}  // namespace
+
+json Server::inlay_hints(const json& params) {
+    if (due_) check_now();
+    const std::string path = document_of(params);
+    std::string text;
+    json out = json::array();
+    if (!buffers_.read(path, text)) return out;
+    Checked* c = project_of(path);
+    if (!c || !c->loaded) return out;
+    const json range = params.value("range", json::object());
+    const int first = range.value("start", json::object()).value("line", 0) + 1;
+    const int last = range.value("end", json::object()).value("line", 0) + 1;
+    const std::vector<size_t> starts = line_starts(text);
+    const LineIndex lines(text);
+
+    for (const LayerHint& h : c->loaded->hints) {
+        if (h.file != path || h.line < first || h.line > last) continue;
+        if (const auto at = hint_place(text, starts, h.line, h.key))
+            out.push_back(hint_json(lines, *at, h.label,
+                                    h.shadowed ? "`" + h.path + "`: a higher layer overrides it"
+                                               : "`" + h.path + "`: overrides a lower layer"));
+    }
+    if (!given_.live_inlays || live_.port() == 0) return out;
+
+    // The running game's value where a live edit differs from the file value it overrides.
+    const Structure s = read_structure(text);  // the whole file: a value's path is its arrays'
+    std::vector<int> leaves;
+    std::vector<std::string> paths;
+    for (size_t b = 0; b < s.brackets.size() && leaves.size() < kMaxLiveInlays; ++b) {
+        const Bracket& br = s.brackets[b];
+        if (br.open != '(' || br.has_child || br.tag < 0) continue;
+        const int line = lines.position(br.begin).first + 1;
+        if (line < first) continue;
+        if (line > last) break;
+        const std::vector<std::string> tags = s.data_path(static_cast<int>(b));
+        if (tags.empty()) continue;
+        leaves.push_back(static_cast<int>(b));
+        paths.push_back(path_text(tags));
+    }
+    const auto chains = live_.explain_many(paths);
+    if (!chains) return out;
+    for (size_t i = 0; i < chains->size(); ++i) {
+        const std::vector<LiveEntry>& chain = (*chains)[i];
+        if (chain.size() < 2 || chain.back().layer != "scratch") continue;
+        const LiveEntry& live = chain.back();
+        const LiveEntry& filed = chain[chain.size() - 2];  // the files' winner, below it
+        const Bracket& br = s.brackets[leaves[i]];
+        if (filed.file.empty() || canonical_path(filed.file) != path ||
+            filed.line != lines.position(br.begin).first + 1 || filed.value == live.value)
+            continue;
+        out.push_back(hint_json(lines, br.end, "live " + live.value,
+                                "the running game's value, a live edit not yet written"));
+    }
+    return out;
+}
+
 void Server::check_now() {
     due_.reset();
     std::map<std::string, json> by_uri;
+    bool hints_changed = false;
     for (auto& [key, c] : projects_) {
         const Diagnosis d = diagnose(c.setup, *c.ctx, buffers_, c.have_reference);
         // While a file is mid-edit it often does not read, and its layer, with the shapes
         // and packs it brings, drops out; hover and completion keep the last whole stack.
-        if (d.loaded && (d.every_layer_read || !c.loaded)) c.loaded = d.loaded;
+        if (d.loaded && (d.every_layer_read || !c.loaded)) {
+            hints_changed = hints_changed || !c.loaded || c.loaded->hints != d.loaded->hints;
+            c.loaded = d.loaded;
+        }
         for (const Problem& p : d.problems) {
             if (p.file.empty()) {
                 log(p.severity == Severity::Error ? kLogError : kLogWarning, p.message);
@@ -556,6 +664,7 @@ void Server::check_now() {
                                {"source", "baker"},
                                {"code", p.code},
                                {"message", p.message}};
+            if (p.unnecessary) diagnostic["tags"] = json::array({1 /* Unnecessary */});
             by_uri[uri_for(p.file)].push_back(std::move(diagnostic));
         }
         char took[160];
@@ -577,6 +686,11 @@ void Server::check_now() {
                    {"method", "textDocument/publishDiagnostics"},
                    {"params", {{"uri", uri}, {"diagnostics", json::array()}}}});
     published_ = std::move(now_published);
+    // An edit to one layer moves the hints of another layer's open editor.
+    if (hints_changed && refresh_inlays_ && initialized_)
+        send_({{"jsonrpc", "2.0"},
+               {"id", "refresh-" + std::to_string(next_request_++)},
+               {"method", "workspace/inlayHint/refresh"}});
 }
 
 void Server::log(int type, const std::string& text) {
