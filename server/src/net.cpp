@@ -149,12 +149,6 @@ bool Connection::read_until(std::string& out, std::string_view terminator, int t
         const auto left =
             std::chrono::duration_cast<std::chrono::milliseconds>(deadline - Clock::now()).count();
         if (left <= 0 || wait_for(as_socket(fd_), false, static_cast<int>(left)) <= 0) break;
-#ifdef TCP_QUICKACK
-        // A game that sends many replies in small writes waits for our ACK between them
-        // (Nagle's algorithm); a delayed ACK would hold each reply 40 ms.
-        const int quick = 1;
-        setsockopt(as_socket(fd_), IPPROTO_TCP, TCP_QUICKACK, &quick, sizeof quick);
-#endif
         const auto n = ::recv(as_socket(fd_), buffer, sizeof buffer, 0);
         if (n <= 0) break;
         out.append(buffer, static_cast<size_t>(n));

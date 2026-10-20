@@ -100,7 +100,8 @@ extension, which decorates the line; other editors get it as a message.
 **As built:** the result is an inlay hint the server serves, kept until the file's next
 edit, not a decoration the extension draws from a custom notification: every LSP editor
 shows inlay hints, so no editor needs its own code for it. Errors also come as a message.
-Revert needs a console command Baker does not bind yet (note 0014).
+Revert uses `{config.clear path}`, which Baker 0.2.0 binds (note 0014), not a snapshot
+restore or a set to the files' value.
 
 ## C4. The merged stack, and what a layer changes
 
@@ -196,8 +197,8 @@ for it, and a requirement note asks for the project file to name the tool binary
 | Step | Status |
 |---|---|
 | C1 Outline, folding, references, rename | Done (first pass) |
-| C2 Which layer wins, in the text | Done (first pass); Baker note 0013 for the console's replies |
-| C3 Evaluate in the running game | Done (first pass); Revert waits for Baker note 0014 |
+| C2 Which layer wins, in the text | Done (first pass) |
+| C3 Evaluate in the running game | Done (first pass), Revert with Baker 0.2.0 |
 | C4 The merged stack, and what a layer changes | Next |
 | C5 Completion that knows the values, and Baker's hints | One Baker note, for allowed symbols |
-| C6 Scenarios and objectives as tests | Waits for Baker 0.2.0 |
+| C6 Scenarios and objectives as tests | Baker 0.2.0's host kit is out |

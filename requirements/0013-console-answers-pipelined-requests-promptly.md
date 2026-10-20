@@ -29,9 +29,9 @@ time, and the tool shows nothing or stalls.
 
 ## Today
 
-The editor's server asks the operating system to acknowledge at once before each read
-(Linux only), which brings a batch of 113 requests to 18–22 ms. Other platforms, and
-other tools, still wait.
+Met by Baker 0.2.0: the host kit's console sends a frame's replies in one write and sets
+`TCP_NODELAY`. Against Duel, 60 or 200 pipelined requests take about one frame (6–20 ms)
+with no workaround, and the editor's server no longer asks for immediate acknowledgements.
 
 ## Not included
 

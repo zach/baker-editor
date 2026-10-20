@@ -27,9 +27,10 @@ edited.
 
 ## Today
 
-The editor's server offers **Revert the live edit** only when the game binds a command
-named `config.clear` (it asks once per connection, by clearing a path no game has), so
-today it is never offered. It will follow whatever name Baker gives the command.
+Met by Baker 0.2.0: `{config.clear PATH}` drops the path's live edit and returns 1, or 0
+when there was none; a bare `{config.clear}` is an error. The editor's server offers
+**Revert the live edit** against it; on Duel, trying `(health 1200)` then reverting leaves
+the value at the files' 1000 with nothing unsaved.
 
 ## Not included
 

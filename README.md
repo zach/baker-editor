@@ -169,9 +169,11 @@ Neither is offered without a game, or with another project's: the server asks th
 once per connection, where one of the project's values comes from. An evaluation may take
 up to 2 s, as a person asked for it; everything else keeps the 50 ms.
 
-**Revert the live edit** waits for Baker: the console has no command to drop one path's
-live edit (`requirements/0014`). The server offers it once the game binds `config.clear`
-(it checks by clearing a path no game has).
+**Revert the live edit**, on a value the game has a live edit for: `{config.clear path}`
+drops the edit, and the value is the files' again. Offered when the game binds
+`config.clear` (Baker 0.2.0's development builds do; the server checks, once per connection,
+by clearing a path no game has). On Duel, trying `(health 1200)` then reverting leaves hover
+on `default 1000` and nothing unsaved in the game.
 
 On Duel with the game running: evaluating `{duel.frame_table}` in a scenario shows the
 table's header after it; `{duel.p1 nobody}` shows `✗ no pilot nobody: ...`; trying
@@ -266,14 +268,17 @@ The check is no slower: only the layers above the bottom one are asked for their
 override; asking the 2 MB bottom layer itself would cost about 100 ms. These checks are
 slower than the table above's 100–120 ms on this machine today, before and after alike.
 
-The game sends each reply as its own write, so without the server asking for immediate
-acknowledgements (`TCP_QUICKACK`, Linux), the same 113 values took about 50 ms, the console's
-whole budget: Nagle's algorithm holds each reply for a delayed acknowledgement. On other
-platforms it still does; `requirements/0013` asks Baker's console to send them together.
+Baker 0.1's example console sent each reply as its own write, so Nagle's algorithm held each
+one for a delayed acknowledgement: the same 113 values took about 50 ms, the console's whole
+budget, and the server asked Linux for immediate acknowledgements (`TCP_QUICKACK`) to bring
+them to the figures above. Baker 0.2.0's console sends a frame's replies in one write
+(`requirements/0013`), so the workaround is gone: against it, 113 values take 10–26 ms
+(a Debug build of the server, the connection included, five runs), and 60 or 200 pipelined
+requests about one frame (6–20 ms).
 
 ## Baker
 
-The server builds against a released Baker, `zach/baker` `v0.1.1`, through its public headers.
+The server builds against a released Baker, `zach/baker` `v0.2.0`, through its public headers.
 `-DBAKER_EDITOR_BAKER_DIR=PATH` builds against a local checkout instead. The stacks it is
 tried on come from Baker's development repository, `zach/baker-dev` (`stacks/`), which the
 release leaves out.
