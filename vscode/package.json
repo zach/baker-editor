@@ -83,6 +83,14 @@
       {
         "command": "baker.tryHere",
         "title": "Baker: Try this value in the game"
+      },
+      {
+        "command": "baker.showMerged",
+        "title": "Baker: Show the merged stack"
+      },
+      {
+        "command": "baker.showLayerEffect",
+        "title": "Baker: Show what a layer changes"
       }
     ],
     "keybindings": [
@@ -95,8 +103,8 @@
     ]
   },
   "scripts": {
-    "compile": "tsc -p . --noEmit && esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node --target=node18 && esbuild src/project.ts --outfile=out/project.js --format=cjs --platform=node",
-    "test": "node test/grammar.test.js && node test/project.test.js",
+    "compile": "tsc -p . --noEmit && esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node --target=node18 && esbuild src/project.ts src/views.ts --outdir=out --format=cjs --platform=node",
+    "test": "node test/grammar.test.js && node test/project.test.js && node test/views.test.js",
     "package": "vsce package --no-dependencies",
     "bundle-server": "node -e \"const fs=require('fs'),p=require('path');const exe=process.platform==='win32'?'baker-lsp.exe':'baker-lsp';fs.mkdirSync('server',{recursive:true});fs.copyFileSync(p.join(process.argv[1]||'../build/server',exe),p.join('server',exe));fs.chmodSync(p.join('server',exe),0o755)\""
   },

@@ -7,6 +7,7 @@
                      [--apply FILE LINE COL]
                      [--outline FILE] [--references FILE LINE COL]
                      [--inlays FILE FIRST LAST] [--run FILE LINE COL TITLE]
+                     [--merged FILE] [--layer-effect FILE LAYER] [--lenses FILE]
                      -- baker-lsp ARGS...
 
 Starts the server, opens each --open file (with its edit, if --replace names it; with TEXT
@@ -14,7 +15,8 @@ instead of the file's, if --text names it), waits for the diagnostics to settle,
 one a line as file:line:col: severity: message, then each hover's markdown and each
 completion's labels (LINE and COL 1-based, COL in characters), each inlay hint on lines
 FIRST to LAST, and shuts the server down. --run runs the code action TITLE there, such as
-"Evaluate in the game", and prints the file's inlay hints after it.
+"Evaluate in the game", and prints the file's inlay hints after it. --merged and
+--layer-effect print the views of FILE's project (baker/merged, baker/layerEffect).
 Exit status: 1 if any error was published, else 0.
 """
 import json
@@ -81,6 +83,19 @@ def main(argv):
             asks.append(("references", opts[i + 1], int(opts[i + 2]) - 1, int(opts[i + 3]) - 1))
             opens.append(opts[i + 1])
             i += 4
+        elif opts[i] == "--merged":
+            asks.append(("merged", opts[i + 1], 0, 0))
+            opens.append(opts[i + 1])
+            i += 2
+        elif opts[i] == "--lenses":
+            asks.append(("lenses", opts[i + 1], 0, 0))
+            opens.append(opts[i + 1])
+            i += 2
+        elif opts[i] == "--layer-effect":
+            asks.append(("layer-effect", opts[i + 1], 0, 0))
+            titles[len(asks) - 1] = opts[i + 2]
+            opens.append(opts[i + 1])
+            i += 3
         elif opts[i] == "--run":
             asks.append(("run", opts[i + 1], int(opts[i + 2]) - 1, int(opts[i + 3]) - 1))
             titles[len(asks) - 1] = opts[i + 4]
@@ -128,7 +143,13 @@ def main(argv):
                                     "definition": "definition", "actions": "codeAction",
                                     "apply": "codeAction", "outline": "documentSymbol",
                                     "references": "references", "inlays": "inlayHint",
-                                    "run": "codeAction"}[what]
+                                    "run": "codeAction", "lenses": "codeLens",
+                                    "merged": "", "layer-effect": ""}[what]
+        if what in ("merged", "layer-effect"):
+            send(proc, {"jsonrpc": "2.0", "id": 100 + n,
+                        "method": "baker/merged" if what == "merged" else "baker/layerEffect",
+                        "params": {"uri": uri(path), "layer": titles.get(n, "")}})
+            continue
         where = {"line": line, "character": col}
         span = {"start": where, "end": where}
         if what == "inlays":  # lines `line` to `col`
@@ -213,6 +234,20 @@ def main(argv):
         if what == "run":
             continue
         if what == "run":
+            continue
+        if what in ("merged", "layer-effect"):
+            error = next((m["error"]["message"] for m in messages
+                          if m.get("id") == 100 + n and "error" in m), None)
+            if error:
+                print("error:", error)
+                continue
+            sys.stdout.write(result["text"])
+            print(f"({len(result['sources'])} lines with a source)")
+            continue
+        if what == "lenses":
+            for lens in result or []:
+                print(f"{path}:{lens['range']['start']['line'] + 1}: {lens['command']['title']} "
+                      f"{json.dumps(lens['command']['arguments'][1:])}")
             continue
         if what == "inlays":
             for h in result or []:

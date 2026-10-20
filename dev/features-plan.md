@@ -129,6 +129,10 @@ extension shows it through a text-document content provider.
 
 **Effort:** about three days.
 
+**As built:** sources come from `Config::source` per value, which on the 2 MB file is fast
+enough (the whole view in under 200 ms) that `layer_effect` for every layer was not needed.
+The views return `{text, sources}`, and the extension answers definition from `sources`.
+
 ## C5. Completion that knows the values, and Baker's hints
 
 **From:** the VS Code JSON and YAML servers driven by JSON Schema: valid values offered,
@@ -199,6 +203,6 @@ for it, and a requirement note asks for the project file to name the tool binary
 | C1 Outline, folding, references, rename | Done (first pass) |
 | C2 Which layer wins, in the text | Done (first pass) |
 | C3 Evaluate in the running game | Done (first pass), Revert with Baker 0.2.0 |
-| C4 The merged stack, and what a layer changes | Next |
-| C5 Completion that knows the values, and Baker's hints | One Baker note, for allowed symbols |
+| C4 The merged stack, and what a layer changes | Done (first pass) |
+| C5 Completion that knows the values, and Baker's hints | Next; one Baker note, for allowed symbols |
 | C6 Scenarios and objectives as tests | Baker 0.2.0's host kit is out |

@@ -1,6 +1,7 @@
 #include "server.hpp"
 
 #include "features.hpp"
+#include "merged.hpp"
 #include "outline.hpp"
 #include "positions.hpp"
 #include "reference.hpp"
@@ -138,6 +139,7 @@ void Server::request(const json& message) {
               {"renameProvider", {{"prepareProvider", true}}},
               {"codeActionProvider", true},
               {"inlayHintProvider", true},
+              {"codeLensProvider", {{"resolveProvider", false}}},
               {"executeCommandProvider",
                {{"commands",
                  json::array({"baker.writeBack", "baker.evaluate", "baker.try", "baker.revert"})}}},
@@ -162,6 +164,16 @@ void Server::request(const json& message) {
             reply["result"] = std::move(edit);
         else
             reply["error"] = {{"code", -32602}, {"message", error}};
+    } else if (method == "baker/merged" || method == "baker/layerEffect" ||
+               method == "baker/layers") {
+        std::string error;
+        json result = view(method, message.value("params", json::object()), error);
+        if (error.empty())
+            reply["result"] = std::move(result);
+        else
+            reply["error"] = {{"code", -32602}, {"message", error}};
+    } else if (method == "textDocument/codeLens") {
+        reply["result"] = code_lenses(message.value("params", json::object()));
     } else if (method == "textDocument/inlayHint") {
         reply["result"] = inlay_hints(message.value("params", json::object()));
     } else if (method == "textDocument/codeAction") {
@@ -835,6 +847,70 @@ json Server::inlay_hints(const json& params) {
             continue;
         out.push_back(hint_json(lines, br.end, "live " + live.value,
                                 "the running game's value, a live edit not yet written"));
+    }
+    return out;
+}
+
+json Server::view(const std::string& method, const json& params, std::string& error) {
+    const std::string path = canonical_path(path_from_uri(params.value("uri", std::string())));
+    Checked* c = project_of(path);
+    if (due_ || (c && !c->loaded)) check_now();  // a view may be asked before any edit
+    if (!c || !c->loaded || !c->loaded->config) {
+        error = "no project is checked for " + path;
+        return nullptr;
+    }
+    const baker::Config& cfg = *c->loaded->config;
+    if (method == "baker/layers") {
+        json names = json::array();
+        for (const baker::Symbol l : cfg.layers())
+            if (l.str() != "scratch") names.push_back(std::string(l.str()));
+        return names;
+    }
+    std::optional<View> v;
+    if (method == "baker/merged") {
+        v = merged_view(cfg,
+                        c->setup.project.empty() ? std::string() : parent_of(c->setup.project));
+    } else {
+        v = layer_view(cfg, params.value("layer", std::string()), error);
+        if (!v) return nullptr;
+    }
+    json sources = json::array();
+    for (const ViewSource& s : v->sources)
+        sources.push_back({{"line", s.line}, {"uri", uri_for(s.file)}, {"fileLine", s.file_line}});
+    return {{"text", std::move(v->text)}, {"sources", std::move(sources)}};
+}
+
+json Server::code_lenses(const json& params) {
+    json out = json::array();
+    const std::string path = document_of(params);
+    std::string text;
+    Checked* c = project_of(path);
+    if (!c || c->setup.project != path || !buffers_.read(path, text)) return out;
+    // (project ... (layers (name "file" ...) ...)): a lens on each layer, and one for the stack.
+    const Structure s = read_structure(text);
+    const LineIndex lines(text);
+    const json uri = uri_for(path);
+    const auto lens = [&](const Token& at, const std::string& title, const std::string& command,
+                          json args) {
+        const auto [l0, c0] = lines.position(at.begin);
+        const auto [l1, c1] = lines.position(at.end);
+        out.push_back({{"range",
+                        {{"start", {{"line", l0}, {"character", c0}}},
+                         {"end", {{"line", l1}, {"character", c1}}}}},
+                       {"command",
+                        {{"title", title}, {"command", command}, {"arguments", std::move(args)}}}});
+    };
+    for (size_t b = 0; b < s.brackets.size(); ++b) {
+        const Bracket& layers = s.brackets[b];
+        if (layers.open != '(' || s.tag(static_cast<int>(b)) != "layers" || layers.parent < 0 ||
+            s.tag(layers.parent) != "project")
+            continue;
+        lens(s.tokens[layers.tag], "Show the merged stack", "baker.showMerged", json::array({uri}));
+        for (size_t l = b + 1; l < s.brackets.size() && s.brackets[l].begin < layers.end; ++l)
+            if (s.brackets[l].parent == static_cast<int>(b) && s.brackets[l].tag >= 0)
+                lens(s.tokens[s.brackets[l].tag], "Show what this layer changes",
+                     "baker.showLayerEffect",
+                     json::array({uri, std::string(s.tag(static_cast<int>(l)))}));
     }
     return out;
 }

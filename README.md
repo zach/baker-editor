@@ -15,8 +15,8 @@ Baker's integration plans.
 | - | VS Code extension | First pass: below |
 
 Plan C (`dev/features-plan.md`) comes next, one step at a time: outline and rename, which
-layer wins in the text, and evaluating in the running game are done (first passes, below);
-the merged stack, value completion, and scenarios as tests follow.
+layer wins in the text, evaluating in the running game, and the merged stack are done (first
+passes, below); value completion and scenarios as tests follow.
 
 ## The VS Code extension
 
@@ -127,6 +127,32 @@ changed in the game shows it: `(health 1000) live 1234`. The server asks the gam
 every value in the visible lines at once (at most 200), within the console's 50 ms; without
 a game, or past the budget, nothing is shown. The hints are asked for when the editor
 scrolls or the text changes, not when the game changes a value.
+
+## The merged stack, and what a layer changes
+
+**Baker: Show the merged stack** opens, beside the editor, the stack as the game sees it
+after every layer: `Config::root()`, one value a line, each followed by the layer and line it
+comes from. It reads back through Baker into the same tree (every stack's does). An array
+that fits on a line stays on one when all its values come from the same place.
+
+```
+(units
+  (knight
+    (health 50)  ; local data/local.dta:1
+    (speed 2.5))  ; default data/default.dta:5
+  (archer (health 60) (speed 3)))  ; default data/default.dta:6
+```
+
+**Baker: Show what a layer changes** lists every path a layer sets, with the value below it,
+as a game's `diff --layer` prints it (`Config::layer_effect`); for `agent.dta`, what a person
+reviews before promoting an agent's work. On Duel with an agent layer, the view and
+`stacks_duel diff --layer agent` print the same lines. In the project file, a code lens on
+each layer opens its view, and one on `(layers` the merged stack.
+
+Go-to-definition from any line of either view jumps to where its value is written. A view
+is the stack as it was when opened; open it again after an edit. The server answers the
+custom requests `baker/merged`, `baker/layerEffect` (`{uri, layer}`) and `baker/layers`
+with `{text, sources}`, for other editors to show the same way.
 
 ## Live values
 
@@ -254,6 +280,12 @@ At Baker fb613b4 and before, the same 2 MB check took 110–160 ms clean and 50�
 syntax error (one run each of three to six).
 
 A syntax error in the stacks shows about 155 ms after the keystroke, within the plan's 200 ms.
+
+The merged view (C4), Release build (Clang), at Baker 0.2.0: Duel's in 0.3 ms; the 2 MB
+Duel's (5.7 MB of view, 99,623 lines with a source) in 186–196 ms, and 554–602 ms from the
+request to the shell client holding the decoded reply, within the plan's second. The first
+version took 827–883 ms for the view alone: it printed each array again to see whether it
+fit on a line, and made every file name canonical once per line.
 
 Which layer wins (C2), Release build (Clang), against the previous commit built the same way:
 

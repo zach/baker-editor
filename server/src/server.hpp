@@ -78,6 +78,10 @@ private:
     nlohmann::json rename(const nlohmann::json& params, std::string& error);
     nlohmann::json execute(const nlohmann::json& params);
     nlohmann::json inlay_hints(const nlohmann::json& params);
+    nlohmann::json code_lenses(const nlohmann::json& params);
+    // baker/merged, baker/layerEffect and baker/layers: views of a document's project.
+    nlohmann::json view(const std::string& method, const nlohmann::json& params,
+                        std::string& error);
     // Whether the game on the console is this project's: one of its values comes from the
     // project's files (asked once per connection).
     bool game_is(Checked& c);
