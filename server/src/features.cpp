@@ -1,9 +1,13 @@
 #include "features.hpp"
 
+#include "hints.hpp"
+#include "structure.hpp"
+
 #include <baker/std_interop.hpp>
 
 #include <algorithm>
 #include <cstdio>
+#include <map>
 
 namespace baker_lsp {
 namespace {
@@ -160,6 +164,31 @@ std::optional<Hover> hover(std::string_view text, size_t offset, const Loaded& l
         h.markdown +=
             "\n\nshape `" + std::string(s->name.str()) + "` (" + where(s->file, s->line) + ")";
 
+    // The metadata written beside the value, and the game's tweak at its path.
+    const Hints written = written_at(loaded, tags);
+    if (written.written) {
+        const Hints& hints = written;
+        std::string m = "in the data:";
+        if (hints.ranged) m += " " + number(hints.min) + " to " + number(hints.max) + ",";
+        if (hints.step > 0) m += " step " + number(hints.step) + ",";
+        if (!hints.kind.empty()) m += " " + hints.kind + ",";
+        if (m.back() == ',') m.pop_back();
+        if (!hints.desc.empty()) m += "\n\n" + hints.desc;
+        if (!hints.note.empty()) m += "\n\n*" + hints.note + "*";
+        h.markdown += "\n\n" + m;
+    }
+    if (const TweakInfo* t = tweak_at(reference, tags)) {
+        std::string m = "the game's tweak `" + t->path + "`: `" + t->type + "`, code default `" +
+                        t->default_text + "`";
+        if (t->ranged) m += ", " + number(t->min) + " to " + number(t->max);
+        if (t->step > 0) m += ", step " + number(t->step);
+        if (!t->kind.empty()) m += ", " + t->kind;
+        if (t->dev_only) m += "; dev only: a shipping build keeps the default";
+        m += t->bound ? "; the data sets it" : "; the data does not set it: the default stands";
+        if (!t->desc.empty() && t->desc != written.desc) m += "\n\n" + t->desc;
+        h.markdown += "\n\n" + m;
+    }
+
     if (loaded.config)
         if (auto chain = loaded.config->explain(baker::Path(path)); chain && !chain->empty()) {
             h.markdown += "\n\n| layer | value | where | |\n|---|---|---|---|";
@@ -250,8 +279,99 @@ std::vector<Location> definition(std::string_view text, size_t offset, const std
     return out;
 }
 
+namespace {
+
+// A snippet's text for `s`, with its special characters escaped.
+std::string snippet_text(std::string_view s) {
+    std::string out;
+    for (const char ch : s) {
+        if (ch == '$' || ch == '}' || ch == '\\') out += '\\';
+        out += ch;
+    }
+    return out;
+}
+
+// What choosing field `name` at `tags` (its own path) writes after it: the value the stack has
+// there now, else the tweak's code default, else the middle of its range, else its type's
+// zero. Empty when nothing fits.
+std::string value_for(const Loaded& loaded, const Reference& reference,
+                      const std::vector<std::string>& tags, const baker::shape::Field* field) {
+    if (const baker::Array* a = array_at(loaded, tags)) {
+        std::string v;
+        for (size_t i = 1; i < a->size(); ++i) {
+            if ((*a)[i].try_array()) break;  // its metadata, or arrays of its own
+            v += (v.empty() ? "" : " ") + baker::to_string((*a)[i]);
+        }
+        if (!v.empty()) return v;
+    }
+    const Hints h = hints_at(loaded, reference, tags);
+    if (h.tweak && !h.tweak->default_text.empty()) return h.tweak->default_text;
+    const bool integer = (field && field->type == baker::shape::Type::Int) ||
+                         (h.tweak && h.tweak->type.find("int") != std::string::npos);
+    if (h.ranged) {
+        const double mid = (h.min + h.max) / 2;
+        return integer ? std::to_string(static_cast<long long>(mid)) : number(mid);
+    }
+    if (integer) return "0";
+    if (field && field->type == baker::shape::Type::Float) return "0.0";
+    if (field && field->type == baker::shape::Type::Bool) return "0";
+    if (field && field->type == baker::shape::Type::String) return "\"\"";
+    return {};
+}
+
+bool symbol_like(const Token& t) {
+    if (t.quote || t.text.empty()) return false;
+    const char c0 = t.text.front();
+    if (c0 == '$' || c0 == '#' || (c0 >= '0' && c0 <= '9')) return false;
+    if ((c0 == '-' || c0 == '+' || c0 == '.') && t.text.size() > 1 &&
+        ((t.text[1] >= '0' && t.text[1] <= '9') || t.text[1] == '.'))
+        return false;
+    return true;
+}
+
+// The symbols the project's files give an array tagged `tag` whose parent `shape` governs
+// (or, with no shape, whose parent is tagged as `parent`'s last), by how often, most first.
+std::vector<std::pair<std::string, int>> symbols_in_use(
+    const Loaded& loaded, const std::vector<std::string>& parent, const std::string& tag,
+    const std::string& file, std::string_view text, size_t offset, const ReadFile& read) {
+    const baker::shape::Shape* shape = governing(loaded.shapes, parent);
+    std::map<std::string, int> counts;
+    std::vector<std::string> files = loaded.files;
+    if (std::find(files.begin(), files.end(), file) == files.end()) files.push_back(file);
+    for (const std::string& f : files) {
+        std::string own;
+        std::string_view t = text;
+        if (f != file) {
+            if (!read(f, own)) continue;
+            t = own;
+        }
+        const Structure s = read_structure(t);
+        for (size_t b = 0; b < s.brackets.size(); ++b) {
+            const Bracket& br = s.brackets[b];
+            if (br.open != '(' || br.tag < 0 || s.tokens[br.tag].text != tag) continue;
+            if (f == file && br.begin < offset && offset <= br.end) continue;  // being typed
+            const size_t first = static_cast<size_t>(br.tag) + 1;
+            if (first >= s.tokens.size() || s.tokens[first].bracket != static_cast<int>(b) ||
+                !symbol_like(s.tokens[first]))
+                continue;
+            if (br.parent < 0) continue;
+            const std::vector<std::string> where = s.data_path(br.parent);
+            if (where.empty()) continue;
+            if (shape ? governing(loaded.shapes, where) != shape : where.back() != parent.back())
+                continue;
+            ++counts[std::string(s.tokens[first].text)];
+        }
+    }
+    std::vector<std::pair<std::string, int>> out(counts.begin(), counts.end());
+    std::stable_sort(out.begin(), out.end(),
+                     [](const auto& a, const auto& b) { return a.second > b.second; });
+    return out;
+}
+
+}  // namespace
+
 Completions complete(std::string_view text, size_t offset, const Loaded& loaded,
-                     const Reference& reference) {
+                     const Reference& reference, const std::string& file, const ReadFile& read) {
     const Cursor c = scan(text, offset);
     Completions out;
     if (c.quiet) return out;
@@ -280,11 +400,40 @@ Completions complete(std::string_view text, size_t offset, const Loaded& loaded,
         }
         if (inner.open == '(') {  // naming an array: the governing shape's fields
             const std::vector<std::string> parent = c.parent_path();
-            if (!parent.empty())
-                if (const baker::shape::Shape* s = governing(loaded.shapes, parent))
-                    for (const baker::shape::Field& f : s->fields)
-                        offer({std::string(f.name.str()), Kind::Field, type_name(f),
-                               describe(*s, f)});
+            if (parent.empty()) return out;
+            // Choosing one writes a value after it, as a placeholder to change.
+            const auto with_value = [&](Completion item, const baker::shape::Field* f) {
+                std::vector<std::string> tags = parent;
+                tags.push_back(item.label);
+                if (const std::string v = value_for(loaded, reference, tags, f); !v.empty())
+                    item.snippet = snippet_text(item.label) + " ${1:" + snippet_text(v) + "}";
+                offer(std::move(item));
+            };
+            const baker::shape::Shape* s = governing(loaded.shapes, parent);
+            if (s)
+                for (const baker::shape::Field& f : s->fields)
+                    with_value({std::string(f.name.str()),
+                                Kind::Field,
+                                type_name(f),
+                                describe(*s, f),
+                                {},
+                                {}},
+                               &f);
+            // The game's tweaks here that no shape declares.
+            for (const TweakInfo& t : reference.tweaks) {
+                if (t.tags.size() != parent.size() + 1 ||
+                    !std::equal(parent.begin(), parent.end(), t.tags.begin()))
+                    continue;
+                if (s && s->field(baker::Symbol(t.tags.back()))) continue;
+                with_value({t.tags.back(),
+                            Kind::Field,
+                            t.type,
+                            "the game's tweak `" + t.path + "`, code default `" + t.default_text +
+                                "`" + (t.desc.empty() ? "" : "\n\n" + t.desc),
+                            {},
+                            {}},
+                           nullptr);
+            }
             return out;
         }
         return out;
@@ -296,9 +445,33 @@ Completions complete(std::string_view text, size_t offset, const Loaded& loaded,
                    "declared at " + where(baker::Symbol(p.file), p.line)});
         return out;
     }
+    // A symbol field's value: the values the project gives the same field, most used first.
+    if (read && c.index == 1 && !c.stack.empty() && c.stack.back().open == '(' &&
+        !c.stack.back().tag.empty()) {
+        std::vector<std::string> parent = c.data_path();
+        if (parent.size() >= 2) {
+            parent.pop_back();
+            int rank = 0;
+            for (const auto& [symbol, uses] :
+                 symbols_in_use(loaded, parent, c.stack.back().tag, file, text, offset, read)) {
+                char sort[16];
+                std::snprintf(sort, sizeof sort, "0%05d", rank++);
+                offer({symbol,
+                       Kind::EnumMember,
+                       std::to_string(uses) + (uses == 1 ? " use" : " uses") + " in the project",
+                       {},
+                       {},
+                       sort});
+            }
+        }
+    }
     for (const Definition& d : loaded.macros)
-        offer({d.name, Kind::Constant, "macro",
-               "defined at " + where(baker::Symbol(d.file), d.line)});
+        offer({d.name,
+               Kind::Constant,
+               "macro",
+               "defined at " + where(baker::Symbol(d.file), d.line),
+               {},
+               "1" + d.name});
     return out;
 }
 

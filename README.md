@@ -15,8 +15,8 @@ Baker's integration plans.
 | - | VS Code extension | First pass: below |
 
 Plan C (`dev/features-plan.md`) comes next, one step at a time: outline and rename, which
-layer wins in the text, evaluating in the running game, and the merged stack are done (first
-passes, below); value completion and scenarios as tests follow.
+layer wins in the text, evaluating in the running game, the merged stack, and value hints are
+done (first passes, below); scenarios as tests follow.
 
 ## The VS Code extension
 
@@ -70,18 +70,33 @@ UTF-16 for LSP.
 ## Hover and completion
 
 **Hover** on a value or an array's name shows its path, the shape field that governs it (type,
-range, step, kind, `desc` and `note`, and where the shape is declared), and every layer that
-contributes to it from the files, with its value, file and line, and which one wins
-(`Config::explain`). On a command's head it shows the function's signatures and doc from the
-game's reference; on a macro or a script function, where it is defined.
+range, step, kind, `desc` and `note`, and where the shape is declared), the metadata written
+beside the value in the data (`(buffer 5 (range 1 20) (desc ...))`), the game's tweak at its
+path (its type, code default, range, whether the data sets it, and whether it is dev only), and
+every layer that contributes to it from the files, with its value, file and line, and which
+one wins (`Config::explain`). On a command's head it shows the function's signatures and doc
+from the game's reference; on a macro or a script function, where it is defined.
 
 **Completion** offers, where the cursor is:
 
 - naming an array (after `(`): the fields of the shape that governs the enclosing array,
-  such as a fighter's in `(fighters (kestrel (`;
+  such as a fighter's in `(fighters (kestrel (`, and the game's tweaks there. Choosing one
+  writes a value after it, to change: the value the stack has there now (overriding
+  `(health` in `local.dta` writes `(health 1000`), else the tweak's code default, else the
+  middle of its range, else its type's zero;
 - naming a command (after `{`): the game's functions with their signatures, the data's
   script functions, and the objects the game names;
-- a value: the data's macros; in `(requires ...)`, the packs.
+- a symbol field's value: the values the project's files give the same field, most used
+  first (in Duel, `(button ` offers `kick heavy light special`); then the data's macros. In
+  `(requires ...)`, the packs.
+
+**Colors:** a swatch, and VS Code's color picker, on every value Baker calls a color: `(kind
+color)`, or 3 or 4 numbers ranged 0 to 1 with no kind, such as `(tint 0.9 0.5 0.2 (range 0
+1))`. Picking a color rewrites the numbers in place, at most three decimals each.
+
+**Ranges the game enforces:** a value outside the range written beside it in the data, or
+outside its tweak's range, is a warning: only the running game refuses it, when it sets the
+tweak. A shape's range is already an error, as `check` reports it.
 
 **Go-to-definition** jumps from:
 
@@ -254,8 +269,9 @@ tools/lsp_client.py --replace data/default.dta "(health 1000)" "(health 0)" -- b
   are not refreshed when only the game changes.
 - A layer's hints are from the last check in which every layer read, so while a file does
   not read, its hints can sit a line off.
-- An inline `(range ...)` on a value is tweak metadata, which only the running game
-  enforces; shapes are what the server checks, as the game's own `check` does.
+- A symbol field's values come from use, not a declared list: the first use of a value is
+  not offered, and a typo used twice is (`requirements/0015` asks Baker for allowed symbols).
+- A color's components are taken as 0 to 1, as Baker's color rule has them.
 - Other editors: point an LSP client at the binary, language id `baker`;
   `tree-sitter-baker/` highlights for Neovim, Helix and Zed, set up by hand for now.
 
@@ -280,6 +296,12 @@ At Baker fb613b4 and before, the same 2 MB check took 110–160 ms clean and 50�
 syntax error (one run each of three to six).
 
 A syntax error in the stacks shows about 155 ms after the keystroke, within the plan's 200 ms.
+
+Value hints (C5), Release build (Clang), on the 2 MB Duel: the range warnings take 2.6–3.0 ms
+of each check; completing `(button ` (which reads every file of the project for the values in
+use) answers in 20–42 ms as the shell client times it, and the file's colors 41 ms after it.
+The check itself is unchanged: 108–170 ms against 109–144 ms at the previous commit (six
+runs each, two checks a run).
 
 The merged view (C4), Release build (Clang), at Baker 0.2.0: Duel's in 0.3 ms; the 2 MB
 Duel's (5.7 MB of view, 99,623 lines with a source) in 186–196 ms, and 554–602 ms from the

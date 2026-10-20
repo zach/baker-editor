@@ -8,6 +8,7 @@
                      [--outline FILE] [--references FILE LINE COL]
                      [--inlays FILE FIRST LAST] [--run FILE LINE COL TITLE]
                      [--merged FILE] [--layer-effect FILE LAYER] [--lenses FILE]
+                     [--colors FILE]
                      -- baker-lsp ARGS...
 
 Starts the server, opens each --open file (with its edit, if --replace names it; with TEXT
@@ -87,6 +88,10 @@ def main(argv):
             asks.append(("merged", opts[i + 1], 0, 0))
             opens.append(opts[i + 1])
             i += 2
+        elif opts[i] == "--colors":
+            asks.append(("colors", opts[i + 1], 0, 0))
+            opens.append(opts[i + 1])
+            i += 2
         elif opts[i] == "--lenses":
             asks.append(("lenses", opts[i + 1], 0, 0))
             opens.append(opts[i + 1])
@@ -143,7 +148,7 @@ def main(argv):
                                     "definition": "definition", "actions": "codeAction",
                                     "apply": "codeAction", "outline": "documentSymbol",
                                     "references": "references", "inlays": "inlayHint",
-                                    "run": "codeAction", "lenses": "codeLens",
+                                    "run": "codeAction", "lenses": "codeLens", "colors": "documentColor",
                                     "merged": "", "layer-effect": ""}[what]
         if what in ("merged", "layer-effect"):
             send(proc, {"jsonrpc": "2.0", "id": 100 + n,
@@ -244,6 +249,12 @@ def main(argv):
             sys.stdout.write(result["text"])
             print(f"({len(result['sources'])} lines with a source)")
             continue
+        if what == "colors":
+            for c in result or []:
+                rgba = " ".join(f"{c['color'][k]:g}" for k in ("red", "green", "blue", "alpha"))
+                print(f"{path}:{c['range']['start']['line'] + 1}:"
+                      f"{c['range']['start']['character'] + 1}: color {rgba}")
+            continue
         if what == "lenses":
             for lens in result or []:
                 print(f"{path}:{lens['range']['start']['line'] + 1}: {lens['command']['title']} "
@@ -266,8 +277,12 @@ def main(argv):
             if not result:
                 print("(nothing)")
         else:
-            items = result["items"] if result else []
+            items = sorted(result["items"] if result else [],
+                           key=lambda item: item.get("sortText", item["label"]))
             print(" ".join(item["label"] for item in items) or "(nothing)")
+            for item in items:  # what choosing one writes, where it writes a value too
+                if item.get("insertTextFormat") == 2:
+                    print(f"  {item['label']}: {item['textEdit']['newText']}")
     return 1 if errors else 0
 
 

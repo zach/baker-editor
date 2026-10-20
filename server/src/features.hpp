@@ -32,13 +32,22 @@ std::optional<Hover> hover(std::string_view text, size_t offset, const Loaded& l
                            const Reference& reference);
 
 // LSP's CompletionItemKind values for what completion offers.
-enum class Kind { Function = 3, Field = 5, Module = 9, Constant = 21, Variable = 6 };
+enum class Kind {
+    Function = 3,
+    Field = 5,
+    Variable = 6,
+    Module = 9,
+    EnumMember = 20,
+    Constant = 21,
+};
 
 struct Completion {
     std::string label;
     Kind kind = Kind::Field;
     std::string detail;         // a type or a signature
     std::string documentation;  // markdown
+    std::string snippet;        // an LSP snippet to insert instead of the label, if any
+    std::string sort;           // the order to offer it in, if not the label's
 };
 
 struct Completions {
@@ -46,8 +55,14 @@ struct Completions {
     size_t begin = 0, end = 0;  // the bytes a chosen item replaces: the token being typed
 };
 
+// Reads a project file's text, as the server sees it (an open editor's, else the disk's).
+using ReadFile = std::function<bool(const std::string& path, std::string& out)>;
+
+// `file` is the text's own path; with `read`, a symbol value is completed from the values the
+// project's files give the same field.
 Completions complete(std::string_view text, size_t offset, const Loaded& loaded,
-                     const Reference& reference);
+                     const Reference& reference, const std::string& file = {},
+                     const ReadFile& read = {});
 
 struct Location {
     std::string file;  // canonical

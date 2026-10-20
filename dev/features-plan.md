@@ -175,6 +175,12 @@ values in use.
 
 **Effort:** about three days here, plus one Baker note.
 
+**As built:** inline metadata is read from the merged tree (an array whose value is followed
+only by `range`, `step`, `kind`, `desc` or `note` arrays, so data named `kind` is not taken for
+it), and tweaks from the reference's `tweaks`. In Duel, `(button ` offers `kick heavy light
+special` (by use, kick first). Colors take components as 0 to 1. The note is
+`requirements/0015`.
+
 ## C6. Scenarios and objectives as tests
 
 **From:** VS Code's Testing panel; Unity's Test Runner.
@@ -204,5 +210,5 @@ for it, and a requirement note asks for the project file to name the tool binary
 | C2 Which layer wins, in the text | Done (first pass) |
 | C3 Evaluate in the running game | Done (first pass), Revert with Baker 0.2.0 |
 | C4 The merged stack, and what a layer changes | Done (first pass) |
-| C5 Completion that knows the values, and Baker's hints | Next; one Baker note, for allowed symbols |
-| C6 Scenarios and objectives as tests | Baker 0.2.0's host kit is out |
+| C5 Completion that knows the values, and Baker's hints | Done (first pass); Baker note 0015, allowed symbols |
+| C6 Scenarios and objectives as tests | Next: Baker 0.2.0's host kit is out |

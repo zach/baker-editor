@@ -129,6 +129,27 @@
    }
   ]
  },
- "tweaks": {},
+ "tweaks": {
+  "schema": "baker.tweaks/1",
+  "tweaks": [
+   {
+    "path": "world.gravity",
+    "type": "float32",
+    "default": "9.8",
+    "value": "9.8",
+    "bound": false,
+    "range": [
+     0.0,
+     20.0
+    ],
+    "step": 0.0,
+    "desc": "Metres per second squared",
+    "kind": "",
+    "group": "world",
+    "dev_only": true,
+    "source": null
+   }
+  ]
+ },
  "shapes": {}
 }

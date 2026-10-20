@@ -71,6 +71,43 @@ std::string signature(const std::string& name, const nlohmann::json& overload) {
 
 }  // namespace
 
+namespace {
+
+void read_tweaks(const nlohmann::json& doc, Reference& out) {
+    for (const nlohmann::json& t : doc.value("tweaks", nlohmann::json::array())) {
+        if (!t.is_object() || t.value("path", "").empty()) continue;
+        TweakInfo& info = out.tweaks.emplace_back();
+        info.path = t.value("path", "");
+        for (size_t start = 0; start <= info.path.size();) {
+            size_t dot = info.path.find('.', start);
+            if (dot == std::string::npos) dot = info.path.size();
+            info.tags.push_back(info.path.substr(start, dot - start));
+            start = dot + 1;
+        }
+        info.type = t.value("type", "");
+        info.default_text = t.value("default", "");
+        info.bound = t.value("bound", false);
+        if (const nlohmann::json r = t.value("range", nlohmann::json());
+            r.is_array() && r.size() == 2 && r[0].is_number() && r[1].is_number()) {
+            info.min = r[0].get<double>();
+            info.max = r[1].get<double>();
+            info.ranged = info.min < info.max;
+        }
+        info.step = t.value("step", 0.0);
+        info.desc = t.value("desc", "");
+        info.kind = t.value("kind", "");
+        info.dev_only = t.value("dev_only", false);
+    }
+}
+
+}  // namespace
+
+const TweakInfo* tweak_at(const Reference& r, const std::vector<std::string>& tags) {
+    for (const TweakInfo& t : r.tweaks)
+        if (t.tags == tags) return &t;
+    return nullptr;
+}
+
 bool load_reference(baker::Context& ctx, const std::string& path, Reference& out,
                     std::string& error) {
     std::ifstream in(path, std::ios::binary);
@@ -80,7 +117,10 @@ bool load_reference(baker::Context& ctx, const std::string& path, Reference& out
     }
     nlohmann::json doc = nlohmann::json::parse(in, nullptr, false);
     // The stacks' `reference --json` wraps it: {reference, tweaks, shapes}.
-    if (doc.is_object() && doc.contains("reference")) doc = doc["reference"];
+    if (doc.is_object() && doc.contains("reference")) {
+        read_tweaks(doc.value("tweaks", nlohmann::json::object()), out);
+        doc = doc["reference"];
+    }
     if (!doc.is_object() || doc.value("schema", "").rfind("baker.reference/1", 0) != 0 ||
         !doc.contains("functions") || !doc["functions"].is_array()) {
         error = path + " is not a baker.reference/1 document";

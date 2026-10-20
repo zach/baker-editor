@@ -79,6 +79,9 @@ private:
     nlohmann::json execute(const nlohmann::json& params);
     nlohmann::json inlay_hints(const nlohmann::json& params);
     nlohmann::json code_lenses(const nlohmann::json& params);
+    // A swatch on each value Baker calls a color, and the text a picked color writes.
+    nlohmann::json document_colors(const nlohmann::json& params);
+    nlohmann::json color_presentations(const nlohmann::json& params);
     // baker/merged, baker/layerEffect and baker/layers: views of a document's project.
     nlohmann::json view(const std::string& method, const nlohmann::json& params,
                         std::string& error);

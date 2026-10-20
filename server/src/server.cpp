@@ -1,6 +1,7 @@
 #include "server.hpp"
 
 #include "features.hpp"
+#include "hints.hpp"
 #include "merged.hpp"
 #include "outline.hpp"
 #include "positions.hpp"
@@ -140,6 +141,7 @@ void Server::request(const json& message) {
               {"codeActionProvider", true},
               {"inlayHintProvider", true},
               {"codeLensProvider", {{"resolveProvider", false}}},
+              {"colorProvider", true},
               {"executeCommandProvider",
                {{"commands",
                  json::array({"baker.writeBack", "baker.evaluate", "baker.try", "baker.revert"})}}},
@@ -172,6 +174,10 @@ void Server::request(const json& message) {
             reply["result"] = std::move(result);
         else
             reply["error"] = {{"code", -32602}, {"message", error}};
+    } else if (method == "textDocument/documentColor") {
+        reply["result"] = document_colors(message.value("params", json::object()));
+    } else if (method == "textDocument/colorPresentation") {
+        reply["result"] = color_presentations(message.value("params", json::object()));
     } else if (method == "textDocument/codeLens") {
         reply["result"] = code_lenses(message.value("params", json::object()));
     } else if (method == "textDocument/inlayHint") {
@@ -315,15 +321,23 @@ json Server::complete(const json& params) {
     if (!place(params, buffers_, path, text, offset)) return json::array();
     Checked* c = project_of(path);
     if (!c || !c->loaded) return json::array();
-    const Completions found = baker_lsp::complete(text, offset, *c->loaded, c->reference);
+    const Completions found = baker_lsp::complete(
+        text, offset, *c->loaded, c->reference, path,
+        [this](const std::string& f, std::string& out) { return buffers_.read(f, out); });
     json items = json::array();
     const json range = range_json(text, found.begin, found.end);
-    for (const Completion& item : found.items)
-        items.push_back({{"label", item.label},
-                         {"kind", static_cast<int>(item.kind)},
-                         {"detail", item.detail},
-                         {"documentation", {{"kind", "markdown"}, {"value", item.documentation}}},
-                         {"textEdit", {{"range", range}, {"newText", item.label}}}});
+    for (const Completion& item : found.items) {
+        json entry = {
+            {"label", item.label},
+            {"kind", static_cast<int>(item.kind)},
+            {"detail", item.detail},
+            {"documentation", {{"kind", "markdown"}, {"value", item.documentation}}},
+            {"textEdit",
+             {{"range", range}, {"newText", item.snippet.empty() ? item.label : item.snippet}}}};
+        if (!item.snippet.empty()) entry["insertTextFormat"] = 2;  // a snippet
+        if (!item.sort.empty()) entry["sortText"] = item.sort;
+        items.push_back(std::move(entry));
+    }
     return {{"isIncomplete", false}, {"items", std::move(items)}};
 }
 
@@ -880,6 +894,92 @@ json Server::view(const std::string& method, const json& params, std::string& er
     return {{"text", std::move(v->text)}, {"sources", std::move(sources)}};
 }
 
+namespace {
+
+// A color component as written back: at most three decimals, no trailing zeros.
+std::string component(double v) {
+    char b[32];
+    std::snprintf(b, sizeof b, "%.3f", std::clamp(v, 0.0, 1.0));
+    std::string s = b;
+    while (s.size() > 1 && s.back() == '0') s.pop_back();
+    if (s.back() == '.') s.pop_back();
+    return s;
+}
+
+}  // namespace
+
+json Server::document_colors(const json& params) {
+    json out = json::array();
+    const std::string path = document_of(params);
+    std::string text;
+    Checked* c = project_of(path);
+    if (due_ || (c && !c->loaded)) check_now();
+    if (!c || !c->loaded || !buffers_.read(path, text)) return out;
+    const Structure s = read_structure(text);
+    const LineIndex lines(text);
+    // Each array's own values, after its tag; -1 once it holds an array that is not metadata.
+    std::vector<std::vector<int>> values(s.brackets.size());
+    for (size_t t = 0; t < s.tokens.size(); ++t) {
+        const Token& tok = s.tokens[t];
+        if (tok.bracket >= 0 && tok.index > 0) values[tok.bracket].push_back(static_cast<int>(t));
+    }
+    std::vector<bool> plain(s.brackets.size(), true);  // holds no data arrays
+    for (const Bracket& b : s.brackets)
+        if (b.parent >= 0 && !(b.open == '(' && b.tag >= 0 && is_meta_tag(s.tokens[b.tag].text)))
+            plain[b.parent] = false;
+    for (size_t b = 0; b < s.brackets.size(); ++b) {
+        const Bracket& br = s.brackets[b];
+        const std::vector<int>& v = values[b];
+        if (br.open != '(' || br.tag < 0 || !plain[b] || (v.size() != 3 && v.size() != 4)) continue;
+        std::vector<double> rgba;
+        for (const int t : v) {
+            const Token& tok = s.tokens[t];
+            if (tok.quote) break;
+            char* end = nullptr;
+            const std::string n(tok.text);
+            const double d = std::strtod(n.c_str(), &end);
+            if (!end || *end) break;
+            rgba.push_back(d);
+        }
+        if (rgba.size() != v.size()) continue;
+        const std::vector<std::string> tags = s.data_path(static_cast<int>(b));
+        if (tags.empty()) continue;
+        const Hints h = hints_at(*c->loaded, c->reference, tags);
+        if (!is_color(h, rgba.size())) continue;
+        const auto [l0, c0] = lines.position(s.tokens[v.front()].begin);
+        const auto [l1, c1] = lines.position(s.tokens[v.back()].end);
+        out.push_back({{"range",
+                        {{"start", {{"line", l0}, {"character", c0}}},
+                         {"end", {{"line", l1}, {"character", c1}}}}},
+                       {"color",
+                        {{"red", std::clamp(rgba[0], 0.0, 1.0)},  // components from 0 to 1
+                         {"green", std::clamp(rgba[1], 0.0, 1.0)},
+                         {"blue", std::clamp(rgba[2], 0.0, 1.0)},
+                         {"alpha", rgba.size() == 4 ? std::clamp(rgba[3], 0.0, 1.0) : 1.0}}}});
+    }
+    return out;
+}
+
+json Server::color_presentations(const json& params) {
+    const std::string path = document_of(params);
+    std::string text;
+    if (!buffers_.read(path, text)) return json::array();
+    const json range = params.value("range", json::object());
+    const json start = range.value("start", json::object()),
+               end = range.value("end", json::object());
+    const size_t a = offset_of(text, {start.value("line", 0), start.value("character", 0)});
+    const size_t b = offset_of(text, {end.value("line", 0), end.value("character", 0)});
+    if (b < a) return json::array();
+    // As many components as the value has now: three, or four with alpha.
+    const Structure s = read_structure(std::string_view(text).substr(a, b - a));
+    const json color = params.value("color", json::object());
+    std::string label = component(color.value("red", 0.0)) + " " +
+                        component(color.value("green", 0.0)) + " " +
+                        component(color.value("blue", 0.0));
+    if (s.tokens.size() == 4) label += " " + component(color.value("alpha", 1.0));
+    return json::array({{{"label", label}, {"textEdit", {{"range", range}, {"newText", label}}}}});
+}
+
 json Server::code_lenses(const json& params) {
     json out = json::array();
     const std::string path = document_of(params);
@@ -920,7 +1020,11 @@ void Server::check_now() {
     std::map<std::string, json> by_uri;
     bool hints_changed = false;
     for (auto& [key, c] : projects_) {
-        const Diagnosis d = diagnose(c.setup, *c.ctx, buffers_, c.have_reference);
+        Diagnosis d = diagnose(c.setup, *c.ctx, buffers_, c.have_reference);
+        // Ranges only the running game enforces: metadata in the data, and its tweaks'.
+        if (d.loaded)
+            for (Problem& p : range_problems(*d.loaded, c.reference))
+                d.problems.push_back(std::move(p));
         // While a file is mid-edit it often does not read, and its layer, with the shapes
         // and packs it brings, drops out; hover and completion keep the last whole stack.
         if (d.loaded && (d.every_layer_read || !c.loaded)) {
