@@ -202,6 +202,12 @@ for it, and a requirement note asks for the project file to name the tool binary
 
 **Effort:** about three days, after Baker 0.2.0.
 
+**Status:** Baker 0.2.0's host kit has no scenario runner (its commands are check, reference,
+eval, diff and promote): the stacks' `sim` and its `stacks.sim/1.1` are the stacks' own. The
+owner chose to ask Baker first (`requirements/0016`: the project file names the tool binary
+and the scenario and objective files, the kit runs scenarios with a located Baker result
+schema) and build this step on that, so the editor is not tied to one game's convention.
+
 ## Order and status
 
 | Step | Status |
@@ -211,4 +217,4 @@ for it, and a requirement note asks for the project file to name the tool binary
 | C3 Evaluate in the running game | Done (first pass), Revert with Baker 0.2.0 |
 | C4 The merged stack, and what a layer changes | Done (first pass) |
 | C5 Completion that knows the values, and Baker's hints | Done (first pass), allowed symbols with Baker 0.2.1 |
-| C6 Scenarios and objectives as tests | Next: Baker 0.2.0's host kit is out |
+| C6 Scenarios and objectives as tests | Waits for Baker note 0016: a scenario runner and the tool binary |
