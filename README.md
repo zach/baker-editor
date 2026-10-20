@@ -14,6 +14,10 @@ Baker's integration plans.
 | 6 | tree-sitter grammar | First pass: `tree-sitter-baker/` (registries not submitted) |
 | - | VS Code extension | First pass: below |
 
+What comes next is `dev/features-plan.md` (plan C): outline and rename, which layer wins in
+the text, evaluating in the running game, the merged stack, value completion, and scenarios as
+tests.
+
 ## The VS Code extension
 
 `vscode/` is the extension: a TextMate grammar for highlighting, and a client that starts
