@@ -27,15 +27,19 @@ bool Live::ready() {
     if (now < next_try_) return false;
     next_try_ = now + kRetry;
     write_back_.reset();
-    return connection_.connect(port_, static_cast<int>(kTimeout.count()));
+    clear_.reset();
+    if (!connection_.connect(port_, static_cast<int>(kTimeout.count()))) return false;
+    ++generation_;
+    return true;
 }
 
-std::optional<nlohmann::json> Live::ask(const std::string& command) {
+std::optional<nlohmann::json> Live::ask(const std::string& command,
+                                        std::chrono::milliseconds timeout) {
     if (!ready()) return std::nullopt;
     const int id = next_id_++;
     std::string reply;
     if (!connection_.send("(" + std::to_string(id) + " " + command + ")\n") ||
-        !connection_.read_until(reply, "\n\n", static_cast<int>(kTimeout.count()))) {
+        !connection_.read_until(reply, "\n\n", static_cast<int>(timeout.count()))) {
         next_try_ = std::chrono::steady_clock::now() + kRetry;
         return std::nullopt;
     }
@@ -96,17 +100,22 @@ std::optional<std::vector<std::vector<LiveEntry>>> Live::explain_many(
     return out;
 }
 
+std::optional<bool> Live::binds(const char* function) {
+    const auto reply = ask("{" + std::string(function) + "}");
+    if (!reply) return std::nullopt;
+    const std::string message =
+        reply->value("error", nlohmann::json::object()).value("message", "");
+    return message.find("is not a function") == std::string::npos;
+}
+
 bool Live::can_write_back() {
-    if (!write_back_) {
-        // With no arguments, a bound config.write_back fails for its arguments; an unbound
-        // one is "not a function".
-        const auto reply = ask("{config.write_back}");
-        if (!reply) return false;
-        const std::string message =
-            reply->value("error", nlohmann::json::object()).value("message", "");
-        write_back_ = message.find("is not a function") == std::string::npos;
-    }
-    return *write_back_;
+    if (!write_back_) write_back_ = binds("config.write_back");
+    return write_back_.value_or(false);
+}
+
+bool Live::can_clear() {
+    if (!clear_) clear_ = binds(kClear);
+    return clear_.value_or(false);
 }
 
 }  // namespace baker_lsp

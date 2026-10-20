@@ -75,6 +75,22 @@
       {
         "command": "baker.restartServer",
         "title": "Baker: Restart the language server"
+      },
+      {
+        "command": "baker.evaluateHere",
+        "title": "Baker: Evaluate in the game"
+      },
+      {
+        "command": "baker.tryHere",
+        "title": "Baker: Try this value in the game"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "baker.evaluateHere",
+        "key": "ctrl+enter",
+        "mac": "cmd+enter",
+        "when": "editorTextFocus && editorLangId == baker"
       }
     ]
   },

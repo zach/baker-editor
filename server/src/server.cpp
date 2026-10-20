@@ -10,6 +10,7 @@
 #include <baker/project.hpp>
 
 #include <algorithm>
+#include <cctype>
 #include <cstdio>
 #include <filesystem>
 #include <utility>
@@ -137,7 +138,9 @@ void Server::request(const json& message) {
               {"renameProvider", {{"prepareProvider", true}}},
               {"codeActionProvider", true},
               {"inlayHintProvider", true},
-              {"executeCommandProvider", {{"commands", json::array({"baker.writeBack"})}}},
+              {"executeCommandProvider",
+               {{"commands",
+                 json::array({"baker.writeBack", "baker.evaluate", "baker.try", "baker.revert"})}}},
               {"completionProvider", {{"triggerCharacters", json::array({"(", "{", " "})}}}}},
             {"serverInfo", {{"name", "baker-lsp"}, {"version", "0.1.0"}}}};
     } else if (method == "textDocument/hover") {
@@ -204,10 +207,13 @@ void Server::notification(const json& message, Clock::time_point now) {
         const json& changes = params.value("contentChanges", json::array());
         if (changes.empty()) return;
         // Full sync: the last change holds the whole text.
-        buffers_.set(canonical_path(document_path()), changes.back().value("text", ""));
+        const std::string path = canonical_path(document_path());
+        buffers_.set(path, changes.back().value("text", ""));
+        evaluated_.erase(path);  // its results sit at offsets of the old text
         schedule(now + kDebounce, true);
     } else if (method == "textDocument/didClose") {
         buffers_.erase(canonical_path(document_path()));
+        evaluated_.erase(canonical_path(document_path()));
         schedule(now);
     } else if (method == "workspace/didChangeWatchedFiles") {
         // A project file or a reference rebuilt on disk: read that project again.
@@ -342,6 +348,104 @@ std::optional<std::vector<LiveEntry>> Server::live_chain(const Checked& c,
     return std::nullopt;
 }
 
+namespace {
+
+// The innermost closed {command} around `offset`: its first and one-past-last bytes.
+std::optional<std::pair<size_t, size_t>> command_at(std::string_view text, size_t offset) {
+    const Structure s = read_structure(text);
+    std::optional<std::pair<size_t, size_t>> out;
+    for (const Bracket& b : s.brackets) {
+        if (b.begin > offset) break;
+        if (b.open == '{' && offset < b.end && b.end <= text.size() && text[b.end - 1] == '}')
+            out = {b.begin, b.end};  // later ones are inner
+    }
+    return out;
+}
+
+// A value written in the data: a tagged array of values alone, such as (health 1000).
+struct Leaf {
+    std::string path;   // its data path, as a Path's text
+    std::string value;  // the text after its tag
+    size_t end = 0;     // one past its closing bracket
+};
+
+// The innermost leaf around `offset`.
+std::optional<Leaf> leaf_at(std::string_view text, size_t offset) {
+    const Structure s = read_structure(text);
+    int found = -1;
+    for (size_t b = 0; b < s.brackets.size() && s.brackets[b].begin <= offset; ++b)
+        if (offset < s.brackets[b].end) found = static_cast<int>(b);
+    if (found < 0) return std::nullopt;
+    const Bracket& b = s.brackets[found];
+    if (b.open != '(' || b.has_child || b.tag < 0 || b.end > text.size() || text[b.end - 1] != ')')
+        return std::nullopt;
+    const std::vector<std::string> tags = s.data_path(found);
+    if (tags.empty()) return std::nullopt;
+    const size_t from = s.tokens[b.tag].end + (s.tokens[b.tag].quote ? 1 : 0);
+    std::string_view value = text.substr(from, b.end - 1 - from);
+    while (!value.empty() && std::isspace(static_cast<unsigned char>(value.front())))
+        value.remove_prefix(1);
+    while (!value.empty() && std::isspace(static_cast<unsigned char>(value.back())))
+        value.remove_suffix(1);
+    if (value.empty() || value.find_first_of(";\n") != std::string_view::npos)
+        return std::nullopt;  // nothing to set, or a comment or several lines in the way
+    return Leaf{path_text(tags), std::string(value), b.end};
+}
+
+json command_json(const std::string& title, const std::string& command, json arguments) {
+    return {
+        {"title", title},
+        {"kind", "quickfix"},
+        {"command", {{"title", title}, {"command", command}, {"arguments", std::move(arguments)}}}};
+}
+
+// The result's first line, shortened for an inlay.
+std::string first_line(const std::string& text) {
+    constexpr size_t kMax = 80;
+    std::string line = text.substr(0, text.find('\n'));
+    if (line.size() > kMax) {
+        size_t cut = kMax;
+        while (cut > 0 && (static_cast<unsigned char>(line[cut]) & 0xC0) == 0x80) --cut;
+        line = line.substr(0, cut) + "\u2026";
+    } else if (line.size() < text.size()) {
+        line += " \u2026";
+    }
+    return line;
+}
+
+}  // namespace
+
+bool Server::game_is(Checked& c) {
+    if (!live_.reachable()) return false;
+    if (c.game_generation == live_.generation()) return c.game_ours;
+    c.game_generation = live_.generation();
+    c.game_ours = false;
+    // A value from the project's data: the game is the project's if the files it says the
+    // value comes from are in the project's directory.
+    if (!c.loaded) return false;
+    int tries = 8;
+    for (const std::string& file : c.loaded->files) {
+        std::string text;
+        if (file == c.setup.project || !buffers_.read(file, text)) continue;
+        const Structure s = read_structure(text);
+        for (size_t b = 0; b < s.brackets.size(); ++b) {
+            if (s.brackets[b].open != '(' || s.brackets[b].has_child) continue;
+            const std::vector<std::string> tags = s.data_path(static_cast<int>(b));
+            if (tags.empty()) continue;
+            const auto chain = live_.explain(path_text(tags));
+            if (!chain) return false;  // no game answers, or its packs differ: not this one
+            for (const LiveEntry& e : *chain)
+                if (!e.file.empty()) {
+                    c.game_ours = under(canonical_path(e.file), c.setup);
+                    return c.game_ours;
+                }
+            if (--tries == 0) return false;
+            break;  // a value from no file: try the next file
+        }
+    }
+    return false;
+}
+
 json Server::code_actions(const json& params) {
     json out = json::array();
     std::string path, text;
@@ -350,28 +454,116 @@ json Server::code_actions(const json& params) {
     at["position"] = params.value("range", json::object()).value("start", json::object());
     if (!place(at, buffers_, path, text, offset)) return out;
     Checked* c = project_of(path);
+    if (!c || !game_is(*c)) return out;  // no game, or another project's: nothing to offer
+    const json where = json::array({uri_for(path), at["position"]});
+
+    if (command_at(text, offset))
+        out.push_back(command_json("Evaluate in the game", "baker.evaluate", where));
+    const auto leaf = leaf_at(text, offset);
+    if (leaf) out.push_back(command_json("Try this value in the game", "baker.try", where));
+
     const std::string data = data_path_at(text, offset);
-    if (!c || data.empty()) return out;
+    if (data.empty()) return out;
     const auto chain = live_chain(*c, data);
     if (!chain) return out;
     // A value tuned in the running game and not yet written: the game's own write-back
-    // writes it to the line it came from.
+    // writes it to the line it came from, or the edit is dropped.
     bool live_edit = false;
     for (const LiveEntry& e : *chain)
         live_edit = live_edit || (e.layer == "scratch" && e.standing == "wins");
-    if (!live_edit || !live_.can_write_back()) return out;
-    out.push_back({{"title", "Write the live value here"},
-                   {"kind", "quickfix"},
-                   {"command",
-                    {{"title", "Write the live value here"},
-                     {"command", "baker.writeBack"},
-                     {"arguments", json::array({data})}}}});
+    if (!live_edit) return out;
+    if (live_.can_write_back())
+        out.push_back(
+            command_json("Write the live value here", "baker.writeBack", json::array({data})));
+    if (live_.can_clear())
+        out.push_back(command_json("Revert the live edit", "baker.revert", json::array({data})));
     return out;
 }
 
+void Server::refresh_inlays() {
+    if (refresh_inlays_ && initialized_)
+        send_({{"jsonrpc", "2.0"},
+               {"id", "refresh-" + std::to_string(next_request_++)},
+               {"method", "workspace/inlayHint/refresh"}});
+}
+
+void Server::evaluate(const std::string& path, size_t at, const std::string& command) {
+    const auto reply = live_.ask(command, kEvaluateTimeout);
+    Evaluated result{at, {}, command};
+    int type = kLogInfo;
+    if (!reply) {
+        result.label = "\u2717 no game answered";
+        result.tooltip = "no game answers on 127.0.0.1:" + std::to_string(live_.port());
+        type = kLogError;
+    } else if (reply->value("ok", false)) {
+        std::string text = reply->value("text", "");
+        // A string reads better as its content than as Baker text with its escapes.
+        if (const json v = reply->value("value", json()); v.is_string() && text.starts_with('"'))
+            text = v.get<std::string>();
+        result.label = "\u21d2 " + first_line(text);
+        result.tooltip = command + "\n\n" + text;
+    } else {
+        const json error = reply->value("error", json::object());
+        const std::string message = error.value("message", "");
+        result.label = "\u2717 " + first_line(message);
+        result.tooltip = message;
+        for (const json& f : error.value("stack", json::array()))
+            result.tooltip += "\n  in " + f.value("function", std::string("?")) + " (" +
+                              f.value("file", std::string()) + ":" +
+                              std::to_string(f.value("line", 0)) + ")";
+        type = kLogError;
+    }
+    // An editor without inlay hints still sees an error, and every result in the log.
+    if (type == kLogError)
+        send_({{"jsonrpc", "2.0"},
+               {"method", "window/showMessage"},
+               {"params", {{"type", type}, {"message", result.tooltip}}}});
+    log(kLogInfo,
+        command + " => " + (reply ? reply->value("text", result.tooltip) : result.tooltip));
+    auto& list = evaluated_[path];
+    std::erase_if(list, [at](const Evaluated& e) { return e.at == at; });
+    list.push_back(std::move(result));
+    refresh_inlays();
+}
+
 json Server::execute(const json& params) {
-    if (params.value("command", "") != "baker.writeBack") return nullptr;
+    const std::string command = params.value("command", "");
     const json args = params.value("arguments", json::array());
+    if (command == "baker.evaluate" || command == "baker.try") {
+        if (args.size() < 2 || !args[0].is_string() || !args[1].is_object()) return nullptr;
+        std::string path, text;
+        size_t offset = 0;
+        if (!place({{"textDocument", {{"uri", args[0]}}}, {"position", args[1]}}, buffers_, path,
+                   text, offset))
+            return nullptr;
+        if (command == "baker.evaluate") {
+            const auto found = command_at(text, offset);
+            if (!found) return nullptr;
+            evaluate(path, found->second, text.substr(found->first, found->second - found->first));
+        } else {
+            const auto leaf = leaf_at(text, offset);
+            if (!leaf) return nullptr;
+            evaluate(path, leaf->end, "{config.set " + leaf->path + " " + leaf->value + "}");
+        }
+        return nullptr;
+    }
+    if (command == "baker.revert") {
+        if (args.empty() || !args[0].is_string()) return nullptr;
+        const std::string path = args[0].get<std::string>();
+        const auto reply = live_.ask("{" + std::string(Live::kClear) + " " + path + "}");
+        if (!reply || !reply->value("ok", false))
+            send_({{"jsonrpc", "2.0"},
+                   {"method", "window/showMessage"},
+                   {"params",
+                    {{"type", kLogError},
+                     {"message",
+                      "the game did not revert " + path + ": " +
+                          (reply ? reply->value("error", json::object()).value("message", "")
+                                 : "no game answers")}}}});
+        refresh_inlays();
+        return nullptr;
+    }
+    if (command != "baker.writeBack") return nullptr;
     if (args.empty() || !args[0].is_string()) return nullptr;
     const std::string path = args[0].get<std::string>();
     const auto reply = live_.ask("{config.write_back " + path + "}");
@@ -591,13 +783,20 @@ json Server::inlay_hints(const json& params) {
     std::string text;
     json out = json::array();
     if (!buffers_.read(path, text)) return out;
-    Checked* c = project_of(path);
-    if (!c || !c->loaded) return out;
     const json range = params.value("range", json::object());
     const int first = range.value("start", json::object()).value("line", 0) + 1;
     const int last = range.value("end", json::object()).value("line", 0) + 1;
-    const std::vector<size_t> starts = line_starts(text);
     const LineIndex lines(text);
+    if (const auto e = evaluated_.find(path); e != evaluated_.end())
+        for (const Evaluated& r : e->second)
+            if (r.at <= text.size()) {
+                const int line = lines.position(r.at).first + 1;
+                if (line >= first && line <= last)
+                    out.push_back(hint_json(lines, r.at, r.label, r.tooltip));
+            }
+    Checked* c = project_of(path);
+    if (!c || !c->loaded) return out;
+    const std::vector<size_t> starts = line_starts(text);
 
     for (const LayerHint& h : c->loaded->hints) {
         if (h.file != path || h.line < first || h.line > last) continue;

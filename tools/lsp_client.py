@@ -6,13 +6,15 @@
                      [--definition FILE LINE COL] [--actions FILE LINE COL]
                      [--apply FILE LINE COL]
                      [--outline FILE] [--references FILE LINE COL]
-                     [--inlays FILE FIRST LAST] -- baker-lsp ARGS...
+                     [--inlays FILE FIRST LAST] [--run FILE LINE COL TITLE]
+                     -- baker-lsp ARGS...
 
 Starts the server, opens each --open file (with its edit, if --replace names it; with TEXT
 instead of the file's, if --text names it), waits for the diagnostics to settle, prints them
 one a line as file:line:col: severity: message, then each hover's markdown and each
 completion's labels (LINE and COL 1-based, COL in characters), each inlay hint on lines
-FIRST to LAST, and shuts the server down.
+FIRST to LAST, and shuts the server down. --run runs the code action TITLE there, such as
+"Evaluate in the game", and prints the file's inlay hints after it.
 Exit status: 1 if any error was published, else 0.
 """
 import json
@@ -57,7 +59,7 @@ def main(argv):
         sys.exit(__doc__)
     split = argv.index("--")
     opts, server = argv[:split], argv[split + 1:]
-    opens, edits, texts, asks = [], {}, {}, []
+    opens, edits, texts, asks, titles = [], {}, {}, [], {}
     i = 0
     while i < len(opts):
         if opts[i] == "--open":
@@ -79,6 +81,11 @@ def main(argv):
             asks.append(("references", opts[i + 1], int(opts[i + 2]) - 1, int(opts[i + 3]) - 1))
             opens.append(opts[i + 1])
             i += 4
+        elif opts[i] == "--run":
+            asks.append(("run", opts[i + 1], int(opts[i + 2]) - 1, int(opts[i + 3]) - 1))
+            titles[len(asks) - 1] = opts[i + 4]
+            opens.append(opts[i + 1])
+            i += 5
         elif opts[i] == "--inlays":
             asks.append(("inlays", opts[i + 1], int(opts[i + 2]) - 1, int(opts[i + 3]) - 1))
             opens.append(opts[i + 1])
@@ -120,7 +127,8 @@ def main(argv):
         method = "textDocument/" + {"hover": "hover", "complete": "completion",
                                     "definition": "definition", "actions": "codeAction",
                                     "apply": "codeAction", "outline": "documentSymbol",
-                                    "references": "references", "inlays": "inlayHint"}[what]
+                                    "references": "references", "inlays": "inlayHint",
+                                    "run": "codeAction"}[what]
         where = {"line": line, "character": col}
         span = {"start": where, "end": where}
         if what == "inlays":  # lines `line` to `col`
@@ -137,10 +145,14 @@ def main(argv):
                 if "BAKER_LSP_TIMES" in os.environ:
                     print(f"time {m['id']}: {(time.time() - sent_at[m['id']]) * 1000:.0f} ms",
                           file=sys.stderr)
-    # --apply: run the first code action's command.
+    # --apply: run the first code action's command; --run, the one titled.
     for n, (what, path, line, col) in enumerate(asks):
         actions = answers.get(100 + n) or []
-        if what != "apply" or not actions:
+        if what == "run":
+            actions = [a for a in actions if a["title"] == titles[n]]
+            if not actions:
+                print(f"--- run: no {titles[n]!r} at {path}:{line + 1}:{col + 1}")
+        if what not in ("apply", "run") or not actions:
             continue
         cmd = actions[0]["command"]
         send(proc, {"jsonrpc": "2.0", "id": 900 + n, "method": "workspace/executeCommand",
@@ -151,6 +163,19 @@ def main(argv):
         for m in messages:
             if m.get("method") == "window/showMessage":
                 print("message:", m["params"]["message"])
+        if what == "run":
+            send(proc, {"jsonrpc": "2.0", "id": 950 + n, "method": "textDocument/inlayHint",
+                        "params": {"textDocument": {"uri": uri(path)},
+                                   "range": {"start": {"line": 0, "character": 0},
+                                             "end": {"line": 100000, "character": 0}}}})
+            deadline = time.time() + 5
+            while time.time() < deadline and not any(m.get("id") == 950 + n for m in messages):
+                time.sleep(0.02)
+            for m in messages:
+                if m.get("id") == 950 + n:
+                    for h in m.get("result") or []:
+                        print(f"inlay {path}:{h['position']['line'] + 1}:"
+                              f"{h['position']['character'] + 1}: {h['label']}")
     send(proc, {"jsonrpc": "2.0", "id": 2, "method": "shutdown"})
     send(proc, {"jsonrpc": "2.0", "method": "exit"})
     proc.wait(timeout=5)
@@ -184,6 +209,10 @@ def main(argv):
                 p = urllib.parse.unquote(urllib.parse.urlparse(loc["uri"]).path)
                 print(f"{p}:{loc['range']['start']['line'] + 1}:{loc['range']['start']['character'] + 1}")
             print(f"{len(result or [])} references")
+            continue
+        if what == "run":
+            continue
+        if what == "run":
             continue
         if what == "inlays":
             for h in result or []:

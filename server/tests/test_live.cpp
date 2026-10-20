@@ -87,22 +87,32 @@ json not_a_function(const std::string& name) {
     return {{"ok", false}, {"error", {{"message", "'" + name + "' is not a function"}}}};
 }
 
+std::vector<std::string> titles(const json& actions) {
+    std::vector<std::string> out;
+    for (const json& a : actions) out.push_back(a["title"]);
+    return out;
+}
+
+const std::string kText = "#require \"../packs/game/core.dta\"\n(units (knight (health 100)))\n";
+
 struct Client {
     std::vector<json> sent;
     Server server;
-    explicit Client(uint16_t port, bool live_inlays = false)
+    explicit Client(uint16_t port, bool live_inlays = false, const std::string& text = kText)
         : server(setup(port, live_inlays), [this](const json& m) { sent.push_back(m); }) {
         server.handle(
-            {{"jsonrpc", "2.0"}, {"id", 1}, {"method", "initialize"}, {"params", json::object()}},
+            {{"jsonrpc", "2.0"},
+             {"id", 1},
+             {"method", "initialize"},
+             {"params",
+              {{"capabilities", {{"workspace", {{"inlayHint", {{"refreshSupport", true}}}}}}}}}},
             {});
+        server.handle({{"jsonrpc", "2.0"}, {"method", "initialized"}, {"params", json::object()}},
+                      {});
         server.handle(
             {{"jsonrpc", "2.0"},
              {"method", "textDocument/didOpen"},
-             {"params",
-              {{"textDocument",
-                {{"uri", uri_from_path(kDefault)},
-                 {"text",
-                  "#require \"../packs/game/core.dta\"\n(units (knight (health 100)))\n"}}}}}},
+             {"params", {{"textDocument", {{"uri", uri_from_path(kDefault)}, {"text", text}}}}}},
             {});
         server.check_now();
     }
@@ -126,6 +136,38 @@ struct Client {
         return {{"textDocument", {{"uri", uri_from_path(kDefault)}}},
                 {"position", pos},
                 {"range", {{"start", pos}, {"end", pos}}}};
+    }
+    json at(int line, int character) const {
+        const json pos = {{"line", line}, {"character", character}};
+        return {{"textDocument", {{"uri", uri_from_path(kDefault)}}},
+                {"position", pos},
+                {"range", {{"start", pos}, {"end", pos}}},
+                {"context", {{"diagnostics", json::array()}}}};
+    }
+    // Runs the code action titled `title` at `where`; false if it is not offered.
+    bool run(const json& where, const std::string& title) {
+        for (const json& a : request(3, "textDocument/codeAction", where))
+            if (a["title"] == title) {
+                request(4, "workspace/executeCommand",
+                        {{"command", a["command"]["command"]},
+                         {"arguments", a["command"]["arguments"]}});
+                return true;
+            }
+        return false;
+    }
+    json inlays() {
+        return request(5, "textDocument/inlayHint",
+                       {{"textDocument", {{"uri", uri_from_path(kDefault)}}},
+                        {"range",
+                         {{"start", {{"line", 0}, {"character", 0}}},
+                          {"end", {{"line", 9}, {"character", 0}}}}}});
+    }
+    bool told(const std::string& start) const {
+        for (const json& m : sent)
+            if (m.value("method", "") == "window/showMessage" &&
+                m["params"]["message"].get<std::string>().rfind(start, 0) == 0)
+                return true;
+        return false;
     }
     std::string hover() {
         return request(2, "textDocument/hover", at_health())["contents"]["value"];
@@ -182,14 +224,15 @@ TEST_CASE("write the live value: offered for a live edit when the game can write
     });
     {
         Client c(game.port());
-        CHECK(c.request(3, "textDocument/codeAction", c.at_health()).empty());
+        CHECK(titles(c.request(3, "textDocument/codeAction", c.at_health())) ==
+              std::vector<std::string>{"Try this value in the game"});
     }
     binds = true;
     Client c(game.port());
     const json actions = c.request(3, "textDocument/codeAction", c.at_health());
-    REQUIRE(actions.size() == 1);
-    CHECK(actions[0]["title"] == "Write the live value here");
-    const json command = actions[0]["command"];
+    REQUIRE(titles(actions) ==
+            std::vector<std::string>{"Try this value in the game", "Write the live value here"});
+    const json command = actions[1]["command"];
     const json result =
         c.request(4, "workspace/executeCommand",
                   {{"command", command["command"]}, {"arguments", command["arguments"]}});
@@ -229,4 +272,98 @@ TEST_CASE("live inlays: the game's value beside the file value a live edit overr
     REQUIRE(hints.size() == 1);
     CHECK(hints[0]["label"] == "live 140");
     CHECK(hints[0]["position"] == json{{"line", 1}, {"character", 27}});  // after (health 100)
+}
+
+TEST_CASE("evaluate in the game: the reply after the command until the next edit") {
+    MockConsole game([](const std::string& cmd) -> json {
+        if (cmd.rfind("{config.explain", 0) == 0) return explained(kDefault, false);
+        if (cmd == "{game.spawn knight 2}")
+            return {{"ok", true}, {"text", "(spawned knight_1 knight_2)\n(more)"}};
+        if (cmd == "{game.report}") return {{"ok", true}, {"text", "\"a\\nb\""}, {"value", "a\nb"}};
+        if (cmd == "{game.wait 0}")
+            return {{"ok", false},
+                    {"error",
+                     {{"message", "wait needs a positive time"},
+                      {"stack",
+                       json::array(
+                           {{{"function", "game.wait"}, {"file", "default.dta"}, {"line", 3}}})}}}};
+        return not_a_function("x");
+    });
+    const std::string text = kText + "{game.spawn knight 2}\n{game.wait 0}\n{game.report}\n";
+    Client c(game.port(), false, text);
+    CHECK(titles(c.request(3, "textDocument/codeAction", c.at(2, 3))) ==
+          std::vector<std::string>{"Evaluate in the game"});
+    REQUIRE(c.run(c.at(2, 3), "Evaluate in the game"));
+    CHECK(game.commands().back() == "{game.spawn knight 2}");
+    bool refreshed = false;
+    for (const json& m : c.sent)
+        refreshed = refreshed || m.value("method", "") == "workspace/inlayHint/refresh";
+    CHECK(refreshed);
+    json hints = c.inlays();
+    REQUIRE(hints.size() == 1);
+    CHECK(hints[0]["label"] == "\u21d2 (spawned knight_1 knight_2) \u2026");
+    CHECK(hints[0]["position"] == json{{"line", 2}, {"character", 21}});
+
+    REQUIRE(c.run(c.at(3, 1), "Evaluate in the game"));
+    CHECK(c.told("wait needs a positive time\n  in game.wait (default.dta:3)"));
+    hints = c.inlays();
+    REQUIRE(hints.size() == 2);
+    CHECK(hints[1]["label"] == "\u2717 wait needs a positive time");
+    REQUIRE(c.run(c.at(4, 1), "Evaluate in the game"));
+    CHECK(c.inlays()[2]["label"] == "\u21d2 a \u2026");  // a string's content, not its escapes
+
+    c.server.handle({{"jsonrpc", "2.0"},
+                     {"method", "textDocument/didChange"},
+                     {"params",
+                      {{"textDocument", {{"uri", uri_from_path(kDefault)}}},
+                       {"contentChanges", json::array({{{"text", text + "\n"}}})}}}},
+                    {});
+    CHECK(c.inlays().empty());
+}
+
+TEST_CASE("try this value: set live, without saving; revert only where the game can") {
+    std::atomic<bool> clears{false};
+    MockConsole game([&clears](const std::string& cmd) -> json {
+        if (cmd.rfind("{config.explain", 0) == 0) return explained(kDefault, true, 2);
+        if (cmd.rfind("{config.set ", 0) == 0) return {{"ok", true}, {"text", "120"}};
+        if (cmd == "{config.clear}")
+            return clears ? json{{"ok", false}, {"error", {{"message", "no overload takes 0"}}}}
+                          : not_a_function("config.clear");
+        if (cmd.rfind("{config.clear ", 0) == 0) return {{"ok", true}, {"text", "1"}};
+        return not_a_function("x");
+    });
+    {
+        const std::string tuned =
+            "#require \"../packs/game/core.dta\"\n(units (knight (health  120 )))\n";
+        Client c(game.port(), false, tuned);
+        REQUIRE(c.run(c.at(1, 23), "Try this value in the game"));
+        CHECK(game.commands().back() == "{config.set units/knight/health 120}");
+        const json hints = c.inlays();
+        REQUIRE(hints.size() == 1);
+        CHECK(hints[0]["label"] == "\u21d2 120");
+        CHECK(!c.run(c.at(1, 23), "Revert the live edit"));
+    }
+    clears = true;
+    Client c(game.port());
+    REQUIRE(c.run(c.at(1, 23), "Revert the live edit"));
+    CHECK(game.commands().back() == "{config.clear units/knight/health}");
+    CHECK(!c.told("the game did not revert"));
+}
+
+TEST_CASE("no game, or another project's: nothing to evaluate or try") {
+    uint16_t closed = 0;
+    {
+        net::Listener l;
+        closed = l.port();
+    }
+    const std::string text = kText + "{game.spawn knight 2}\n";
+    {
+        Client c(closed, false, text);
+        CHECK(c.request(3, "textDocument/codeAction", c.at(2, 3)).empty());
+        CHECK(c.request(3, "textDocument/codeAction", c.at_health()).empty());
+    }
+    MockConsole game([](const std::string&) { return explained("/elsewhere/default.dta", false); });
+    Client c(game.port(), false, text);
+    CHECK(c.request(3, "textDocument/codeAction", c.at(2, 3)).empty());
+    CHECK(c.request(3, "textDocument/codeAction", c.at_health()).empty());
 }

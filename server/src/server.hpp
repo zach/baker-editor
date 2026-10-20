@@ -34,6 +34,8 @@ public:
     static constexpr std::chrono::milliseconds kDebounce{150};
     // The most outline symbols, and folds, one reply carries.
     static constexpr size_t kMaxSymbols = 5000;
+    // How long an evaluation in the game may take: a person asked for it.
+    static constexpr std::chrono::milliseconds kEvaluateTimeout{2000};
     // The most values one inlay request asks the running game about.
     static constexpr size_t kMaxLiveInlays = 200;
 
@@ -58,6 +60,8 @@ private:
         bool have_reference = false;
         Reference reference;
         std::shared_ptr<Loaded> loaded;  // the last check's, for hover and completion
+        int game_generation = 0;         // the console connection game_is() last asked
+        bool game_ours = false;
     };
 
     // The project an open file belongs to: the one whose directory is nearest above it.
@@ -74,6 +78,13 @@ private:
     nlohmann::json rename(const nlohmann::json& params, std::string& error);
     nlohmann::json execute(const nlohmann::json& params);
     nlohmann::json inlay_hints(const nlohmann::json& params);
+    // Whether the game on the console is this project's: one of its values comes from the
+    // project's files (asked once per connection).
+    bool game_is(Checked& c);
+    // Runs a command in the game for baker.evaluate and baker.try, and keeps its result to
+    // show after `at` in `path` until the next edit.
+    void evaluate(const std::string& path, size_t at, const std::string& command);
+    void refresh_inlays();
     // The running game's chain for `path`, if it answers and the value is the project's.
     std::optional<std::vector<LiveEntry>> live_chain(const Checked& c, const std::string& path);
 
@@ -98,8 +109,14 @@ private:
     Buffers buffers_;
     std::map<std::string, std::string> uris_;  // canonical path -> the client's URI
     std::set<std::string> published_;          // URIs that last got a non-empty list
-    bool refresh_inlays_ = false;              // the client takes workspace/inlayHint/refresh
-    int next_request_ = 1;                     // the id of our next request to the client
+    // Results of evaluating in the game, by file, shown until its next edit.
+    struct Evaluated {
+        size_t at = 0;  // the byte the result follows
+        std::string label, tooltip;
+    };
+    std::map<std::string, std::vector<Evaluated>> evaluated_;
+    bool refresh_inlays_ = false;  // the client takes workspace/inlayHint/refresh
+    int next_request_ = 1;         // the id of our next request to the client
     std::optional<Clock::time_point> due_;
     bool shutdown_ = false;
     std::optional<int> exit_code_;

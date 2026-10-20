@@ -14,9 +14,9 @@ Baker's integration plans.
 | 6 | tree-sitter grammar | First pass: `tree-sitter-baker/` (registries not submitted) |
 | - | VS Code extension | First pass: below |
 
-Plan C (`dev/features-plan.md`) comes next, one step at a time: outline and rename and which
-layer wins in the text are done (first passes, below); evaluating in the running game, the
-merged stack, value completion, and scenarios as tests follow.
+Plan C (`dev/features-plan.md`) comes next, one step at a time: outline and rename, which
+layer wins in the text, and evaluating in the running game are done (first passes, below);
+the merged stack, value completion, and scenarios as tests follow.
 
 ## The VS Code extension
 
@@ -150,6 +150,32 @@ python3 stacks/tools/console.py "{config.set fighters.kestrel.health 1234}"
 # hover on (health 1000) in default.dta: Live shows scratch 1234 winning;
 # "Write the live value here" leaves `(health 1234)` on that line, one line changed
 ```
+
+### Evaluating in the game
+
+With the project's game answering, two more code actions:
+
+- **Evaluate in the game**, on a `{command}` (in a scenario, an `#autorun`, anywhere): sends
+  the innermost command around the cursor to the console and shows the reply after it, as an
+  inlay hint (`⇒ 42`, the first line; the whole reply in its tooltip), until the next edit of
+  that file. An error shows as `✗ message`, and as a message with its script stack. In VS
+  Code it is also **Baker: Evaluate in the game**, on Ctrl+Enter (Cmd+Enter).
+- **Try this value in the game**, on a value such as `(health 1200)`: sends
+  `{config.set fighters/kestrel/health 1200}`, without saving, so the game shows it at once.
+  Hover then shows `scratch 1200` winning, and **Write the live value here** keeps it.
+  Saving the file is still yours to do (**Baker: Try this value in the game** in VS Code).
+
+Neither is offered without a game, or with another project's: the server asks the game,
+once per connection, where one of the project's values comes from. An evaluation may take
+up to 2 s, as a person asked for it; everything else keeps the 50 ms.
+
+**Revert the live edit** waits for Baker: the console has no command to drop one path's
+live edit (`requirements/0014`). The server offers it once the game binds `config.clear`.
+
+On Duel with the game running: evaluating `{duel.frame_table}` in a scenario shows the
+table's header after it; `{duel.p1 nobody}` shows `✗ no pilot nobody: ...`; trying
+`(health 1200)` on kestrel's `(health 1000)` line and writing it back leaves
+`default.dta` with that one line changed.
 
 All three of hover, completion and definition read the cursor's place from the text, not a parse, so they work on text being typed,
 and they answer from the last check of the whole stack: while the file being edited does not

@@ -32,11 +32,16 @@ public:
 
     // The reply to {command}, or empty if no game answers in time. On a reply the game is
     // connected; on none it is not.
-    std::optional<nlohmann::json> ask(const std::string& command);
+    std::optional<nlohmann::json> ask(const std::string& command,
+                                      std::chrono::milliseconds timeout = kTimeout);
     // The replies to many commands, sent at once and waited for together (kTimeout in all),
     // in the commands' order; empty if no game answers them all in time.
     std::optional<std::vector<nlohmann::json>> ask_many(const std::vector<std::string>& commands);
     [[nodiscard]] bool connected() const { return connection_.open(); }
+    // Connected, or connecting now if a try is due (at most once every kRetry).
+    bool reachable() { return ready(); }
+    // Counts connections: what was learned about the game holds while it is unchanged.
+    [[nodiscard]] int generation() const { return generation_; }
     [[nodiscard]] uint16_t port() const { return port_; }
 
     // The running game's layer chain for `path`, bottom to top, or empty if no game answers
@@ -47,16 +52,24 @@ public:
         const std::vector<std::string>& paths);
     // Whether the game binds config.write_back (asked once per connection).
     bool can_write_back();
+    // Whether the game binds kClear, which drops one path's live edit (asked once per
+    // connection).
+    bool can_clear();
+    static constexpr const char* kClear = "config.clear";
 
 private:
-    // Connected, or connecting if a try is due.
     bool ready();
+    // Whether the game binds `function` (with no arguments, a bound one fails for them);
+    // empty if no game answers.
+    std::optional<bool> binds(const char* function);
 
     uint16_t port_;
     net::Connection connection_;
     std::chrono::steady_clock::time_point next_try_{};
     int next_id_ = 1;
     std::optional<bool> write_back_;
+    std::optional<bool> clear_;
+    int generation_ = 0;
 };
 
 }  // namespace baker_lsp

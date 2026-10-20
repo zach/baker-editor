@@ -49,8 +49,21 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         },
     };
     client = new LanguageClient("baker", "Baker", serverOptions, clientOptions);
+    // The server's own commands take the document and the cursor; these run them at the
+    // active editor's cursor, for a key binding.
+    const atCursor = (command: string) => async () => {
+        const editor = vscode.window.activeTextEditor;
+        if (!client || !editor) return;
+        const {line, character} = editor.selection.active;
+        await client.sendRequest("workspace/executeCommand", {
+            command,
+            arguments: [editor.document.uri.toString(), {line, character}],
+        });
+    };
     context.subscriptions.push(
-        vscode.commands.registerCommand("baker.restartServer", () => client?.restart()));
+        vscode.commands.registerCommand("baker.restartServer", () => client?.restart()),
+        vscode.commands.registerCommand("baker.evaluateHere", atCursor("baker.evaluate")),
+        vscode.commands.registerCommand("baker.tryHere", atCursor("baker.try")));
     await client.start();
 }
 
