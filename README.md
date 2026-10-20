@@ -86,9 +86,11 @@ from the game's reference; on a macro or a script function, where it is defined.
   middle of its range, else its type's zero;
 - naming a command (after `{`): the game's functions with their signatures, the data's
   script functions, and the objects the game names;
-- a symbol field's value: the values the project's files give the same field, most used
-  first (in Duel, `(button ` offers `kick heavy light special`); then the data's macros. In
-  `(requires ...)`, the packs.
+- a symbol field's value: the symbols its shape field or tweak allows, `(one_of ...)`, in the
+  order declared (in Duel, `(button ` offers `light heavy kick special`, and `check` reports
+  `(button lite)`); for a field with no list, the values the project's files give it, most
+  used first; then the data's macros. In `(requires ...)`, the packs. Choosing a field with
+  a list and no value yet offers the list as a choice.
 
 **Colors:** a swatch, and VS Code's color picker, on every value Baker calls a color: `(kind
 color)`, or 3 or 4 numbers ranged 0 to 1 with no kind, such as `(tint 0.9 0.5 0.2 (range 0
@@ -269,8 +271,8 @@ tools/lsp_client.py --replace data/default.dta "(health 1000)" "(health 0)" -- b
   are not refreshed when only the game changes.
 - A layer's hints are from the last check in which every layer read, so while a file does
   not read, its hints can sit a line off.
-- A symbol field's values come from use, not a declared list: the first use of a value is
-  not offered, and a typo used twice is (`requirements/0015` asks Baker for allowed symbols).
+- A symbol field with no `(one_of ...)` is completed from use: the first use of a value is not
+  offered, and a typo used twice is.
 - A color's components are taken as 0 to 1, as Baker's color rule has them.
 - Other editors: point an LSP client at the binary, language id `baker`;
   `tree-sitter-baker/` highlights for Neovim, Helix and Zed, set up by hand for now.
@@ -332,7 +334,7 @@ requests about one frame (6–20 ms).
 
 ## Baker
 
-The server builds against a released Baker, `zach/baker` `v0.2.0`, through its public headers.
+The server builds against a released Baker, `zach/baker` `v0.2.1`, through its public headers.
 `-DBAKER_EDITOR_BAKER_DIR=PATH` builds against a local checkout instead. The stacks it is
 tried on come from Baker's development repository, `zach/baker-dev` (`stacks/`), which the
 release leaves out.

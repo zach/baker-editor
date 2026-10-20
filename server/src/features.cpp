@@ -58,6 +58,8 @@ std::string describe(const baker::shape::Shape& shape, const baker::shape::Field
     if (f.step > 0) s += ", step " + number(f.step);
     if (!f.kind.str().empty()) s += ", " + std::string(f.kind.str());
     if (f.optional) s += ", optional";
+    for (size_t i = 0; i < f.one_of.size(); ++i)
+        s += (i ? ", " : ": one of ") + std::string(f.one_of[i].str());
     s += "; shape `" + std::string(shape.name.str()) + "` (" + where(shape.file, shape.line) + ")";
     if (!f.desc.empty()) s += "\n\n" + std::string(f.desc);
     if (!f.note.empty()) s += "\n\n*" + std::string(f.note) + "*";
@@ -172,6 +174,9 @@ std::optional<Hover> hover(std::string_view text, size_t offset, const Loaded& l
         if (hints.ranged) m += " " + number(hints.min) + " to " + number(hints.max) + ",";
         if (hints.step > 0) m += " step " + number(hints.step) + ",";
         if (!hints.kind.empty()) m += " " + hints.kind + ",";
+        for (size_t i = 0; i < hints.one_of.size(); ++i)
+            m += (i ? " " : " one of ") + hints.one_of[i] +
+                 (i + 1 == hints.one_of.size() ? "," : "");
         if (m.back() == ',') m.pop_back();
         if (!hints.desc.empty()) m += "\n\n" + hints.desc;
         if (!hints.note.empty()) m += "\n\n*" + hints.note + "*";
@@ -183,6 +188,7 @@ std::optional<Hover> hover(std::string_view text, size_t offset, const Loaded& l
         if (t->ranged) m += ", " + number(t->min) + " to " + number(t->max);
         if (t->step > 0) m += ", step " + number(t->step);
         if (!t->kind.empty()) m += ", " + t->kind;
+        for (size_t i = 0; i < t->one_of.size(); ++i) m += (i ? " " : ", one of ") + t->one_of[i];
         if (t->dev_only) m += "; dev only: a shipping build keeps the default";
         m += t->bound ? "; the data sets it" : "; the data does not set it: the default stands";
         if (!t->desc.empty() && t->desc != written.desc) m += "\n\n" + t->desc;
@@ -405,8 +411,15 @@ Completions complete(std::string_view text, size_t offset, const Loaded& loaded,
             const auto with_value = [&](Completion item, const baker::shape::Field* f) {
                 std::vector<std::string> tags = parent;
                 tags.push_back(item.label);
-                if (const std::string v = value_for(loaded, reference, tags, f); !v.empty())
+                if (const std::string v = value_for(loaded, reference, tags, f); !v.empty()) {
                     item.snippet = snippet_text(item.label) + " ${1:" + snippet_text(v) + "}";
+                } else if (const Hints h = hints_at(loaded, reference, tags); !h.one_of.empty()) {
+                    // A choice of the symbols it may be.
+                    item.snippet = snippet_text(item.label) + " ${1|";
+                    for (size_t i = 0; i < h.one_of.size(); ++i)
+                        item.snippet += (i ? "," : "") + snippet_text(h.one_of[i]);
+                    item.snippet += "|}";
+                }
                 offer(std::move(item));
             };
             const baker::shape::Shape* s = governing(loaded.shapes, parent);
@@ -450,8 +463,22 @@ Completions complete(std::string_view text, size_t offset, const Loaded& loaded,
         !c.stack.back().tag.empty()) {
         std::vector<std::string> parent = c.data_path();
         if (parent.size() >= 2) {
+            const Hints h = hints_at(loaded, reference, parent);
             parent.pop_back();
             int rank = 0;
+            // The symbols it may be, in the order they are declared.
+            for (const std::string& symbol : h.one_of) {
+                char sort[16];
+                std::snprintf(sort, sizeof sort, "0%05d", rank++);
+                offer({symbol,
+                       Kind::EnumMember,
+                       h.field ? "one of shape `" + std::string(h.shape->name.str()) + "`'s"
+                               : "one of the listed symbols",
+                       {},
+                       {},
+                       sort});
+            }
+            if (!h.one_of.empty()) return out;  // a value outside the list is an error
             for (const auto& [symbol, uses] :
                  symbols_in_use(loaded, parent, c.stack.back().tag, file, text, offset, read)) {
                 char sort[16];

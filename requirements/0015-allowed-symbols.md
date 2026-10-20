@@ -28,9 +28,10 @@ the code that switches on them, so:
 
 ## Today
 
-The editor's server completes a symbol field from the values the project's files already
-give it, ranked by use: in Duel, `(button ` offers `kick heavy light special`. It cannot
-flag a value outside the intended set, and it offers nothing for a field no file uses yet.
+Met by Baker 0.2.1: `(one_of ...)` on a symbol or `(list symbol)` shape field, which `check`
+enforces, and `"one_of"` in `baker.shapes/1.1` and `baker.tweaks/1.1`. In Duel, the editor's
+server offers `(button ` as `light heavy kick special`, in the shape's order, and `check`
+reports `(button lite)`.
 
 ## Not included
 

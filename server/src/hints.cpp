@@ -23,6 +23,10 @@ void read_meta(const baker::Array& a, Hints& h) {
             h.min = *(*m)[1].try_float();
             h.max = *(*m)[2].try_float();
             h.ranged = h.min < h.max;
+        } else if (tag == "one_of") {
+            h.one_of.clear();
+            for (size_t i = 1; i < m->size(); ++i)
+                if (const auto sym = (*m)[i].try_sym()) h.one_of.emplace_back(sym->str());
         } else if (tag == "step" && m->size() == 2 && (*m)[1].try_float()) {
             h.step = *(*m)[1].try_float();
         } else if (m->size() == 2 && (tag == "kind" || tag == "desc" || tag == "note")) {
@@ -90,7 +94,8 @@ void walk(const baker::Array& a, std::vector<std::string>& tags, const Loaded& l
 }  // namespace
 
 bool is_meta_tag(std::string_view tag) {
-    return tag == "range" || tag == "step" || tag == "kind" || tag == "desc" || tag == "note";
+    return tag == "range" || tag == "step" || tag == "kind" || tag == "desc" || tag == "note" ||
+           tag == "one_of";
 }
 
 bool has_meta(const baker::Array& a) {
@@ -129,6 +134,7 @@ Hints hints_at(const Loaded& loaded, const Reference& reference,
         h.step = h.tweak->step;
         h.kind = h.tweak->kind;
         h.desc = h.tweak->desc;
+        h.one_of = h.tweak->one_of;
     }
     if (tags.size() >= 2) {
         const std::vector<std::string> parent(tags.begin(), tags.end() - 1);
@@ -144,6 +150,10 @@ Hints hints_at(const Loaded& loaded, const Reference& reference,
                 if (!f.kind.str().empty()) h.kind = std::string(f.kind.str());
                 if (!f.desc.empty()) h.desc = std::string(f.desc);
                 if (!f.note.empty()) h.note = std::string(f.note);
+                if (!f.one_of.empty()) {
+                    h.one_of.clear();
+                    for (const baker::Symbol sym : f.one_of) h.one_of.emplace_back(sym.str());
+                }
             }
         if (!h.field) h.shape = nullptr;
     }

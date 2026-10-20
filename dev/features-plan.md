@@ -178,8 +178,8 @@ values in use.
 **As built:** inline metadata is read from the merged tree (an array whose value is followed
 only by `range`, `step`, `kind`, `desc` or `note` arrays, so data named `kind` is not taken for
 it), and tweaks from the reference's `tweaks`. In Duel, `(button ` offers `kick heavy light
-special` (by use, kick first). Colors take components as 0 to 1. The note is
-`requirements/0015`.
+special` (by use, kick first) until Baker 0.2.1, whose `(one_of ...)` (note 0015) gives the
+list in its declared order. Colors take components as 0 to 1.
 
 ## C6. Scenarios and objectives as tests
 
@@ -210,5 +210,5 @@ for it, and a requirement note asks for the project file to name the tool binary
 | C2 Which layer wins, in the text | Done (first pass) |
 | C3 Evaluate in the running game | Done (first pass), Revert with Baker 0.2.0 |
 | C4 The merged stack, and what a layer changes | Done (first pass) |
-| C5 Completion that knows the values, and Baker's hints | Done (first pass); Baker note 0015, allowed symbols |
+| C5 Completion that knows the values, and Baker's hints | Done (first pass), allowed symbols with Baker 0.2.1 |
 | C6 Scenarios and objectives as tests | Next: Baker 0.2.0's host kit is out |

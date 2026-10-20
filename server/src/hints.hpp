@@ -21,13 +21,14 @@ struct Hints {
     double min = 0, max = 0;
     double step = 0;
     std::string kind, desc, note;
+    std::vector<std::string> one_of;  // the symbols the value may be, in order; empty: any
     const baker::shape::Shape* shape = nullptr;  // the shape whose field governs the value
     const baker::shape::Field* field = nullptr;
     const TweakInfo* tweak = nullptr;
     bool written = false;  // metadata is written beside the value in the data
 };
 
-// Whether `tag` names metadata: range, step, kind, desc or note.
+// Whether `tag` names metadata: range, step, kind, desc, note or one_of.
 bool is_meta_tag(std::string_view tag);
 
 // Whether `a` is a value with metadata: a value after its tag, and every array in it

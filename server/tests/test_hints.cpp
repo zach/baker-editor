@@ -171,3 +171,37 @@ TEST_CASE("a color swatch where Baker calls a value a color, and the picker writ
     pick["range"] = colors[1]["range"];
     CHECK(request("textDocument/colorPresentation", pick)[0]["label"] == "0.25 1 0.333 1");
 }
+
+TEST_CASE("a field's allowed symbols: offered in their order, and as the choice it writes") {
+    Stack s(
+        "(shapes (unit (role symbol (one_of tank ranged healer) (optional))))\n"
+        "(units (knight (role tank)) (archer (role tank)))\n");
+    // The list, in its order, not the values in use.
+    CHECK(s.complete_at("(units (rogue (role ", kDefault) ==
+          std::vector<std::string>{"tank", "ranged", "healer"});
+    CHECK(s.complete_at("(units (rogue (role h", kDefault) == std::vector<std::string>{"healer"});
+    std::vector<std::string> snippets;
+    const std::vector<std::string> fields = s.complete_at("(units (rogue (", kLocal, &snippets);
+    REQUIRE(fields.size() == 3);
+    CHECK(fields[2] == "role");
+    CHECK(snippets[2] == "role ${1|tank,ranged,healer|}");
+    const std::string h = hover_at(s, "(units (knight (role tank)))", "role");
+    CHECK(h.find("optional: one of tank, ranged, healer") != std::string::npos);
+    // A value outside it is check's error.
+    Stack typo(
+        "(shapes (unit (role symbol (one_of tank ranged healer) (optional))))\n"
+        "(units (knight (role tnak)))\n");
+    bool reported = false;
+    for (const Problem& p : typo.d.problems)
+        reported =
+            reported || p.message.find("not one of tank, ranged, healer") != std::string::npos;
+    CHECK(reported);
+}
+
+TEST_CASE("one_of beside a value is metadata") {
+    Stack s("(look (mode fast (one_of fast slow) (desc \"How\")))\n");
+    const Hints h = hints_at(*s.loaded, s.reference, {"look", "mode"});
+    CHECK(h.written);
+    CHECK(h.one_of == std::vector<std::string>{"fast", "slow"});
+    CHECK(h.desc == "How");
+}

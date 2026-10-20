@@ -42,12 +42,12 @@ enum class Kind {
 };
 
 struct Completion {
-    std::string label;
+    std::string label{};
     Kind kind = Kind::Field;
-    std::string detail;         // a type or a signature
-    std::string documentation;  // markdown
-    std::string snippet;        // an LSP snippet to insert instead of the label, if any
-    std::string sort;           // the order to offer it in, if not the label's
+    std::string detail{};         // a type or a signature
+    std::string documentation{};  // markdown
+    std::string snippet{};        // an LSP snippet to insert instead of the label, if any
+    std::string sort{};           // the order to offer it in, if not the label's
 };
 
 struct Completions {

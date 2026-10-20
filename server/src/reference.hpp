@@ -31,6 +31,7 @@ struct TweakInfo {
     double min = 0, max = 0;
     double step = 0;
     std::string desc, kind;
+    std::vector<std::string> one_of;  // the symbols it may be (1.1); empty: any
     bool dev_only = false;
 };
 

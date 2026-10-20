@@ -97,6 +97,8 @@ void read_tweaks(const nlohmann::json& doc, Reference& out) {
         info.desc = t.value("desc", "");
         info.kind = t.value("kind", "");
         info.dev_only = t.value("dev_only", false);
+        for (const nlohmann::json& o : t.value("one_of", nlohmann::json::array()))
+            if (o.is_string()) info.one_of.push_back(o.get<std::string>());
     }
 }
 

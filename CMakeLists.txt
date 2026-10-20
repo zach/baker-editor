@@ -21,7 +21,7 @@ if(BAKER_EDITOR_BAKER_DIR)
 else()
   FetchContent_Declare(baker
     GIT_REPOSITORY https://github.com/zach/baker.git
-    GIT_TAG v0.2.0)
+    GIT_TAG v0.2.1)
   FetchContent_MakeAvailable(baker)
 endif()
 
