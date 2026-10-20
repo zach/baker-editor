@@ -242,6 +242,7 @@ Diagnosis diagnose(const Setup& setup, const baker::Context& ctx, const Buffers&
     for (const baker::Definition& d : baker::script_functions(autorun.items()))
         loaded->functions.push_back(
             {std::string(d.name.str()), canonical_path(std::string(d.file.str())), d.line});
+    loaded->files.assign(files.begin(), files.end());
     out.loaded = std::move(loaded);
     return finish(out, found, files, start);
 }

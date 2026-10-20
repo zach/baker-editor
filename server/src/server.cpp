@@ -1,8 +1,10 @@
 #include "server.hpp"
 
 #include "features.hpp"
+#include "outline.hpp"
 #include "positions.hpp"
 #include "reference.hpp"
+#include "structure.hpp"
 
 #include <baker/project.hpp>
 
@@ -123,6 +125,10 @@ void Server::request(const json& message) {
                {{"openClose", true}, {"change", 1 /* full */}, {"save", {{"includeText", false}}}}},
               {"hoverProvider", true},
               {"definitionProvider", true},
+              {"documentSymbolProvider", true},
+              {"foldingRangeProvider", true},
+              {"referencesProvider", true},
+              {"renameProvider", {{"prepareProvider", true}}},
               {"codeActionProvider", true},
               {"executeCommandProvider", {{"commands", json::array({"baker.writeBack"})}}},
               {"completionProvider", {{"triggerCharacters", json::array({"(", "{", " "})}}}}},
@@ -131,6 +137,21 @@ void Server::request(const json& message) {
         reply["result"] = hover(message.value("params", json::object()));
     } else if (method == "textDocument/definition") {
         reply["result"] = definition(message.value("params", json::object()));
+    } else if (method == "textDocument/documentSymbol") {
+        reply["result"] = document_symbols(message.value("params", json::object()));
+    } else if (method == "textDocument/foldingRange") {
+        reply["result"] = folding_ranges(message.value("params", json::object()));
+    } else if (method == "textDocument/references") {
+        reply["result"] = references(message.value("params", json::object()));
+    } else if (method == "textDocument/prepareRename") {
+        reply["result"] = prepare_rename(message.value("params", json::object()));
+    } else if (method == "textDocument/rename") {
+        std::string error;
+        json edit = rename(message.value("params", json::object()), error);
+        if (error.empty())
+            reply["result"] = std::move(edit);
+        else
+            reply["error"] = {{"code", -32602}, {"message", error}};
     } else if (method == "textDocument/codeAction") {
         reply["result"] = code_actions(message.value("params", json::object()));
     } else if (method == "workspace/executeCommand") {
@@ -360,6 +381,159 @@ json Server::execute(const json& params) {
            {"method", "window/showMessage"},
            {"params", {{"type", type}, {"message", message}}}});
     return reply ? reply->value("text", json()) : json();
+}
+
+namespace {
+
+json lsp_range(const LineIndex& lines, size_t begin, size_t end) {
+    const auto [l0, c0] = lines.position(begin);
+    const auto [l1, c1] = lines.position(end);
+    return {{"start", {{"line", l0}, {"character", c0}}},
+            {"end", {{"line", l1}, {"character", c1}}}};
+}
+
+json symbol_json(const LineIndex& lines, const OutlineSymbol& s) {
+    json children = json::array();
+    for (const OutlineSymbol& c : s.children) children.push_back(symbol_json(lines, c));
+    json out = {{"name", s.name},
+                {"kind", static_cast<int>(s.kind)},
+                {"range", lsp_range(lines, s.begin, s.end)},
+                {"selectionRange", lsp_range(lines, s.name_begin, s.name_end)},
+                {"children", std::move(children)}};
+    if (!s.detail.empty()) out["detail"] = s.detail;
+    return out;
+}
+
+std::string document_of(const json& params) {
+    return canonical_path(
+        path_from_uri(params.value("textDocument", json::object()).value("uri", "")));
+}
+
+}  // namespace
+
+json Server::document_symbols(const json& params) {
+    std::string text;
+    if (!buffers_.read(document_of(params), text)) return json::array();
+    const LineIndex lines(text);
+    std::vector<OutlineSymbol> symbols = outline(text, kMaxSymbols);
+    if (const size_t cut = cap_outline(symbols, kMaxSymbols))
+        log(kLogInfo, "outline: " + std::to_string(cut) +
+                          " symbols left out of a large file; "
+                          "leaf fields go first");
+    json out = json::array();
+    for (const OutlineSymbol& s : symbols) out.push_back(symbol_json(lines, s));
+    return out;
+}
+
+json Server::folding_ranges(const json& params) {
+    std::string text;
+    if (!buffers_.read(document_of(params), text)) return json::array();
+    const LineIndex lines(text);
+    json out = json::array();
+    for (const Fold& f : folds(text)) {
+        if (out.size() >= kMaxSymbols) break;
+        const int a = lines.position(f.begin).first, b = lines.position(f.end).first;
+        if (b <= a) continue;
+        json range = {{"startLine", a}, {"endLine", b}};
+        if (f.comment) range["kind"] = "comment";
+        out.push_back(std::move(range));
+    }
+    return out;
+}
+
+namespace {
+
+// Each file's text and line index, read once for many ranges.
+class Ranges {
+public:
+    explicit Ranges(const Buffers& buffers) : buffers_(buffers) {}
+    json operator()(const std::string& file, size_t begin, size_t end) {
+        auto it = lines_.find(file);
+        if (it == lines_.end()) {
+            std::string& text = texts_[file];
+            buffers_.read(file, text);
+            it = lines_.emplace(file, LineIndex(text)).first;
+        }
+        return lsp_range(it->second, begin, end);
+    }
+
+private:
+    const Buffers& buffers_;
+    std::map<std::string, std::string> texts_;  // nodes stay put, so the indexes' views hold
+    std::map<std::string, LineIndex> lines_;
+};
+
+}  // namespace
+
+json Server::references(const json& params) {
+    if (due_) check_now();
+    std::string path, text;
+    size_t offset = 0;
+    if (!place(params, buffers_, path, text, offset)) return json::array();
+    Checked* c = project_of(path);
+    if (!c || !c->loaded) return json::array();
+    const auto target = target_at(text, offset, *c->loaded, c->reference);
+    if (!target) return json::array();
+    std::vector<std::string> files = c->loaded->files;
+    for (const auto& [open, ignored] : buffers_.all())
+        if (under(open, c->setup) && std::find(files.begin(), files.end(), open) == files.end())
+            files.push_back(open);
+    const auto read = [this](const std::string& f, std::string& out) {
+        return buffers_.read(f, out);
+    };
+    json out = json::array();
+    Ranges ranges(buffers_);
+    for (const Occurrence& o : occurrences(*target, files, *c->loaded, read))
+        out.push_back({{"uri", uri_for(o.file)}, {"range", ranges(o.file, o.begin, o.end)}});
+    return out;
+}
+
+json Server::prepare_rename(const json& params) {
+    if (due_) check_now();
+    std::string path, text;
+    size_t offset = 0;
+    if (!place(params, buffers_, path, text, offset)) return nullptr;
+    Checked* c = project_of(path);
+    if (!c || !c->loaded) return nullptr;
+    const auto target = target_at(text, offset, *c->loaded, c->reference);
+    if (!target || !target->renamable) return nullptr;
+    return {{"range", lsp_range(LineIndex(text), target->begin, target->end)},
+            {"placeholder", target->name}};
+}
+
+json Server::rename(const json& params, std::string& error) {
+    if (due_) check_now();
+    std::string path, text;
+    size_t offset = 0;
+    if (!place(params, buffers_, path, text, offset)) return nullptr;
+    Checked* c = project_of(path);
+    if (!c || !c->loaded) return nullptr;
+    const auto target = target_at(text, offset, *c->loaded, c->reference);
+    if (!target || !target->renamable) {
+        error = "nothing here can be renamed: the game's own functions are its code's";
+        return nullptr;
+    }
+    const std::string name = params.value("newName", "");
+    if (!valid_name(name, *target)) {
+        error = "'" + name + "' cannot be written as a name here";
+        return nullptr;
+    }
+    std::vector<std::string> files = c->loaded->files;
+    for (const auto& [open, ignored] : buffers_.all())
+        if (under(open, c->setup) && std::find(files.begin(), files.end(), open) == files.end())
+            files.push_back(open);
+    const auto read = [this](const std::string& f, std::string& out) {
+        return buffers_.read(f, out);
+    };
+    json changes = json::object();
+    Ranges ranges(buffers_);
+    const bool spaced = name.find_first_of(" \t") != std::string::npos;
+    for (const Occurrence& o : occurrences(*target, files, *c->loaded, read)) {
+        const std::string written = o.quoted || spaced ? "'" + name + "'" : name;
+        changes[uri_for(o.file)].push_back(
+            {{"range", ranges(o.file, o.begin, o.end)}, {"newText", written}});
+    }
+    return {{"changes", std::move(changes)}};
 }
 
 void Server::check_now() {

@@ -32,6 +32,8 @@ public:
 
     // How long after the last edit the project is checked again (plan B7).
     static constexpr std::chrono::milliseconds kDebounce{150};
+    // The most outline symbols, and folds, one reply carries.
+    static constexpr size_t kMaxSymbols = 5000;
 
     Server(Setup setup, Send send);
 
@@ -62,6 +64,12 @@ private:
     nlohmann::json complete(const nlohmann::json& params);
     nlohmann::json definition(const nlohmann::json& params);
     nlohmann::json code_actions(const nlohmann::json& params);
+    nlohmann::json document_symbols(const nlohmann::json& params);
+    nlohmann::json folding_ranges(const nlohmann::json& params);
+    nlohmann::json references(const nlohmann::json& params);
+    nlohmann::json prepare_rename(const nlohmann::json& params);
+    // The rename's workspace edit, or an error message in `error`.
+    nlohmann::json rename(const nlohmann::json& params, std::string& error);
     nlohmann::json execute(const nlohmann::json& params);
     // The running game's chain for `path`, if it answers and the value is the project's.
     std::optional<std::vector<LiveEntry>> live_chain(const Checked& c, const std::string& path);

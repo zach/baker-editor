@@ -90,6 +90,23 @@ game's reference; on a macro or a script function, where it is defined.
 - a file `#include`, `#require` or `#merge` names, or a path in the project file (a layer's
   file, the reference), to that file.
 
+## Outline, folding, references and rename
+
+- **Outline:** the file's tagged arrays as a tree, named by tag (`fighters > kestrel > moves >
+  jab`), with leaves as fields showing their values, and macros and script functions. Past
+  5,000 symbols, the outline leaves out leaf fields, then stops (as VS Code's YAML server
+  caps its outline).
+- **Folding:** every bracket and block comment over more than one line.
+- **References:** every use of a macro, a script function, a pack in `(requires ...)`, or a
+  shape field (each array the shape governs that has it, and its declaration), across the
+  project's files and open buffers. In Duel, `startup` has six: five moves and the shape.
+- **Rename:** the same set as one edit. Renaming a field renames its declaration too, but not
+  the game's C++, which reads it by name: rename a field only with the code. The game's own
+  functions are not renamable.
+
+All four read each file's structure from its text in one pass (`structure.cpp`), so they work
+on text that does not parse.
+
 ## Live values
 
 While a game answers on its loopback console (`--console-port`, default 4555; the stacks'
@@ -172,6 +189,11 @@ Linux, Release build (Clang), the server's own timer around one check, at Baker 
 |---|---|
 | Hearth, the largest stack (about 10 KB) | 0.4 ms (2–3 ms in a GCC Debug build) |
 | Duel grown to 2 MB (1,776 fighters) | 100–120 ms clean, the first run 326 ms (cold); 49–54 ms when a syntax error stops the load |
+
+The outline of the 2 MB file: 26 to 31 ms to build (52 ms the first time), 7 to 8 ms for its
+folds; the request, capped at 5,000 symbols, answers in 82 to 120 ms as the shell client times
+it (which polls every 20 ms). Built uncapped, its 112,025 symbols took 1.5 s to send. The
+stacks' files, about 10 KB, take under a millisecond.
 
 Finding the cursor's place scans the file's text up to the cursor: about 5 ms at the end of
 the 2 MB file, before `explain`.

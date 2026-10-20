@@ -11,12 +11,14 @@ add_library(baker_lsp_core STATIC
   src/diagnose.cpp
   src/features.cpp
   src/live.cpp
+  src/outline.cpp
   src/net.cpp
   src/positions.cpp
   src/protocol.cpp
   src/scan.cpp
   src/server.cpp
   src/setup.cpp
+  src/structure.cpp
   src/reference.cpp)
 target_include_directories(baker_lsp_core PUBLIC src)
 target_link_libraries(baker_lsp_core PUBLIC baker::baker nlohmann_json::nlohmann_json)
@@ -41,6 +43,7 @@ if(BAKER_EDITOR_BUILD_TESTS)
     tests/test_diagnose.cpp
     tests/test_features.cpp
     tests/test_live.cpp
+    tests/test_outline.cpp
     tests/test_positions.cpp
     tests/test_scan.cpp
     tests/test_server.cpp)

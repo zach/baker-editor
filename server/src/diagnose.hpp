@@ -63,6 +63,7 @@ struct Loaded {
     std::vector<std::string> include_dirs;  // the project's, for files #include names
     std::vector<Definition> macros;         // LoadSession::macro_definitions that stand
     std::vector<Definition> functions;      // the {func}s the #autorun commands define
+    std::vector<std::string> files;         // every file the load read, canonical
 };
 
 struct Diagnosis {

@@ -36,7 +36,8 @@ run it over every file the project reads (`Diagnosis::files`), from the editor's
 Fields are matched with the shapes' `governing()`.
 
 **Acceptance:**
-- the 2 MB file's outline arrives in under 50 ms;
+- the 2 MB file's outline arrives in under 50 ms (measured: 82 to 120 ms round trip with a
+  5,000-symbol cap, 26 to 31 ms to build; the stacks' files, under 1 ms);
 - renaming a macro in the test project changes every use and its definition, and the project
   checks clean afterwards;
 - references to a shape field find every fighter's use of it in Duel.
@@ -189,8 +190,8 @@ for it, and a requirement note asks for the project file to name the tool binary
 
 | Step | Status |
 |---|---|
-| C1 Outline, folding, references, rename | Next |
-| C2 Which layer wins, in the text | |
+| C1 Outline, folding, references, rename | Done (first pass) |
+| C2 Which layer wins, in the text | Next |
 | C3 Evaluate in the running game | |
 | C4 The merged stack, and what a layer changes | |
 | C5 Completion that knows the values, and Baker's hints | One Baker note, for allowed symbols |
