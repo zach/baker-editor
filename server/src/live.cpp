@@ -100,8 +100,10 @@ std::optional<std::vector<std::vector<LiveEntry>>> Live::explain_many(
     return out;
 }
 
-std::optional<bool> Live::binds(const char* function) {
-    const auto reply = ask("{" + std::string(function) + "}");
+std::optional<bool> Live::binds(const char* function, const char* args) {
+    std::string command = "{" + std::string(function);
+    if (*args) command += std::string(" ") + args;
+    const auto reply = ask(command + "}");
     if (!reply) return std::nullopt;
     const std::string message =
         reply->value("error", nlohmann::json::object()).value("message", "");
@@ -114,7 +116,8 @@ bool Live::can_write_back() {
 }
 
 bool Live::can_clear() {
-    if (!clear_) clear_ = binds(kClear);
+    // A path no game has: clearing it drops nothing, however the command treats it.
+    if (!clear_) clear_ = binds(kClear, "baker_editor.no_such_value");
     return clear_.value_or(false);
 }
 

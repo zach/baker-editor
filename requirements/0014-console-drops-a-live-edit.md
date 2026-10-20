@@ -4,9 +4,8 @@
 
 A console command that drops the live edit of one path from scratch, so the value goes back
 to what the files say, as `Config::clear_scratch(path)` does in C++: for example
-`{config.clear fighters.kestrel.health}`. With no path it could clear all of scratch, as
-`clear_scratch()` does. The journal records the edit as reverted, as it does today for
-`clear_scratch`.
+`{config.clear fighters.kestrel.health}`. The journal records the edit as reverted, as it
+does today for `clear_scratch`.
 
 ## Why
 
@@ -22,13 +21,15 @@ edited.
 - Development builds only, like `config.set`: a shipping game binds neither.
 - Not behind the write permission: it writes no file.
 - The reply says whether there was an edit to drop, so a tool can tell "reverted" from
-  "nothing to revert".
+  "nothing to revert"; a path with no live edit, or no value at all, is not an error.
+- If clearing all of scratch is offered too, it is not the same command with the path left
+  out: a tool probing whether the command exists must not wipe every live edit.
 
 ## Today
 
 The editor's server offers **Revert the live edit** only when the game binds a command
-named `config.clear` (it asks once per connection), so today it is never offered. It will
-follow whatever name Baker gives the command.
+named `config.clear` (it asks once per connection, by clearing a path no game has), so
+today it is never offered. It will follow whatever name Baker gives the command.
 
 ## Not included
 

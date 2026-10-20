@@ -59,9 +59,9 @@ public:
 
 private:
     bool ready();
-    // Whether the game binds `function` (with no arguments, a bound one fails for them);
-    // empty if no game answers.
-    std::optional<bool> binds(const char* function);
+    // Whether the game binds `function`, asked by calling it as `{function args}`, which must
+    // change nothing whatever it does; empty if no game answers.
+    std::optional<bool> binds(const char* function, const char* args = "");
 
     uint16_t port_;
     net::Connection connection_;

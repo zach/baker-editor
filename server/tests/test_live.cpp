@@ -326,9 +326,9 @@ TEST_CASE("try this value: set live, without saving; revert only where the game 
     MockConsole game([&clears](const std::string& cmd) -> json {
         if (cmd.rfind("{config.explain", 0) == 0) return explained(kDefault, true, 2);
         if (cmd.rfind("{config.set ", 0) == 0) return {{"ok", true}, {"text", "120"}};
-        if (cmd == "{config.clear}")
-            return clears ? json{{"ok", false}, {"error", {{"message", "no overload takes 0"}}}}
-                          : not_a_function("config.clear");
+        if (cmd == "{config.clear}") return json{{"ok", true}, {"text", "cleared all"}};
+        if (cmd == "{config.clear baker_editor.no_such_value}")
+            return clears ? json{{"ok", true}, {"text", "0"}} : not_a_function("config.clear");
         if (cmd.rfind("{config.clear ", 0) == 0) return {{"ok", true}, {"text", "1"}};
         return not_a_function("x");
     });
@@ -347,6 +347,7 @@ TEST_CASE("try this value: set live, without saving; revert only where the game 
     Client c(game.port());
     REQUIRE(c.run(c.at(1, 23), "Revert the live edit"));
     CHECK(game.commands().back() == "{config.clear units/knight/health}");
+    for (const std::string& cmd : game.commands()) CHECK(cmd != "{config.clear}");  // clears all
     CHECK(!c.told("the game did not revert"));
 }
 

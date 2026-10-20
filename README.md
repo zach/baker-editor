@@ -170,7 +170,8 @@ once per connection, where one of the project's values comes from. An evaluation
 up to 2 s, as a person asked for it; everything else keeps the 50 ms.
 
 **Revert the live edit** waits for Baker: the console has no command to drop one path's
-live edit (`requirements/0014`). The server offers it once the game binds `config.clear`.
+live edit (`requirements/0014`). The server offers it once the game binds `config.clear`
+(it checks by clearing a path no game has).
 
 On Duel with the game running: evaluating `{duel.frame_table}` in a scenario shows the
 table's header after it; `{duel.p1 nobody}` shows `✗ no pilot nobody: ...`; trying
