@@ -122,30 +122,47 @@ extension shows it through a text-document content provider.
 
 **Effort:** about three days.
 
-## C5. Completion that knows the values
+## C5. Completion that knows the values, and Baker's hints
 
 **From:** the VS Code JSON and YAML servers driven by JSON Schema: valid values offered,
 defaults filled in by snippets, a color picker for colors.
 
-**What:**
-- choosing a field inserts it with a value: in an overriding layer, the value the stack has
-  now (overriding `(health` in `local.dta` inserts `(health 1000)`); else the middle of its
-  range, or its type's zero, as a snippet placeholder;
-- value completion for a field whose shape names its allowed symbols, and for a symbol
-  field from the values the project already uses for it (ranked by use);
-- a **color picker** (`textDocument/documentColor`) on fields of a color kind.
+**What Baker already gives:** metadata on a value, in the data or in code: `range`, `step`,
+`kind`, `desc`, `note` (`tweak.hpp`, `docs/language.md` "Shapes"). `kind` is Baker's
+presentation hint for tools (`color`, `angle`, `percent`, `path`, `frames`, `meters`, ...),
+and a 3- or 4-element value ranged 0..1 with no kind counts as a color. The game's tweaks,
+with their code defaults and metadata, are in the reference the build writes
+(`{reference, tweaks, shapes}`, `baker.tweaks/1`), which the server reads only for its
+functions today.
 
-**Baker:** shapes cannot name allowed symbols today (`button` lists them only in its
-`desc`), and no kind is reserved for colors. Two requirement notes: shapes declare a field's
-allowed symbols, and a kind for colors with its component order and range. Until then, the
-"values already used" completion works without them.
+**What:**
+- **hover and completion read every hint**, not only a shape field's: metadata written beside
+  the value, the shape's, and the game's tweak at that path (its code default, `dev_only`,
+  and whether the data binds it);
+- choosing a field inserts it with a value: in an overriding layer, the value the stack has
+  now (overriding `(health` in `local.dta` inserts `(health 1000)`); else the tweak's code
+  default, or the middle of its range, or its type's zero, as a snippet placeholder;
+- a **color picker** (`textDocument/documentColor`, `colorPresentation`) on every value
+  Baker calls a color: `kind color`, or the 3- or 4-element 0..1 rule; it writes the
+  components back in place;
+- a **range hint**: a value outside its `range` is already an error for shapes; for a
+  tweak's range, which only the running game enforces today, a warning;
+- value completion for a symbol field from the values the project already uses for it,
+  ranked by use (`(button ` offers `light heavy kick special` in Duel).
+
+**Baker:** colors need nothing new. One requirement note: a field's allowed symbols, declared
+in its shape or metadata (today `button` lists them only in its `desc`), so completion offers
+exactly those and a value outside them is a diagnostic. Until then, completion offers the
+values in use.
 
 **Acceptance:**
 - in Duel, completing `(button ` offers `light heavy kick special`, from use;
 - completing `(health` in `local.dta` inserts `1000`, the stack's current value;
-- with Baker's allowed-symbols release, a value outside the list is a diagnostic.
+- a `(tint 0.9 0.5 0.2 (range 0 1))` shows a color swatch, and picking a color rewrites the
+  three numbers;
+- hover on a value with a tweak shows the tweak's code default and its `desc`.
 
-**Effort:** about two days here, plus Baker's notes.
+**Effort:** about three days here, plus one Baker note.
 
 ## C6. Scenarios and objectives as tests
 
@@ -176,5 +193,5 @@ for it, and a requirement note asks for the project file to name the tool binary
 | C2 Which layer wins, in the text | |
 | C3 Evaluate in the running game | |
 | C4 The merged stack, and what a layer changes | |
-| C5 Completion that knows the values | Needs two Baker notes |
+| C5 Completion that knows the values, and Baker's hints | One Baker note, for allowed symbols |
 | C6 Scenarios and objectives as tests | Waits for Baker 0.2.0 |
