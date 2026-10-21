@@ -27,7 +27,8 @@ struct OutlineSymbol {
 
 // The file's tagged arrays as a tree, with its macros and {func}s. With more than `limit`
 // arrays, leaf fields are left out from the start (cap_outline cuts the rest).
-std::vector<OutlineSymbol> outline(std::string_view text, size_t limit = SIZE_MAX);
+std::vector<OutlineSymbol> outline(const Structure& s, std::string_view text,
+                                   size_t limit = SIZE_MAX);
 
 // At most `limit` symbols, as an editor can show: past it, leaf fields go first, then the
 // tree is cut where the count runs out. (VS Code's YAML server caps its outline the same
@@ -39,7 +40,7 @@ struct Fold {
     bool comment = false;
 };
 // Every bracket and block comment over more than one line.
-std::vector<Fold> folds(std::string_view text);
+std::vector<Fold> folds(const Structure& s, std::string_view text);
 
 // What a name under the cursor is, for references and rename.
 struct Target {
@@ -50,7 +51,7 @@ struct Target {
     size_t begin = 0, end = 0;  // the token under the cursor
 };
 
-std::optional<Target> target_at(std::string_view text, size_t offset, const Loaded& loaded,
+std::optional<Target> target_at(const Structure& s, size_t offset, const Loaded& loaded,
                                 const Reference& reference);
 
 struct Occurrence {

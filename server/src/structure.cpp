@@ -1,21 +1,10 @@
 #include "structure.hpp"
 
+#include <baker/parse.hpp>
+
 #include <algorithm>
 
 namespace baker_lsp {
-namespace {
-
-bool is_space(char c) {
-    return c == ' ' || c == '\t' || c == '\r' || c == '\n';
-}
-bool is_open(char c) {
-    return c == '(' || c == '{' || c == '[';
-}
-bool is_close(char c) {
-    return c == ')' || c == '}' || c == ']';
-}
-
-}  // namespace
 
 std::string_view Structure::tag(int b) const {
     if (b < 0 || brackets[static_cast<size_t>(b)].tag < 0) return {};
@@ -36,65 +25,45 @@ std::vector<std::string> Structure::data_path(int b) const {
 
 Structure read_structure(std::string_view text) {
     Structure s;
-    std::vector<int> open;    // the brackets not yet closed
+    const baker::TextStructure read = baker::read_structure(text);
+    s.brackets.reserve(read.brackets.size());
+    s.tokens.reserve(read.tokens.size() - read.brackets.size());  // less the opens
+    for (const baker::TextComment& c : read.comments)
+        s.comments.push_back({c.begin, c.end, c.block});
+    std::vector<int> open;    // the brackets around the next token, innermost last
     std::vector<int> counts;  // tokens and arrays in each of them so far
-    const auto add_to_parent = [&] {
+    size_t next = 0;          // the next of Baker's brackets, which open in token order
+    for (const baker::TextToken& t : read.tokens) {
+        // A close Baker read has ended its bracket; an unclosed one ends with the text.
+        while (!open.empty() && s.brackets[static_cast<size_t>(open.back())].end <= t.begin) {
+            open.pop_back();
+            counts.pop_back();
+        }
+        if (t.kind == baker::TextTokenKind::Close) continue;
         if (!counts.empty()) ++counts.back();
-    };
-    size_t i = 0;
-    while (i < text.size()) {
-        const char ch = text[i];
-        if (is_space(ch)) {
-            ++i;
-        } else if (ch == ';') {
-            const size_t nl = text.find('\n', i);
-            i = nl == std::string_view::npos ? text.size() : nl;
-        } else if (ch == '/' && i + 1 < text.size() && text[i + 1] == '*') {
-            const size_t close = text.find("*/", i + 2);
-            const size_t end = close == std::string_view::npos ? text.size() : close + 2;
-            s.comments.push_back({i, end});
-            i = end;
-        } else if (is_open(ch)) {
-            add_to_parent();
+        if (t.kind == baker::TextTokenKind::Open) {
+            const baker::TextBracket& b = read.brackets[next++];
             if (!open.empty()) s.brackets[static_cast<size_t>(open.back())].has_child = true;
-            s.brackets.push_back({ch, open.empty() ? -1 : open.back(), i, text.size(), -1});
+            s.brackets.push_back(
+                {b.open, open.empty() ? -1 : open.back(), b.begin, b.end, -1, false, b.closed});
             open.push_back(static_cast<int>(s.brackets.size() - 1));
             counts.push_back(0);
-            ++i;
-        } else if (is_close(ch)) {
-            if (!open.empty()) {
-                s.brackets[static_cast<size_t>(open.back())].end = i + 1;
-                open.pop_back();
-                counts.pop_back();
-            }
-            ++i;
-        } else {
-            size_t j = i;
-            char quote = 0;
-            if (ch == '"' || ch == '\'') {
-                quote = ch;
-                j = text.find(ch, i + 1);  // \n and \q hold no quote
-                j = j == std::string_view::npos ? text.size() : j + 1;
-            } else {
-                while (j < text.size() && !is_space(text[j]) && !is_open(text[j]) &&
-                       !is_close(text[j]) && text[j] != ';' && text[j] != '"')
-                    ++j;
-            }
-            Token t;
-            t.begin = i;
-            t.end = j;
-            t.quote = quote;
-            t.text = text.substr(i, j - i);
-            if (quote && t.text.size() >= 2 && t.text.back() == quote)
-                t.text = t.text.substr(1, t.text.size() - 2);
-            t.bracket = open.empty() ? -1 : open.back();
-            t.index = counts.empty() ? 0 : counts.back();
-            if (t.bracket >= 0 && t.index == 0)
-                s.brackets[static_cast<size_t>(t.bracket)].tag = static_cast<int>(s.tokens.size());
-            s.tokens.push_back(std::move(t));
-            add_to_parent();
-            i = j;
+            continue;
         }
+        Token token;
+        token.begin = t.begin;
+        token.end = t.end;
+        token.quote = t.kind == baker::TextTokenKind::String         ? '"'
+                      : t.kind == baker::TextTokenKind::QuotedSymbol ? '\''
+                                                                     : 0;
+        token.text = text.substr(t.begin, t.end - t.begin);
+        if (token.quote && token.text.size() >= 2 && token.text.back() == token.quote)
+            token.text = token.text.substr(1, token.text.size() - 2);
+        token.bracket = open.empty() ? -1 : open.back();
+        token.index = counts.empty() ? 0 : counts.back() - 1;
+        if (token.bracket >= 0 && token.index == 0)
+            s.brackets[static_cast<size_t>(token.bracket)].tag = static_cast<int>(s.tokens.size());
+        s.tokens.push_back(token);
     }
     return s;
 }

@@ -9,6 +9,7 @@
 #include "live.hpp"
 #include "reference.hpp"
 #include "setup.hpp"
+#include "structure.hpp"
 #include "tweaks.hpp"
 
 #include <baker/script.hpp>
@@ -137,6 +138,9 @@ private:
     void poll(Clock::time_point now);
     Send send_;
     Buffers buffers_;
+    // An open file's text, read (structure.hpp): read again only when its text changed.
+    std::shared_ptr<const FileRead> read_of(const std::string& path);
+    std::map<std::string, std::shared_ptr<const FileRead>> reads_;
     std::map<std::string, std::string> uris_;  // canonical path -> the client's URI
     std::set<std::string> published_;          // URIs that last got a non-empty list
     // Results of evaluating in the game, by file, shown until its next edit.

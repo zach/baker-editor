@@ -198,6 +198,6 @@ nothing from Baker. D6 last, once D1 has proven what is published, and not befor
 | D5 Running scenarios on what is in the editor | none | Done (first pass) |
 | D6 Published | none; the owner's accounts | Waits for Baker 1.0 (the owner's call) |
 
-Baker 0.5.0, adopted in steps: the pin and the small workarounds' end (notes 0019, 0020,
-0022, 0023); one Config per project, reloaded after each edit (note 0024); then the server's
+Baker 0.5.0, adopted in steps, each done: the pin and the small workarounds' end (notes 0019,
+0020, 0022, 0023); one Config per project, reloaded after each edit (note 0024); the server's
 own lexer replaced by Baker's `read_structure` (note 0021).

@@ -39,7 +39,7 @@ struct Fixture {
     }
     std::vector<Occurrence> find(const std::string& path, const std::string& at) {
         const std::string t = text(path);
-        const auto target = target_at(t, t.find(at), *loaded, reference);
+        const auto target = target_at(read_structure(t), t.find(at), *loaded, reference);
         REQUIRE(target);
         const auto read = [this](const std::string& f, std::string& out) {
             return buffers.read(f, out);
@@ -64,7 +64,9 @@ TEST_CASE("a file's structure: brackets, tags and tokens") {
     CHECK(s.tag(3) == "M");
     CHECK(s.data_path(1) == std::vector<std::string>{"a", "b"});
     CHECK(s.data_path(2).empty());  // a command is not data
-    CHECK(s.comments.size() == 1);
+    REQUIRE(s.comments.size() == 2);
+    CHECK(!s.comments[0].block);
+    CHECK(s.comments[1].block);
     const auto quoted = std::find_if(s.tokens.begin(), s.tokens.end(),
                                      [](const Token& t) { return t.quote == '\''; });
     REQUIRE(quoted != s.tokens.end());
@@ -74,7 +76,8 @@ TEST_CASE("a file's structure: brackets, tags and tokens") {
 
 TEST_CASE("the outline: arrays by tag, leaves as fields, macros and script functions") {
     Fixture f;
-    const auto symbols = outline(f.text(kDefault));
+    const std::string text = f.text(kDefault);
+    const auto symbols = outline(read_structure(text), text);
     std::vector<std::string> top;
     for (const OutlineSymbol& s : symbols) top.push_back(s.name);
     CHECK(top == std::vector<std::string>{"units", "SPEEDY", "game.twice"});
@@ -92,7 +95,8 @@ TEST_CASE("the outline: arrays by tag, leaves as fields, macros and script funct
 }
 
 TEST_CASE("folds: brackets and block comments over more than one line") {
-    const auto f = folds("(a\n  (b 1))\n(c 2)\n/* x\n y */");
+    const std::string_view text = "(a\n  (b 1))\n(c 2)\n/* x\n y */";
+    const auto f = folds(read_structure(text), text);
     REQUIRE(f.size() == 2);
     CHECK(!f[0].comment);
     CHECK(f[1].comment);

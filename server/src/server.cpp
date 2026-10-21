@@ -308,6 +308,7 @@ void Server::notification(const json& message, Clock::time_point now) {
         schedule(now + kDebounce, true);
     } else if (method == "textDocument/didClose") {
         buffers_.erase(canonical_path(document_path()));
+        reads_.erase(canonical_path(document_path()));
         evaluated_.erase(canonical_path(document_path()));
         schedule(now);
     } else if (method == "workspace/didChangeWatchedFiles") {
@@ -729,11 +730,20 @@ std::string document_of(const json& params) {
 
 }  // namespace
 
-json Server::document_symbols(const json& params) {
+std::shared_ptr<const FileRead> Server::read_of(const std::string& path) {
     std::string text;
-    if (!buffers_.read(document_of(params), text)) return json::array();
-    const LineIndex lines(text);
-    std::vector<OutlineSymbol> symbols = outline(text, kMaxSymbols);
+    if (!buffers_.read(path, text)) return nullptr;
+    if (!buffers_.find(path)) return std::make_shared<const FileRead>(std::move(text));
+    std::shared_ptr<const FileRead>& kept = reads_[path];
+    if (!kept || kept->text != text) kept = std::make_shared<const FileRead>(std::move(text));
+    return kept;
+}
+
+json Server::document_symbols(const json& params) {
+    const auto read = read_of(document_of(params));
+    if (!read) return json::array();
+    const LineIndex& lines = read->lines;
+    std::vector<OutlineSymbol> symbols = outline(read->structure, read->text, kMaxSymbols);
     if (const size_t cut = cap_outline(symbols, kMaxSymbols))
         log(kLogInfo, "outline: " + std::to_string(cut) +
                           " symbols left out of a large file; "
@@ -744,11 +754,11 @@ json Server::document_symbols(const json& params) {
 }
 
 json Server::folding_ranges(const json& params) {
-    std::string text;
-    if (!buffers_.read(document_of(params), text)) return json::array();
-    const LineIndex lines(text);
+    const auto read = read_of(document_of(params));
+    if (!read) return json::array();
+    const LineIndex& lines = read->lines;
     json out = json::array();
-    for (const Fold& f : folds(text)) {
+    for (const Fold& f : folds(read->structure, read->text)) {
         if (out.size() >= kMaxSymbols) break;
         const int a = lines.position(f.begin).first, b = lines.position(f.end).first;
         if (b <= a) continue;
@@ -790,7 +800,7 @@ json Server::references(const json& params) {
     if (!place(params, buffers_, path, text, offset)) return json::array();
     Checked* c = project_of(path);
     if (!c || !c->loaded) return json::array();
-    const auto target = target_at(text, offset, *c->loaded, c->reference);
+    const auto target = target_at(read_of(path)->structure, offset, *c->loaded, c->reference);
     if (!target) return json::array();
     std::vector<std::string> files = c->loaded->files;
     for (const auto& [open, ignored] : buffers_.all())
@@ -813,7 +823,7 @@ json Server::prepare_rename(const json& params) {
     if (!place(params, buffers_, path, text, offset)) return nullptr;
     Checked* c = project_of(path);
     if (!c || !c->loaded) return nullptr;
-    const auto target = target_at(text, offset, *c->loaded, c->reference);
+    const auto target = target_at(read_of(path)->structure, offset, *c->loaded, c->reference);
     if (!target || !target->renamable) return nullptr;
     return {{"range", lsp_range(LineIndex(text), target->begin, target->end)},
             {"placeholder", target->name}};
@@ -826,7 +836,7 @@ json Server::rename(const json& params, std::string& error) {
     if (!place(params, buffers_, path, text, offset)) return nullptr;
     Checked* c = project_of(path);
     if (!c || !c->loaded) return nullptr;
-    const auto target = target_at(text, offset, *c->loaded, c->reference);
+    const auto target = target_at(read_of(path)->structure, offset, *c->loaded, c->reference);
     if (!target || !target->renamable) {
         error = "nothing here can be renamed: the game's own functions are its code's";
         return nullptr;
@@ -926,7 +936,8 @@ json Server::inlay_hints(const json& params) {
     if (!given_.live_inlays || live.port() == 0) return out;
 
     // The running game's value where a live edit differs from the file value it overrides.
-    const Structure s = read_structure(text);  // the whole file: a value's path is its arrays'
+    const auto read = read_of(path);  // the whole file: a value's path is its arrays'
+    const Structure& s = read->structure;
     std::vector<int> leaves;
     std::vector<std::string> paths;
     for (size_t b = 0; b < s.brackets.size() && leaves.size() < kMaxLiveInlays; ++b) {
@@ -1057,8 +1068,9 @@ json Server::document_colors(const json& params) {
     Checked* c = project_of(path);
     if (due_ || (c && !c->loaded)) check_now();
     if (!c || !c->loaded || !buffers_.read(path, text)) return out;
-    const Structure s = read_structure(text);
-    const LineIndex lines(text);
+    const auto read = read_of(path);
+    const Structure& s = read->structure;
+    const LineIndex& lines = read->lines;
     // Each array's own values, after its tag; -1 once it holds an array that is not metadata.
     std::vector<std::vector<int>> values(s.brackets.size());
     for (size_t t = 0; t < s.tokens.size(); ++t) {
@@ -1129,8 +1141,9 @@ json Server::code_lenses(const json& params) {
     Checked* c = project_of(path);
     if (!c || c->setup.project != path || !buffers_.read(path, text)) return out;
     // (project ... (layers (name "file" ...) ...)): a lens on each layer, and one for the stack.
-    const Structure s = read_structure(text);
-    const LineIndex lines(text);
+    const auto read = read_of(path);
+    const Structure& s = read->structure;
+    const LineIndex& lines = read->lines;
     const json uri = uri_for(path);
     const auto lens = [&](const Token& at, const std::string& title, const std::string& command,
                           json args) {

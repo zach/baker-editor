@@ -69,3 +69,22 @@ TEST_CASE("a quoted tag is unquoted, and quoted again in a path") {
     CHECK(path_text(c.data_path()) == "menu/'bacon and eggs'/price");
     CHECK(path_text({"a", "0"}) == "a/'0'");
 }
+
+TEST_CASE("the cursor is found as a read of the whole text finds it") {
+    // A string or comment running on past the cursor's line.
+    Cursor c = at("(name \"a|\nb\")");
+    CHECK(c.in_string);
+    CHECK(c.token == "a\nb");
+    CHECK(at("/* a|\n b */ (x 1)").quiet);
+    CHECK(!at("(x 1) /* a */ (y |\n 2)").quiet);
+    // At the line's end, inside a bracket closed on a later line.
+    c = at("(objective puzzle.brisk|\n   (below 3))");
+    CHECK(c.previous == "objective");
+    CHECK(c.index == 1);
+    // Baker's own tokens: a hex number, a variable, a directive.
+    c = at("(a 0x1F $v |)");
+    CHECK(c.index == 3);
+    CHECK(c.previous == "$v");
+    c = at("#define |X\n");
+    CHECK(c.token == "X");
+}

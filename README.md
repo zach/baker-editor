@@ -172,8 +172,10 @@ running game refuses it. A shape's range is `check`'s error.
   the game's C++, which reads it by name: rename a field only with the code. The game's own
   functions are not renamable.
 
-All four read each file's structure from its text in one pass (`structure.cpp`), so they work
-on text that does not parse.
+All four read each file's structure from its text with Baker's own lexer
+(`baker::read_structure`), so they work on text that does not parse, and know Baker's syntax
+as the parser does. An open file's structure is read once per edit and shared by every
+request on that text.
 
 ## Which layer wins, in the text
 
@@ -382,6 +384,23 @@ stacks' files, about 10 KB, take under a millisecond.
 
 Finding the cursor's place scans the file's text up to the cursor: about 5 ms at the end of
 the 2 MB file, before `explain`.
+
+Baker's lexer in place of the server's own (note 0021), RelWithDebInfo build (Clang), at Baker
+0.5.0, on the 2 MB Duel, against the previous commit built the same way (three runs each):
+
+| | Before | After |
+|---|---|---|
+| The file's structure, read whole | 15–18 ms | 29–30 ms; Baker's read alone 19–26 ms |
+| The cursor's place at the end of the file | 8 ms | 20 ms |
+| Outline, folds and colors after an edit (20 edits) | 87–102 ms | 85–94 ms |
+| A completion near the end of the file | 9.5 ms | 20 ms |
+
+Baker's read is slower than the server's lexer was, and builds every token where the cursor's
+scan stopped at the cursor: a completion at the end of the 2 MB file takes about 10 ms more,
+a regression. A request on the whole file no longer reads it again: the structure is read
+once per edit and kept for the open file, so the requests after an edit cost no more than
+they did. Both reads give the same brackets, tokens and cursor as the server's lexer on every
+`.dta` file of the stacks, the test project and the 2 MB file (2,000 cursor places in it).
 
 At Baker fb613b4 and before, the same 2 MB check took 110–160 ms clean and 50–60 ms with a
 syntax error (one run each of three to six).

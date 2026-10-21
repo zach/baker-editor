@@ -42,8 +42,7 @@ bool is_field(const Structure& s, int b, std::string_view field, const std::stri
 
 }  // namespace
 
-std::vector<OutlineSymbol> outline(std::string_view text, size_t limit) {
-    const Structure s = read_structure(text);
+std::vector<OutlineSymbol> outline(const Structure& s, std::string_view text, size_t limit) {
     const bool leaves = s.brackets.size() <= limit;
     // Each bracket's symbol, if it shows one, and the nearest ancestor that shows one.
     std::vector<std::optional<OutlineSymbol>> made(s.brackets.size());
@@ -145,22 +144,21 @@ size_t cap_outline(std::vector<OutlineSymbol>& symbols, size_t limit) {
     return all - count_symbols(symbols);
 }
 
-std::vector<Fold> folds(std::string_view text) {
-    const Structure s = read_structure(text);
+std::vector<Fold> folds(const Structure& s, std::string_view text) {
     std::vector<Fold> out;
     const auto multiline = [&text](size_t a, size_t b) {
         return text.substr(a, std::min(b, text.size()) - a).find('\n') != std::string_view::npos;
     };
     for (const Bracket& b : s.brackets)
         if (multiline(b.begin, b.end)) out.push_back({b.begin, b.end > 0 ? b.end - 1 : 0, false});
-    for (const BlockComment& c : s.comments)
-        if (multiline(c.begin, c.end)) out.push_back({c.begin, c.end > 0 ? c.end - 1 : 0, true});
+    for (const Comment& c : s.comments)
+        if (c.block && multiline(c.begin, c.end))
+            out.push_back({c.begin, c.end > 0 ? c.end - 1 : 0, true});
     return out;
 }
 
-std::optional<Target> target_at(std::string_view text, size_t offset, const Loaded& loaded,
+std::optional<Target> target_at(const Structure& s, size_t offset, const Loaded& loaded,
                                 const Reference& reference) {
-    const Structure s = read_structure(text);
     const int t = token_at(s, offset);
     if (t < 0) return std::nullopt;
     const Token& tok = s.tokens[static_cast<size_t>(t)];

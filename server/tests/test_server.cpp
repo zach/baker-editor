@@ -338,3 +338,23 @@ TEST_CASE("--console names a game's port for the projects under a directory") {
     CHECK(!parse_args(no_port, bad, error));
     CHECK(error.find("DIR=PORT") != std::string::npos);
 }
+
+TEST_CASE("a file's structure is read again after each edit, and dropped on close") {
+    Client c;
+    c.request(1, "initialize");
+    const json doc = {{"textDocument", {{"uri", uri_from_path(kDefault)}}}};
+    const auto names = [&](int id) {
+        std::vector<std::string> out;
+        const json reply = c.request(id, "textDocument/documentSymbol", doc);
+        for (const json& s : reply["result"]) out.push_back(s["name"]);
+        return out;
+    };
+    c.open("(units (knight (health 100)))\n");
+    CHECK(names(2) == std::vector<std::string>{"units"});
+    CHECK(names(3) == std::vector<std::string>{"units"});  // the same text: the same read
+    c.change("(units (knight (health 100)))\n(world (gravity 9))\n");
+    CHECK(names(4) == std::vector<std::string>{"units", "world"});
+    CHECK(c.request(5, "textDocument/foldingRange", doc)["result"].empty());
+    c.notify("textDocument/didClose", doc);
+    CHECK(names(6).size() == 3);  // the file on disk
+}

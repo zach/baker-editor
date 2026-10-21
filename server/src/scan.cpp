@@ -1,27 +1,15 @@
 #include "scan.hpp"
 
+#include <baker/parse.hpp>
+
+#include <cstdint>
+
 namespace baker_lsp {
 namespace {
 
 bool is_space(char c) {
     return c == ' ' || c == '\t' || c == '\r' || c == '\n';
 }
-bool is_open(char c) {
-    return c == '(' || c == '{' || c == '[';
-}
-bool is_close(char c) {
-    return c == ')' || c == '}' || c == ']';
-}
-
-std::string unquote(std::string_view t) {
-    if (t.size() >= 2 && (t.front() == '\'' || t.front() == '"') && t.back() == t.front())
-        return std::string(t.substr(1, t.size() - 2));
-    return std::string(t);
-}
-
-}  // namespace
-
-namespace {
 std::vector<std::string> tags_of(const std::vector<Frame>& stack, size_t count) {
     std::vector<std::string> tags;
     for (size_t i = 0; i < count; ++i) {
@@ -41,98 +29,95 @@ std::vector<std::string> Cursor::parent_path() const {
     return stack.empty() ? std::vector<std::string>() : tags_of(stack, stack.size() - 1);
 }
 
-Cursor scan(std::string_view text, size_t offset) {
+namespace {
+
+std::string unquoted(std::string_view t, baker::TextTokenKind kind) {
+    const char q = kind == baker::TextTokenKind::String         ? '"'
+                   : kind == baker::TextTokenKind::QuotedSymbol ? '\''
+                                                                : 0;
+    if (q && t.size() >= 2 && t.back() == q) return std::string(t.substr(1, t.size() - 2));
+    return std::string(t);
+}
+
+// The cursor in Baker's read of a text that runs far enough past it to hold the token it
+// touches.
+Cursor scan_in(std::string_view text, const baker::TextStructure& read, size_t offset) {
     Cursor c;
-    if (offset > text.size()) offset = text.size();
-    std::vector<Frame> stack;
-    std::string previous;  // the last token in the current bracket (or at the top)
-    bool found = false;
-    const auto at_cursor = [&](size_t begin, size_t end, std::string_view token) {
-        c.stack = stack;
-        c.token = unquote(token);
-        c.begin = begin;
-        c.end = end;
-        c.index = stack.empty() ? 0 : stack.back().count;
-        c.previous = previous;
-        found = true;
-    };
-    size_t i = 0;
-    while (i < text.size() && !found) {
-        const char ch = text[i];
-        if (is_space(ch)) {
-            ++i;
+    // In a comment: after its first character, to its end (a ; comment's line end too, and
+    // the text's end for one not closed).
+    for (const baker::TextComment& m : read.comments)
+        if (m.begin < offset &&
+            (offset < m.end || (offset == m.end && (!m.block || m.end == text.size())))) {
+            c.quiet = true;
+            return c;
+        }
+    c.begin = c.end = offset;
+    std::vector<uint32_t> ends;  // each frame's bracket's end
+    size_t next = 0;             // the next of Baker's brackets, which open in token order
+    std::string_view previous;   // the last token in the current bracket (or at the top)
+    for (const baker::TextToken& t : read.tokens) {
+        while (!ends.empty() && ends.back() <= t.begin) {  // closed before this token
+            ends.pop_back();
+            c.stack.pop_back();
+        }
+        // Past the cursor, or at a bracket it stands before: between tokens.
+        if (t.begin > offset) break;
+        if (t.kind == baker::TextTokenKind::Open) {
+            if (t.begin == offset) break;
+            const baker::TextBracket& b = read.brackets[next++];
+            if (!c.stack.empty()) ++c.stack.back().count;
+            c.stack.push_back({b.open, {}, 0});
+            ends.push_back(b.closed && b.end <= offset ? b.end : UINT32_MAX);
+            previous = {};
             continue;
         }
-        // Past the cursor, or at a bracket or comment it stands before: between tokens. A
-        // token that starts at the cursor is the one it touches.
-        if (i > offset || (i == offset && (is_open(ch) || is_close(ch) || ch == ';'))) {
-            at_cursor(offset, offset, {});
-            break;
-        }
-        if (ch == '/' && i + 1 < text.size() && text[i + 1] == '*') {  // a block comment
-            const size_t close = text.find("*/", i + 2);
-            const size_t end = close == std::string_view::npos ? text.size() : close + 2;
-            if (offset < end) {
-                c.quiet = true;
-                return c;
-            }
-            i = end;
+        if (t.kind == baker::TextTokenKind::Close) {
+            if (t.begin == offset) break;
+            previous = {};
             continue;
         }
-        if (ch == ';') {  // a comment, to the end of the line
-            const size_t nl = text.find('\n', i);
-            const size_t end = nl == std::string_view::npos ? text.size() : nl;
-            if (offset <= end) {
-                c.quiet = true;
-                return c;
-            }
-            i = end;
-            continue;
-        }
-        if (is_open(ch)) {
-            if (!stack.empty()) ++stack.back().count;
-            stack.push_back({ch, {}, 0});
-            previous.clear();
-            ++i;
-            continue;
-        }
-        if (is_close(ch)) {
-            if (!stack.empty()) stack.pop_back();
-            previous.clear();
-            ++i;
-            continue;
-        }
-        // A token: a string or a run up to a space, bracket or comment.
-        size_t j = i;
-        if (ch == '"' || ch == '\'') {
-            j = i + 1;
-            while (j < text.size() && text[j] != ch) ++j;  // \n and \q hold no quote
-            j = j < text.size() ? j + 1 : text.size();
-            if (ch == '"' && offset > i && offset < j) {
-                at_cursor(i, j, text.substr(i, j - i));
+        const std::string_view raw = text.substr(t.begin, t.end - t.begin);
+        if (t.end >= offset) {  // it touches the cursor
+            c.token = unquoted(raw, t.kind);
+            c.begin = t.begin;
+            c.end = t.end;
+            const bool closed = raw.size() >= 2 && raw.back() == '"';
+            if (t.kind == baker::TextTokenKind::String && offset > t.begin &&
+                (offset < t.end || !closed))
                 c.quiet = c.in_string = true;
-                return c;
-            }
-        } else {
-            while (j < text.size() && !is_space(text[j]) && !is_open(text[j]) &&
-                   !is_close(text[j]) && text[j] != ';')
-                ++j;
-        }
-        const std::string_view token = text.substr(i, j - i);
-        if (offset >= i && offset <= j) {
-            at_cursor(i, j, token);
             break;
         }
-        if (!stack.empty()) {
-            Frame& f = stack.back();
-            if (f.count == 0) f.tag = unquote(token);
+        if (!c.stack.empty()) {
+            Frame& f = c.stack.back();
+            if (f.count == 0) f.tag = unquoted(raw, t.kind);
             ++f.count;
         }
-        previous = std::string(token);
-        i = j;
+        previous = raw;
     }
-    if (!found) at_cursor(offset, offset, {});
+    while (!ends.empty() && ends.back() <= offset) {  // closed before the cursor
+        ends.pop_back();
+        c.stack.pop_back();
+    }
+    c.index = c.stack.empty() ? 0 : c.stack.back().count;
+    c.previous = std::string(previous);
     return c;
+}
+
+}  // namespace
+
+Cursor scan(std::string_view text, size_t offset) {
+    if (offset > text.size()) offset = text.size();
+    // The text to the end of the cursor's line holds all the cursor needs, unless the token it
+    // touches, or a comment it is in, runs on past it (a string across lines).
+    const size_t nl = text.find('\n', offset);
+    if (nl != std::string_view::npos) {
+        const std::string_view head = text.substr(0, nl);
+        const Cursor c = scan_in(head, baker::read_structure(head), offset);
+        const bool runs_on = c.end == head.size() && c.begin < c.end &&
+                             (head[c.begin] == '"' || head[c.begin] == '\'');
+        if (!runs_on && !(c.quiet && !c.in_string && offset == head.size())) return c;
+    }
+    return scan_in(text, baker::read_structure(text), offset);
 }
 
 std::string path_text(const std::vector<std::string>& tags) {
