@@ -107,9 +107,12 @@ std::optional<bool> Live::binds(const char* function, const char* args) {
     if (*args) command += std::string(" ") + args;
     const auto reply = ask(command + "}");
     if (!reply) return std::nullopt;
-    const std::string message =
-        reply->value("error", nlohmann::json::object()).value("message", "");
-    return message.find("is not a function") == std::string::npos;
+    // An unbound command fails as a lookup of its own name; a bound one, if it fails at all,
+    // fails for its arguments.
+    const nlohmann::json error = reply->value("error", nlohmann::json::object());
+    return !(error.value("code", "") == "not found" &&
+             error.value("message", "").find("'" + std::string(function) + "'") !=
+                 std::string::npos);
 }
 
 bool Live::can_write_back() {

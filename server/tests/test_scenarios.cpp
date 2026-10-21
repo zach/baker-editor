@@ -163,4 +163,15 @@ TEST_CASE("over LSP: the suite, and a run's failures published until it runs aga
     const std::vector<std::string> left = sim_diagnostics(kObjectives);
     REQUIRE(left.size() == 1);
     CHECK(left[0].starts_with("units.fair failed in scenario long"));
+    // An edit to the objectives' file: its failures would sit on lines that moved.
+    std::string text;
+    REQUIRE(Buffers().read(kObjectives, text));
+    server.handle({{"jsonrpc", "2.0"},
+                   {"method", "textDocument/didChange"},
+                   {"params",
+                    {{"textDocument", {{"uri", uri_from_path(kObjectives)}}},
+                     {"contentChanges", json::array({{{"text", "; moved\n" + text}}})}}}},
+                  {});
+    CHECK(sim_diagnostics(kObjectives).empty());
+    CHECK(sim_diagnostics(kScenarios).size() == 1);  // long's, in a file not edited
 }

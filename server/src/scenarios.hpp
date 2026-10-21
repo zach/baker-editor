@@ -28,6 +28,10 @@ struct Suite {
     std::vector<Declared> scenarios, objectives;
 };
 
+// The files a `(scenarios ...)` or `(objectives ...)` entry names: the file, or the .dta files
+// of a directory (and any open there, not yet saved), in name order.
+std::vector<std::string> suite_files(const std::string& path, const Buffers& buffers);
+
 // The scenarios and objectives the project file names, read from the open editors' text or
 // the disk: each file named, or each .dta file of a directory named, in name order. False,
 // with `error`, if the project file does not read.

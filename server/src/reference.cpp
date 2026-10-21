@@ -123,6 +123,7 @@ void declare_types(baker::Context& ctx, const nlohmann::json& doc, Reference& ou
                 baker::Symbol(name), std::span<const baker::Symbol>(bases.data(), bases.size()),
                 std::span<const baker::MethodDescription>(methods.data(), methods.size()));
             // A type the Context already has is Baker's own, as fully known as a declared one.
+            // No query tells it, nor an error code apart (requirements/0023): the message.
             if (r || std::string(r.error().message()).find("already") != std::string::npos)
                 out.declared_types.push_back(name);
             else
@@ -277,11 +278,11 @@ bool load_reference(baker::Context& ctx, const std::string& path, Reference& out
     declare_types(ctx, doc, out);
     for (const auto& [name, type] : out.object_types) {
         const baker::Symbol object(name);
-        if (ctx.has_func(object)) continue;  // Baker's own, or a function of the game's
-        // An object the Context already has is Baker's own, such as its scheduler.
+        // Baker's own (its scheduler), or a function of the game's.
+        if (ctx.has_func(object) || ctx.object(object).type() == baker::Type::Object) continue;
         if (auto r = ctx.declare_object(object, baker::Symbol(type)))
             ++out.declared_objects;
-        else if (std::string(r.error().message()).find("already") == std::string::npos)
+        else
             out.failed.push_back("object " + name + ": " + std::string(r.error().message()));
     }
     return true;

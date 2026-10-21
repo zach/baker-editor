@@ -188,5 +188,13 @@ suite("Baker in VS Code", function () {
         await until("the failure on its objective", () => diagnostics(file("metrics/units.dta")).some(
             (d) => /units\.alive failed in scenario opening/.test(d.message)));
         fs.unlinkSync(path.join(project, "fail"));
+
+        // A scenario file made on disk is listed, with no save in the editor.
+        const extra = path.join(project, "scenarios", "extra.dta");
+        fs.writeFileSync(extra, "(scenario added (seconds 1))\n");
+        await until("the new scenario to be listed", () =>
+            api.scenarios.ids().some((id) => id.endsWith("#added")));
+        fs.unlinkSync(extra);
+        await until("it to go", () => !api.scenarios.ids().some((id) => id.endsWith("#added")));
     });
 });

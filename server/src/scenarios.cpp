@@ -10,11 +10,9 @@
 #include <filesystem>
 
 namespace baker_lsp {
-namespace {
+namespace {}  // namespace
 
-// The files a `(scenarios ...)` or `(objectives ...)` entry names: the file, or a directory's
-// .dta files in name order. A path that does not exist reads nothing.
-std::vector<std::string> files_of(const std::string& path, const Buffers& buffers) {
+std::vector<std::string> suite_files(const std::string& path, const Buffers& buffers) {
     namespace fs = std::filesystem;
     std::error_code ec;
     if (!fs::is_directory(path, ec)) return {canonical_path(path)};
@@ -30,6 +28,8 @@ std::vector<std::string> files_of(const std::string& path, const Buffers& buffer
     std::sort(out.begin(), out.end());
     return out;
 }
+
+namespace {
 
 std::string first_value(const Structure& s, int bracket) {
     const Bracket& b = s.brackets[bracket];
@@ -123,10 +123,10 @@ bool read_suite(const std::string& project, const Buffers& buffers, Suite& out,
     out.tool =
         read->tool.str().empty() ? std::string() : canonical_path(std::string(read->tool.str()));
     for (const baker::ProjectEntry& e : read->scenarios)
-        for (const std::string& f : files_of(std::string(e.value.str()), buffers))
+        for (const std::string& f : suite_files(std::string(e.value.str()), buffers))
             read_forms(f, "scenario", buffers, out.scenarios);
     for (const baker::ProjectEntry& e : read->objectives)
-        for (const std::string& f : files_of(std::string(e.value.str()), buffers))
+        for (const std::string& f : suite_files(std::string(e.value.str()), buffers))
             read_forms(f, "objective", buffers, out.objectives);
     return true;
 }

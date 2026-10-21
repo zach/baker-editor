@@ -27,6 +27,14 @@ export class Scenarios {
             vscode.workspace.onDidSaveTextDocument((doc) => {
                 if (doc.languageId === "baker") void this.discover();
             }));
+        // A project, scenario or objective file made or deleted on disk lists them again.
+        const watcher = vscode.workspace.createFileSystemWatcher("**/*.dta", false, true, false);
+        let pending: ReturnType<typeof setTimeout> | undefined;
+        const soon = () => {
+            if (pending) clearTimeout(pending);
+            pending = setTimeout(() => void this.discover(), 300);
+        };
+        context.subscriptions.push(watcher, watcher.onDidCreate(soon), watcher.onDidDelete(soon));
     }
 
     // Lists every project's scenarios, by asking the server about each project file.

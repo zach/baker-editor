@@ -98,9 +98,9 @@ its layers as the game would, with the text of open editors in place of the file
 - **shapes:** a value of the wrong type or out of range (an error), a field no shape declares
   (information).
 
-An open `.dta` file of the project that its layers do not read, such as a scenario or an
-objective, is read on its own and checked beside them, as a game's `check` command checks
-its scenarios.
+The files of the project's `(scenarios ...)` and `(objectives ...)`, open or not, and any
+other open `.dta` file of the project that its layers do not read, are read on their own and
+checked beside them, as a game's `check` command checks its scenarios.
 
 Problems Baker locates by line alone (shape and call errors) underline the array the error's
 path or message names on that line, else the line's first token. Columns are converted to
@@ -199,7 +199,8 @@ console shows in the open file 0.5 to 1 second later, with no edit or scroll.
 
 Each game in a workspace of several can have its own console: `baker.console.ports`
 (`--console DIR=PORT`) names a port for the projects under a directory, such as
-`{"stacks/duel": 4556, "stacks/cube": 4557}`; the rest use `baker.console.port`.
+`{"stacks/duel": 4556, "stacks/cube": 4557}`, each relative to the workspace folder that holds
+it; the rest use `baker.console.port`.
 
 ## The merged stack, and what a layer changes
 
@@ -239,7 +240,9 @@ with a run button on the line that declares it. A run starts the game's own bina
   declared;
 - the extension hands the results to the server (`baker/simResults`), which shows each
   failure as an error on the objective's name and on the scenario's, and a failed command
-  where it is written, until that scenario runs again.
+  where it is written, until that scenario runs again or its file is edited.
+
+A project, scenario or objective file made or deleted on disk lists the scenarios again.
 
 The binary is the project file's `(tool "build/bin/my_game")`, else the setting
 `baker.sim.tool`, relative to the project's directory, where `${project}` is the directory's

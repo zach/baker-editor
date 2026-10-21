@@ -295,6 +295,11 @@ void Server::notification(const json& message, Clock::time_point now) {
         const std::string path = canonical_path(document_path());
         buffers_.set(path, changes.back().value("text", ""));
         evaluated_.erase(path);  // its results sit at offsets of the old text
+        // A scenario run's failures in it would sit on lines that moved: they go until the
+        // next run.
+        for (auto& [project, scenarios] : sim_)
+            for (auto& [scenario, problems] : scenarios)
+                std::erase_if(problems, [&path](const Problem& p) { return p.file == path; });
         schedule(now + kDebounce, true);
     } else if (method == "textDocument/didClose") {
         buffers_.erase(canonical_path(document_path()));

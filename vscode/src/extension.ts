@@ -99,10 +99,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<Api> {
     const args = settings.get<string[]>("server.args", []);
     const port = settings.get<number>("console.port", 4555);
     const live = settings.get<boolean>("live.inlays", false) ? ["--live-inlays"] : [];
-    // A port per game, its directory relative to the first workspace folder.
-    const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? "";
+    // A port per game, its directory relative to the workspace folder that holds it (the
+    // first, if none does yet).
+    const folders = (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
+    const under = (dir: string) => {
+        if (path.isAbsolute(dir)) return dir;
+        const held = folders.find((f) => fs.existsSync(path.join(f, dir)));
+        return path.resolve(held ?? folders[0] ?? "", dir);
+    };
     const ports = Object.entries(settings.get<Record<string, number>>("console.ports", {}))
-        .flatMap(([dir, p]) => ["--console", `${path.resolve(root, dir)}=${p}`]);
+        .flatMap(([dir, p]) => ["--console", `${under(dir)}=${p}`]);
     const run = {
         command: serverPath(context),
         args: [...args, "--console-port", String(port), ...ports, ...live, "--stdio"],

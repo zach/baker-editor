@@ -1,5 +1,7 @@
 #include "diagnose.hpp"
 
+#include "scenarios.hpp"
+
 #include "positions.hpp"
 
 #include <baker/config.hpp>
@@ -246,9 +248,17 @@ Diagnosis diagnose(const Setup& setup, const baker::Context& ctx, const Buffers&
         extra_session.add_include_dir(e.value.str());
     for (const baker::ProjectEntry& e : project.defines) extra_session.define(e.value);
 
+    // And every file of the project's scenarios and objectives, open or not, as the game's
+    // own check reads them with the data.
     std::vector<baker::Ref<baker::Array>> extra;
     const std::set<std::string> layered = files;
-    for (const auto& [path, text] : buffers.all()) {
+    std::set<std::string> beside;
+    for (const auto& [path, text] : buffers.all()) beside.insert(path);
+    for (const auto* entries : {&project.scenarios, &project.objectives})
+        for (const baker::ProjectEntry& e : *entries)
+            for (const std::string& f : suite_files(std::string(e.value.str()), buffers))
+                beside.insert(f);
+    for (const std::string& path : beside) {
         if (layered.count(path) || path == setup.project || path.size() < 4 ||
             path.compare(path.size() - 4, 4, ".dta") || !under(path, setup))
             continue;

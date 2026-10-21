@@ -3,6 +3,7 @@
 
 #include <doctest.h>
 
+#include <algorithm>
 #include <fstream>
 #include <sstream>
 
@@ -210,6 +211,26 @@ TEST_CASE("a parameter of the game's own type is held to its values, and counted
     CHECK(d.problems[0].key == "game.aim");
 }
 
+TEST_CASE("the project's scenarios and objectives are checked, open or not, as the game's check") {
+    Fixture f;
+    f.setup = from_file();
+    const std::string scenarios = kProject + "/scenarios/basic.dta";
+    // Not open: read from the disk, as the game's check reads it.
+    const Diagnosis on_disk = f.run();
+    CHECK(std::find(on_disk.files.begin(), on_disk.files.end(), scenarios) != on_disk.files.end());
+    CHECK(std::find(on_disk.files.begin(), on_disk.files.end(), kProject + "/metrics/units.dta") !=
+          on_disk.files.end());
+    // Its error is located in it.
+    std::string text;
+    REQUIRE(Buffers().read(scenarios, text));
+    f.buffers.set(scenarios, text + "(scenario broken (seconds 1) (start {game.nosuch 1}))\n");
+    const Diagnosis d = f.run();
+    const Problem* p = find(d, "undefined");
+    REQUIRE(p);
+    CHECK(p->file == scenarios);
+    CHECK(p->key == "game.nosuch");
+}
+
 TEST_CASE("a call on an object the game names is held to its type's methods") {
     Fixture f;
     // Ticker and Turret, the game's own, declared; Scheduler is Baker's, known already.
@@ -239,7 +260,8 @@ TEST_CASE("the project file gives the stack the command line gives") {
     f.setup = from_file();
     Diagnosis d = f.run();
     CHECK(d.problems.empty());
-    CHECK(d.files.size() == 3);  // the project file, default.dta and its pack
+    // The project file, default.dta and its pack, and its scenarios and objectives.
+    CHECK(d.files.size() == 5);
 
     f.buffers.set(kLocal, "(units (knight (health 5000)))\n");
     d = f.run();

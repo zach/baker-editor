@@ -83,8 +83,11 @@ json explained(const std::string& file, bool live_edit, int line = 5) {
     return {{"ok", true}, {"text", "(...)"}, {"value", chain}};
 }
 
-json not_a_function(const std::string& name) {
-    return {{"ok", false}, {"error", {{"message", "'" + name + "' is not a function"}}}};
+// What the console answers a command nothing binds: {name ...} or name.
+json not_a_function(std::string name) {
+    if (name.starts_with('{')) name = name.substr(1, name.find_first_of(" }") - 1);
+    return {{"ok", false},
+            {"error", {{"code", "not found"}, {"message", "'" + name + "' is not a function"}}}};
 }
 
 std::vector<std::string> titles(const json& actions) {
@@ -196,7 +199,7 @@ TEST_CASE("no game: the console is not waited for, and nothing is live") {
 TEST_CASE("a running game: hover shows its live chain") {
     MockConsole game([](const std::string& cmd) {
         if (cmd.rfind("{config.explain", 0) == 0) return explained(kDefault, true);
-        return not_a_function("x");
+        return not_a_function(cmd);
     });
     Client c(game.port());
     const std::string h = c.hover();
@@ -220,7 +223,7 @@ TEST_CASE("write the live value: offered for a live edit when the game can write
                          : not_a_function("config.write_back");
         if (cmd.rfind("{config.write_back ", 0) == 0)
             return {{"ok", true}, {"text", "(written (default.dta 2))"}, {"value", nullptr}};
-        return not_a_function("x");
+        return not_a_function(cmd);
     });
     {
         Client c(game.port());
@@ -287,7 +290,7 @@ TEST_CASE("evaluate in the game: the reply after the command until the next edit
                       {"stack",
                        json::array(
                            {{{"function", "game.wait"}, {"file", "default.dta"}, {"line", 3}}})}}}};
-        return not_a_function("x");
+        return not_a_function(cmd);
     });
     const std::string text = kText + "{game.spawn knight 2}\n{game.wait 0}\n{game.report}\n";
     Client c(game.port(), false, text);
@@ -330,7 +333,7 @@ TEST_CASE("try this value: set live, without saving; revert only where the game 
         if (cmd == "{config.clear baker_editor.no_such_value}")
             return clears ? json{{"ok", true}, {"text", "0"}} : not_a_function("config.clear");
         if (cmd.rfind("{config.clear ", 0) == 0) return {{"ok", true}, {"text", "1"}};
-        return not_a_function("x");
+        return not_a_function(cmd);
     });
     {
         const std::string tuned =
@@ -385,7 +388,7 @@ TEST_CASE("live inlays follow the game: refreshed when its epoch moves, and only
     MockConsole game([&epoch](const std::string& cmd) -> json {
         if (cmd == "{config.epoch}") return {{"ok", true}, {"text", std::to_string(epoch.load())}};
         if (cmd.rfind("{config.explain", 0) == 0) return explained(kDefault, false);
-        return not_a_function("x");
+        return not_a_function(cmd);
     });
     Client c(game.port(), true);
     const auto now = Server::Clock::now();
@@ -435,7 +438,7 @@ TEST_CASE("a game with no epoch is followed by its unsaved edits") {
 TEST_CASE("each project's game on its own port") {
     MockConsole game([](const std::string& cmd) -> json {
         if (cmd.rfind("{config.explain", 0) == 0) return explained(kDefault, true);
-        return not_a_function("x");
+        return not_a_function(cmd);
     });
     uint16_t closed = 0;
     {
