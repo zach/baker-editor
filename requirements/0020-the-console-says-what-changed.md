@@ -33,10 +33,10 @@ file is where tools already learn the rest of the setup.
 
 ## Today
 
-The editor's server shows live values in hover, and as inlay hints when they are on, asked
-for when the editor scrolls or the text changes. To refresh them when only the game changes,
-it would have to poll `{config.unsaved}` once a second, which answers with every unsaved path
-rather than whether anything changed. One console port serves the whole workspace.
+Met by Baker 0.5.0: `{config.epoch}`, and `(console PORT)` in the project file
+(`Project::console_port`). The editor's server polls the epoch where the game binds it, and
+takes a project's port from its project file unless `baker.console.ports` names one; the
+stacks name a port each (Duel 4556), so hover finds each game with no setting.
 
 ## Not included
 

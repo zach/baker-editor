@@ -507,3 +507,47 @@ TEST_CASE("a game with no epoch is followed by its journal: each live edit, the 
     std::lock_guard lock(mutex);
     CHECK(asked.back() == "{config.journal 101}");  // only what is newer
 }
+
+TEST_CASE("the project file's console port, unless --console names one") {
+    MockConsole game([](const std::string& cmd) -> json {
+        if (cmd.rfind("{config.explain", 0) == 0) return explained(kDefault, true);
+        return not_a_function(cmd);
+    });
+    std::string project;
+    REQUIRE(Buffers().read(kProject + "/baker-project.dta", project));
+    project.insert(project.find("(layers"), "(console " + std::to_string(game.port()) + ")\n   ");
+    uint16_t closed = 0;
+    {
+        net::Listener l;
+        closed = l.port();
+    }
+    std::vector<json> sent;
+    Setup none;  // no command-line setup: the project is found, and read with its buffer
+    none.console_port = closed;
+    Server server(none, [&sent](const json& m) { sent.push_back(m); });
+    server.handle(
+        {{"jsonrpc", "2.0"},
+         {"method", "textDocument/didOpen"},
+         {"params",
+          {{"textDocument",
+            {{"uri", uri_from_path(kProject + "/baker-project.dta")}, {"text", project}}}}}},
+        {});
+    server.handle(
+        {{"jsonrpc", "2.0"},
+         {"method", "textDocument/didOpen"},
+         {"params", {{"textDocument", {{"uri", uri_from_path(kDefault)}, {"text", kText}}}}}},
+        {});
+    server.check_now();
+    sent.clear();
+    const json pos = {{"line", 1}, {"character", 23}};
+    server.handle(
+        {{"jsonrpc", "2.0"},
+         {"id", 2},
+         {"method", "textDocument/hover"},
+         {"params", {{"textDocument", {{"uri", uri_from_path(kDefault)}}}, {"position", pos}}}},
+        {});
+    std::string shown;
+    for (const json& m : sent)
+        if (m.contains("id") && m["id"] == 2) shown = m["result"]["contents"]["value"];
+    CHECK(shown.find("127.0.0.1:" + std::to_string(game.port())) != std::string::npos);
+}

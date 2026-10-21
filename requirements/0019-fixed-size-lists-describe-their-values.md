@@ -35,9 +35,9 @@ converter declares no values, so a tool that checks without the game cannot make
 
 ## Today
 
-The editor's server leaves out each tweak whose description `DescribedTweaks` cannot hold,
-and drops `check_tweaks`'s stray-key warning for that tweak's key. In Cube, `color` and
-`clear` are checked only against a range written beside them, by the server's own rule.
+Met by Baker 0.5.0: `Convert<std::array<T, N>>` declares N of T's value type for Baker's own
+single-value types. In Cube, `cube.color` is now made from its description and checked:
+`(color 0.9 0.5)` is an error in the editor, as in the game.
 
 ## Not included
 

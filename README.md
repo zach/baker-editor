@@ -143,7 +143,8 @@ color)`, or 3 or 4 numbers ranged 0 to 1 with no kind, such as `(tint 0.9 0.5 0.
 type, default and metadata, and holds the stack to them. A value its tweak cannot take (the
 wrong type, outside its range or `one_of`) is an error; a key beside a group's tweaks that no
 tweak reads, as a misspelling looks, is a warning. In Duel, `(buffer 50)` and a stray
-`(hit_paws 3)` under `(duel ...)` show as `stacks_duel check` reports them, on the same lines.
+`(hit_paws 3)` under `(duel ...)` show as `stacks_duel check` reports them, on the same lines. In Cube,
+`(color 0.9 0.5)` for its three-float `color` is an error.
 A tweak of a type of the game's own (`vec2`) is made from the value types the reference gives
 it (`DescribedTweaks`, Baker 0.4.0). For a tweak Baker cannot describe, and for a range
 written beside a value no tweak reads, a value outside its range is a warning: only the
@@ -192,15 +193,16 @@ With `--live-inlays` (`baker.live.inlays`) and a game answering, a value a live 
 changed in the game shows it: `(health 1000) live 1234`. The server asks the game about
 every value in the visible lines at once (at most 200), within the console's 50 ms; without
 a game, or past the budget, nothing is shown. They follow the game: once a second the server
-asks it whether its stack changed (its `{config.epoch}`, once Baker's console has one; until
-then the newest live edit in `{config.journal}`, which answers only what is newer), and has
+asks it whether its stack changed (its `{config.epoch}`; for a game before Baker 0.5.0, the
+newest live edit in `{config.journal}`, which answers only what is newer), and has
 the editor ask for the hints again when it did. In Duel, a value set from the game's own
 console shows in the open file 0.5 to 1 second later, with no edit or scroll.
 
-Each game in a workspace of several can have its own console: `baker.console.ports`
-(`--console DIR=PORT`) names a port for the projects under a directory, such as
-`{"stacks/duel": 4556, "stacks/cube": 4557}`, each relative to the workspace folder that holds
-it; the rest use `baker.console.port`.
+Each game in a workspace of several has its own console: the port its project file names,
+`(console 4556)` (Baker's stacks name one each), else the one `baker.console.ports`
+(`--console DIR=PORT`) gives the projects under a directory, such as `{"stacks/duel": 4556}`,
+each relative to the workspace folder that holds it; else `baker.console.port`. The setting
+wins over the project file.
 
 ## The merged stack, and what a layer changes
 
@@ -354,10 +356,8 @@ tools/lsp_client.py --replace data/default.dta "(health 1000)" "(health 0)" -- b
 
 - A parameter of a type of the game's own takes any value when the reference does not say
   what its values are (one written before `baker.reference/1.2`).
-- A tweak Baker cannot make from its description (a fixed-size list, such as Cube's `color`,
-  whose values the reference does not describe) is not checked, beyond its range.
-- A game's console port is the setting's, not its project file's, until Baker's project file
-  can name one (`requirements/0020`).
+- A tweak Baker cannot make from its description (a list, or a fixed-size list of a game's
+  own type) is not checked, beyond its range.
 - A layer's hints are from the last check in which every layer read, so while a file does
   not read, its hints can sit a line off.
 - A symbol field with no `(one_of ...)` is completed from use: the first use of a value is not
@@ -427,7 +427,7 @@ requests about one frame (6–20 ms).
 
 ## Baker
 
-The server builds against a released Baker, `zach/baker` `v0.4.0`, through its public headers.
+The server builds against a released Baker, `zach/baker` `v0.5.0`, through its public headers.
 `-DBAKER_EDITOR_BAKER_DIR=PATH` builds against a local checkout instead. The stacks it is
 tried on come from Baker's development repository, `zach/baker-dev` (`stacks/`), which the
 release leaves out.

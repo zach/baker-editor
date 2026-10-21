@@ -73,7 +73,7 @@ TEST_CASE("Baker holds the data to the game's tweaks: type, range, and a key non
           std::vector<std::string>{"error gravity: 'world.gravity' is 30, outside its tweak's "
                                    "range 0.0 to 20.0"});
     CHECK(findings("(world (gravity heavy))\n") ==
-          std::vector<std::string>{"error gravity: 'gravity' is symbol, not float (at world)"});
+          std::vector<std::string>{"error gravity: 'gravity' is symbol, not float"});
     CHECK(findings("(world (gravity 9.8) (gravty 2))\n") ==
           std::vector<std::string>{"warning gravty: 'gravty' in 'world' is read by no tweak; its "
                                    "tweaks read aim, gravity"});

@@ -70,7 +70,7 @@ TEST_CASE("metadata beside a value is told from data that happens to be named ki
     CHECK(!has_meta(*(*data)[0].try_array()));
     const auto mixed = read("(w 2 (range 0 10) (pos 1 2))");
     CHECK(!has_meta(*(*mixed)[0].try_array()));
-    CHECK(!has_meta(*(*read("(w (range 0 10))"))[0].try_array()));  // no value of its own
+    CHECK(has_meta(*(*read("(w (range 0 10))"))[0].try_array()));  // Baker's rule: trailing ones
 }
 
 TEST_CASE("hints: the data's metadata over the shape's, both over the tweak's code") {

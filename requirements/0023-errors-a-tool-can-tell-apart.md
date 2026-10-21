@@ -27,9 +27,9 @@ C++ errors a tool gets directly are where the same is missing.
 
 ## Today
 
-The editor's server reads the word "already" in `declare_type`'s message to know Baker's own
-types (its `Scheduler`), and reads the quoted names out of `check_tweaks`'s messages to know
-what to underline, and to drop a stray-key warning for a tweak it could not make.
+Met by Baker 0.5.0: `Context::has_type`, `ErrorCode::Refused` for a name already taken, and each
+`check_tweaks` finding's path as its subject. The editor's server reads no error's words now:
+it asks `has_type`, and locates and filters tweak findings by their path.
 
 ## Not included
 

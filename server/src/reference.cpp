@@ -119,15 +119,18 @@ void declare_types(baker::Context& ctx, const nlohmann::json& doc, Reference& ou
                                    std::span<const baker::OverloadDescription>(
                                        d.overloads.data(), d.overloads.size())});
             }
-            auto r = ctx.declare_type(
-                baker::Symbol(name), std::span<const baker::Symbol>(bases.data(), bases.size()),
-                std::span<const baker::MethodDescription>(methods.data(), methods.size()));
             // A type the Context already has is Baker's own, as fully known as a declared one.
-            // No query tells it, nor an error code apart (requirements/0023): the message.
-            if (r || std::string(r.error().message()).find("already") != std::string::npos)
+            if (ctx.has_type(baker::Symbol(name))) {
                 out.declared_types.push_back(name);
-            else
+            } else if (auto r = ctx.declare_type(
+                           baker::Symbol(name),
+                           std::span<const baker::Symbol>(bases.data(), bases.size()),
+                           std::span<const baker::MethodDescription>(methods.data(),
+                                                                     methods.size()))) {
+                out.declared_types.push_back(name);
+            } else {
                 out.failed.push_back("type " + name + ": " + std::string(r.error().message()));
+            }
             it = waiting.erase(it);
             progress = true;
         }

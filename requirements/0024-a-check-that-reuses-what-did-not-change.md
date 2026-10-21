@@ -26,8 +26,9 @@ has no file times to go by.
 
 ## Today
 
-The editor's server reads every layer for every check: 100 to 200 ms on the 2 MB stack, 1 to
-2 ms on the stacks as they are.
+Met by Baker 0.5.0, with no new API: one Config kept, read through the reader, and `reload()`
+after each edit, which re-reads from the first layer whose text changed. The editor's server
+still loads fresh for each check until it keeps its Config.
 
 ## Not included
 

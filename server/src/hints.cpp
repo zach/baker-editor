@@ -6,6 +6,7 @@
 
 #include <baker/config.hpp>
 #include <baker/std_interop.hpp>
+#include <baker/tweak.hpp>
 
 #include <cstdio>
 
@@ -14,7 +15,7 @@ namespace {
 
 // Reads `a`'s metadata arrays into `h`, over what it holds.
 void read_meta(const baker::Array& a, Hints& h) {
-    for (const baker::Node& n : a) {
+    for (const baker::Node& n : baker::split_metadata(a.values()).metadata) {
         const baker::Array* m = n.try_array();
         if (!m) continue;
         const std::string_view tag = m->tag().str();
@@ -98,21 +99,11 @@ void walk(const baker::Array& a, std::vector<std::string>& tags, const Loaded& l
 
 bool is_meta_tag(std::string_view tag) {
     return tag == "range" || tag == "step" || tag == "kind" || tag == "desc" || tag == "note" ||
-           tag == "one_of";
+           tag == "group" || tag == "one_of";
 }
 
 bool has_meta(const baker::Array& a) {
-    bool value = false, meta = false;
-    for (size_t i = 1; i < a.size(); ++i) {
-        const baker::Array* m = a[i].try_array();
-        if (!m) {
-            value = value || !meta;  // a value before the metadata
-            continue;
-        }
-        if (!is_meta_tag(m->tag().str())) return false;
-        meta = true;
-    }
-    return value && meta;
+    return !baker::split_metadata(a.values()).metadata.empty();
 }
 
 const baker::Array* array_at(const Loaded& loaded, const std::vector<std::string>& tags) {
@@ -170,10 +161,12 @@ Hints written_at(const Loaded& loaded, const std::vector<std::string>& tags) {
     return h;
 }
 
-bool is_color(const Hints& h, size_t count) {
-    if (count != 3 && count != 4) return false;
-    if (h.kind == "color") return true;
-    return h.kind.empty() && h.ranged && h.min == 0 && h.max == 1;
+bool is_color(const Loaded& loaded, const Hints& h, const std::vector<std::string>& tags) {
+    const baker::Array* a = array_at(loaded, tags);
+    if (!a) return false;
+    const baker::TweakRange range =
+        h.ranged ? baker::TweakRange{h.min, h.max} : baker::TweakRange{};
+    return baker::presented_kind(a->values(), h.kind, range) == "color";
 }
 
 std::vector<Problem> range_problems(const Loaded& loaded, const Reference& reference,

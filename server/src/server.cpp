@@ -54,8 +54,9 @@ void Server::add(Setup setup) {
     Checked& c = projects_[key];
     const std::string name = key.empty() ? std::string("the command line's setup") : key;
     log(kLogInfo, "checking " + name);
+    uint16_t project_port = 0;  // the project file's (console PORT), if it names one
     // --reference wins; else the project file's (reference ...).
-    if (setup.reference.empty() && !key.empty()) {
+    if (!key.empty()) {
         const baker::LoadSession::Reader reader = [this](std::string_view path,
                                                          baker::TextSink sink) {
             std::string text;
@@ -63,8 +64,11 @@ void Server::add(Setup setup) {
             sink(text);
             return true;
         };
-        if (auto p = baker::read_project(key, reader); p && !p->reference.str().empty())
-            setup.reference = canonical_path(std::string(p->reference.str()));
+        if (auto p = baker::read_project(key, reader)) {
+            if (setup.reference.empty() && !p->reference.str().empty())
+                setup.reference = canonical_path(std::string(p->reference.str()));
+            project_port = p->console_port;
+        }
     }
     if (setup.reference.empty()) {
         log(kLogWarning,
@@ -96,8 +100,9 @@ void Server::add(Setup setup) {
             for (const std::string& f : r.failed) log(kLogWarning, "not declared: " + f);
         }
     }
-    // Its console: the nearest --console directory above the project, else the default.
-    c.port = given_.console_port;
+    // Its console: the nearest --console directory above the project, else the project file's
+    // (console PORT), else the default.
+    c.port = project_port ? project_port : given_.console_port;
     size_t nearest = 0;
     const std::string dir = key.empty() ? std::string() : parent_of(key);
     for (const auto& [under_dir, port] : given_.console_ports)
@@ -1082,7 +1087,7 @@ json Server::document_colors(const json& params) {
         const std::vector<std::string> tags = s.data_path(static_cast<int>(b));
         if (tags.empty()) continue;
         const Hints h = hints_at(*c->loaded, c->reference, tags);
-        if (!is_color(h, rgba.size())) continue;
+        if (!is_color(*c->loaded, h, tags)) continue;
         const auto [l0, c0] = lines.position(s.tokens[v.front()].begin);
         const auto [l1, c1] = lines.position(s.tokens[v.back()].end);
         out.push_back({{"range",

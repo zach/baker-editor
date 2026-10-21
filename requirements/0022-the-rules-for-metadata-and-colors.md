@@ -29,8 +29,9 @@ does not know whether that matches Baker's own reading).
 
 ## Today
 
-The editor's server repeats both rules (`hints.cpp`: `has_meta`, `is_color`), from Baker's
-documentation (`tweak.hpp`).
+Met by Baker 0.5.0: `split_metadata` and `presented_kind`. The editor's server uses both in place
+of its own rules; Baker's metadata is the trailing arrays only, which `(w (range 0 10))` now
+counts as metadata where the server's rule had not.
 
 ## Not included
 

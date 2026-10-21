@@ -29,11 +29,12 @@ struct Hints {
     bool written = false;  // metadata is written beside the value in the data
 };
 
-// Whether `tag` names metadata: range, step, kind, desc, note or one_of.
+// Whether `tag` names metadata: range, step, kind, desc, note, group or one_of (for text that
+// has not been read; a read value is split by Baker, split_metadata).
 bool is_meta_tag(std::string_view tag);
 
-// Whether `a` is a value with metadata: a value after its tag, and every array in it
-// metadata. (ball (kind ball) (pos 1 2)) is not one; its `kind` is data.
+// Whether `a` is a value with metadata after it, as Baker reads a tweak's (split_metadata):
+// (width 2 (range 0 10)), not (ball (kind ball) (pos 1 2)), whose `kind` is data.
 bool has_meta(const baker::Array& a);
 
 // The hints for the value at the data path `tags`, from the last check's stack.
@@ -43,9 +44,9 @@ Hints hints_at(const Loaded& loaded, const Reference& reference,
 // Only the metadata written beside the value in the data, as the stack merges it.
 Hints written_at(const Loaded& loaded, const std::vector<std::string>& tags);
 
-// Whether a value of `count` numbers with these hints is a color: `kind color`, or no kind and
-// a range of 0 to 1 over 3 or 4 numbers.
-bool is_color(const Hints& h, size_t count);
+// Whether Baker presents the value at `tags` as a color (presented_kind): `kind color`, or 3 or
+// 4 numbers ranged 0 to 1 with no kind, by its metadata, else the shape's or tweak's in `h`.
+bool is_color(const Loaded& loaded, const Hints& h, const std::vector<std::string>& tags);
 
 // The merged array at `tags`, or null.
 const baker::Array* array_at(const Loaded& loaded, const std::vector<std::string>& tags);

@@ -32,9 +32,8 @@ an agent that edits a file by its structure.
 
 ## Today
 
-The editor's server has its own lexer and bracket reader (`scan.cpp`, `structure.cpp`), which
-outline, folding, completion, hover, references, rename, inlay hints and colors are built on.
-It knows Baker's syntax as of this writing, from Baker's documentation.
+Met by Baker 0.5.0: `read_structure(text, file)` in `<baker/parse.hpp>`. The editor's server
+still uses its own reader until it moves to Baker's.
 
 ## Not included
 
