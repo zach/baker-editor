@@ -179,6 +179,6 @@ nothing from Baker. D6 last, once D1 has proven what is published, and not befor
 | D1 Run it in VS Code | none | Integration tests done (VSCodium, in CI); the manual pass is the owner's |
 | D2 The game's tweaks, checked by Baker | note 0017, met by Baker 0.4.0 | Done (first pass) |
 | D3 Method calls and the game's types | note 0018, met by Baker 0.4.0 | Done (first pass) |
-| D4 Live values that follow the game | a note: the config's epoch on the console | Next |
+| D4 Live values that follow the game | note 0020: the config's epoch on the console, the port in the project file | Next |
 | D5 Running scenarios on what is in the editor | none | |
 | D6 Published | none; the owner's accounts | Waits for Baker 1.0 (the owner's call) |
