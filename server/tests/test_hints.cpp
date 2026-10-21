@@ -107,8 +107,10 @@ TEST_CASE("choosing a field writes a value: the stack's, the tweak's, the range'
     CHECK(snippets == std::vector<std::string>{"health ${1:500}", "speed ${1:5}"});
     snippets.clear();
     // A tweak no shape declares: its code default.
-    CHECK(s.complete_at("(world (", kLocal, &snippets) == std::vector<std::string>{"gravity"});
+    CHECK(s.complete_at("(world (", kLocal, &snippets) ==
+          std::vector<std::string>{"gravity", "aim", "old"});
     CHECK(snippets[0] == "gravity ${1:9.8}");
+    CHECK(snippets[1] == "aim ${1:(0 0)}");
 }
 
 TEST_CASE("a symbol value is offered from the values the project gives the same field") {

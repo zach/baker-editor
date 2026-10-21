@@ -94,7 +94,13 @@ methods.
 each type's methods and each named object's type. After `{scheduler ` completion offers the
 type's methods and its bases' (a base's method a type redeclares is offered once, the
 type's), and hover shows a method's signatures and doc, and an object's type and methods.
-Checking calls waits on `requirements/0018`.
+**The second half (Baker 0.4.0):** the server declares the reference's types (bases first)
+and named objects, and each parameter with its `values`; a type or object Baker's own
+Context already has (its `Scheduler`, `scheduler`) is taken as known. A call to a method a
+known type lacks is reported from `check`'s demand. All seven stacks stay clean; in Duel,
+`{scheduler dely_task 2 ...}` is an error. D2 moved to `DescribedTweaks` at the same time;
+a tweak it cannot describe (Cube's fixed-size-list `color`) is left out and its key not
+taken for a stray, which would otherwise have been a false warning in Cube.
 
 ## D4. Live values that follow the game
 
@@ -171,8 +177,8 @@ nothing from Baker. D6 last, once D1 has proven what is published, and not befor
 | Step | Baker | Status |
 |---|---|---|
 | D1 Run it in VS Code | none | Integration tests done (VSCodium, in CI); the manual pass is the owner's |
-| D2 The game's tweaks, checked by Baker | a note: tweaks from a description (0017) | Done (first pass) for Baker's types; game types wait on note 0017 |
-| D3 Method calls and the game's types | a note: types and methods from a description (0018) | Hover and completion done; checking waits on note 0018 |
+| D2 The game's tweaks, checked by Baker | note 0017, met by Baker 0.4.0 | Done (first pass) |
+| D3 Method calls and the game's types | note 0018, met by Baker 0.4.0 | Done (first pass) |
 | D4 Live values that follow the game | a note: the config's epoch on the console | Next |
 | D5 Running scenarios on what is in the editor | none | |
 | D6 Published | none; the owner's accounts | Waits for Baker 1.0 (the owner's call) |

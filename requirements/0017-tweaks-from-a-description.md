@@ -34,10 +34,11 @@ The same need for functions was met by `Context::declare` (note 0003).
 
 ## Today
 
-The editor's server makes a `Tweak<T>` for each tweak of Baker's own types (it switches on
-the type name: `int8` to `uint64`, `float32`, `float`, `bool`, `symbol`, `string`) and runs
-`check_tweaks` with them. A tweak of a game's own type is left out, and only its range is
-checked, by a rule of the server's own.
+Met by Baker 0.4.0: `DescribedTweaks` registers a tweak from its description with one call
+for every type, a game's own included when the reference (`baker.tweaks/1.2`) gives its
+`values`. The editor's server makes the game's tweaks with it; a tweak Baker cannot describe
+(a fixed-size list, such as Cube's `color`, whose `values` the reference leaves out) is left
+out, and its key is not taken for a stray.
 
 ## Not included
 

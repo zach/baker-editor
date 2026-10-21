@@ -58,9 +58,10 @@ struct Fixture {
         std::string error;
         REQUIRE(load_reference(ctx, setup.reference, reference, error));
         CHECK(reference.functions == 5);
-        CHECK(reference.widened == 1);  // game.aim takes a vec2, a type of the game's own
+        CHECK(reference.widened == 0);  // game.aim's vec2 says its values (1.2)
         CHECK(reference.failed.empty());
         setup.objects = reference.objects;
+        setup.types = reference.declared_types;
     }
     Diagnosis run() { return diagnose(setup, ctx, buffers, true); }
 };
@@ -148,7 +149,7 @@ TEST_CASE("without a reference, undefined calls are not reported") {
 
 TEST_CASE("a named object's calls are not undefined functions") {
     Fixture f;
-    CHECK(f.reference.objects == std::vector<std::string>{"clock"});
+    CHECK(f.reference.objects == std::vector<std::string>{"clock", "tower"});
     f.buffers.set(kDefault, replaced(kDefault, "{game.spawn knight 2}", "{clock tick 1}"));
     CHECK(f.run().problems.empty());
 }
@@ -194,14 +195,43 @@ TEST_CASE("a literal argument of the wrong type is an error") {
     CHECK(d.problems[0].key == "game.spawn");
 }
 
-TEST_CASE("a parameter of the game's own type takes any value, and is still counted") {
+TEST_CASE("a parameter of the game's own type is held to its values, and counted") {
     Fixture f;
     f.buffers.set(kDefault, replaced(kDefault, "{game.spawn knight 2}", "{game.aim (1 2)}"));
     CHECK(f.run().problems.empty());
+    f.buffers.set(kDefault, replaced(kDefault, "{game.spawn knight 2}", "{game.aim (1 up)}"));
+    const Diagnosis wrong = f.run();
+    REQUIRE(wrong.problems.size() == 1);
+    CHECK(wrong.problems[0].message.find("it takes (vec2)") != std::string::npos);
+    CHECK(wrong.problems[0].key == "game.aim");
     f.buffers.set(kDefault, replaced(kDefault, "{game.spawn knight 2}", "{game.aim}"));
     const Diagnosis d = f.run();
     REQUIRE(d.problems.size() == 1);
     CHECK(d.problems[0].key == "game.aim");
+}
+
+TEST_CASE("a call on an object the game names is held to its type's methods") {
+    Fixture f;
+    // Ticker and Turret, the game's own, declared; Scheduler is Baker's, known already.
+    CHECK(f.reference.declared_types == std::vector<std::string>{"Ticker", "Turret"});
+    CHECK(f.reference.declared_objects == 2);  // clock, of Baker's Scheduler, and tower
+    const auto problems = [&f](const std::string& call) {
+        f.buffers.set(kDefault, replaced(kDefault, "{game.spawn knight 2}", call));
+        std::vector<std::string> out;
+        for (const Problem& p : f.run().problems) out.push_back(p.code + " " + p.message);
+        return out;
+    };
+    CHECK(problems("{tower delay_task 2 {game.wait 1}}").empty());
+    CHECK(problems("{tower tick}").empty());  // its base's
+    const std::vector<std::string> few = problems("{tower delay_task}");
+    REQUIRE(few.size() == 1);
+    CHECK(few[0].find("delay_task") != std::string::npos);
+    const std::vector<std::string> typed = problems("{tower cancel soon}");
+    REQUIRE(typed.size() == 1);
+    CHECK(typed[0].starts_with("type "));
+    CHECK(problems("{tower cancle 3}") ==
+          std::vector<std::string>{
+              "undefined 'Turret' has no method 'cancle' in the game's reference"});
 }
 
 TEST_CASE("the project file gives the stack the command line gives") {

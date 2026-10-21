@@ -182,26 +182,26 @@ TEST_CASE("definition: macros, script functions, packs, and files") {
 
 TEST_CASE("a call on one of the game's objects: its type's methods, and its bases'") {
     Fixture f;
-    const auto [text, at] = cursor("#autorun {clock |}\n");
+    const auto [text, at] = cursor("#autorun {tower |}\n");
     const Completions c = complete(text, at, *f.loaded, f.reference);
     CHECK(labels(c) == std::vector<std::string>{"delay_task", "cancel", "tick"});
     CHECK(c.items[0].kind == Kind::Method);
-    CHECK(c.items[0].detail == "{Scheduler delay_task float values...}");
-    const auto [typed, at2] = cursor("#autorun {clock de|}\n");
+    CHECK(c.items[0].detail == "{Turret delay_task float values...}");
+    const auto [typed, at2] = cursor("#autorun {tower de|}\n");
     CHECK(labels(complete(typed, at2, *f.loaded, f.reference)) ==
           std::vector<std::string>{"delay_task"});
 
-    // Scheduler's cancel, not its base's.
-    const auto [call, at3] = cursor("#autorun {clock can|cel 3}\n");
+    // Turret's cancel, not its base's.
+    const auto [call, at3] = cursor("#autorun {tower can|cel 3}\n");
     const auto h = hover(call, at3, *f.loaded, f.reference);
     REQUIRE(h);
-    CHECK(has(h->markdown, "{Scheduler cancel int}"));
+    CHECK(has(h->markdown, "{Turret cancel int}"));
     CHECK(has(h->markdown, "Ends a task."));
-    CHECK(has(h->markdown, "method of `Scheduler`"));
-    const auto [object, at4] = cursor("#autorun {clo|ck tick}\n");
+    CHECK(has(h->markdown, "method of `Turret`"));
+    const auto [object, at4] = cursor("#autorun {tow|er tick}\n");
     const auto o = hover(object, at4, *f.loaded, f.reference);
     REQUIRE(o);
-    CHECK(has(o->markdown, "object `clock`, which the game names: a `Scheduler`"));
+    CHECK(has(o->markdown, "object `tower`, which the game names: a `Turret`"));
     CHECK(has(o->markdown, "methods: `delay_task`, `cancel`, `tick`"));
     // Not an object: no methods.
     const auto [other, at5] = cursor("#autorun {game.spawn |}\n");

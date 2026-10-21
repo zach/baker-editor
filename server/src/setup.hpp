@@ -32,6 +32,9 @@ struct Setup {
     // The objects the game names ({clock thread_task ...}), from the reference: calls on
     // them are not calls to undefined functions.
     std::vector<std::string> objects;
+    // The game's types declared from the reference: a call to a method one of them lacks is an
+    // error, as a call to an undefined function is.
+    std::vector<std::string> types;
     // The running game's console, on 127.0.0.1; 0: none.
     uint16_t console_port = 4555;
     // Inlay hints show the running game's value where a live edit differs from the files.

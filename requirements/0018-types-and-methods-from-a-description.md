@@ -35,10 +35,10 @@ method name, or a wrong argument count, pass the tool and fail in the game.
 
 ## Today
 
-The editor's server reads the types, methods and objects from the reference for hover and
-completion only: after `{scheduler `, completion offers the `Scheduler`'s methods with
-their signatures, and hover shows a method's doc. Calls on named objects are not checked,
-and a parameter of a game type accepts any value.
+Met by Baker 0.4.0: `Context::declare_type`, `Context::declare_object`, and
+`ParamDescription::values` (`baker.reference/1.2`). The editor's server declares the game's
+types and named objects; in Duel, `{scheduler delay_task}`, `{scheduler dely_task 2 ...}`
+and `{scheduler cancel soon}` are each an error, as the game's `check` reports them.
 
 ## Not included
 

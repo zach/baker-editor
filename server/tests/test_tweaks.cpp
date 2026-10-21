@@ -40,25 +40,31 @@ std::vector<std::string> findings(const std::string& local) {
 
 }  // namespace
 
-TEST_CASE("the game's tweaks, made from its reference, for Baker's types only") {
+TEST_CASE("the game's tweaks, made from their descriptions, a game's own types too") {
     TweakInfo gravity;
     gravity.path = "world.gravity";
     gravity.type = "float32";
     gravity.default_text = "9.8";
     TweakInfo aim = gravity;
     aim.path = "world.aim";
-    aim.type = "vec2";  // a type of the game's own
-    aim.default_text = "0 0";
+    aim.type = "vec2";  // a type of the game's own, with its values
+    aim.values = {"float32", "float32"};
+    aim.default_text = "(0 0)";
+    TweakInfo old = aim;
+    old.path = "world.old";
+    old.values.clear();  // as a reference before 1.2 writes it
     TweakInfo team = gravity;
     team.path = "world.team";
     team.type = "symbol";
     team.default_text = "red";
     team.one_of = {"red", "blue"};
-    const GameTweaks tweaks({gravity, aim, team});
+    const GameTweaks tweaks({gravity, aim, old, team});
     CHECK(tweaks.checks("world.gravity"));
+    CHECK(tweaks.checks("world.aim"));
     CHECK(tweaks.checks("world.team"));
-    CHECK(!tweaks.checks("world.aim"));
-    CHECK(tweaks.left_out() == std::vector<std::string>{"world.aim (vec2)"});
+    CHECK(!tweaks.checks("world.old"));
+    REQUIRE(tweaks.left_out().size() == 1);
+    CHECK(tweaks.left_out()[0].starts_with("world.old: "));
 }
 
 TEST_CASE("Baker holds the data to the game's tweaks: type, range, and a key none reads") {
@@ -70,7 +76,13 @@ TEST_CASE("Baker holds the data to the game's tweaks: type, range, and a key non
           std::vector<std::string>{"error gravity: 'gravity' is symbol, not float (at world)"});
     CHECK(findings("(world (gravity 9.8) (gravty 2))\n") ==
           std::vector<std::string>{"warning gravty: 'gravty' in 'world' is read by no tweak; its "
-                                   "tweaks read gravity"});
+                                   "tweaks read aim, gravity"});
+    // A tweak Baker could not make (a fixed-size list's values are not described) is no stray.
+    CHECK(findings("(world (gravity 9.8) (old 1 2))\n").empty());
+    // A tweak of the game's own type, by the values its reference gives.
+    const std::vector<std::string> aim = findings("(world (aim 1))\n");
+    REQUIRE(aim.size() == 1);
+    CHECK(aim[0].starts_with("error aim: "));
     // A tweak the data does not set has no place in the files: not shown.
     CHECK(findings("(units (knight (health 50)))\n").empty());
 }

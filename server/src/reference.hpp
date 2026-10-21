@@ -39,7 +39,9 @@ struct TweakInfo {
     double min = 0, max = 0;
     double step = 0;
     std::string desc, kind;
+    std::string group;                // the tweaks a misspelled key beside them is told against
     std::vector<std::string> one_of;  // the symbols it may be (1.1); empty: any
+    std::vector<std::string> values;  // Baker's type of each value (1.2); empty if unsaid
     bool dev_only = false;
 };
 
@@ -49,7 +51,9 @@ struct Reference {
     // Functions with a parameter of a type Context::declare does not know, one of the game's
     // own: declared with it taking any value.
     int widened = 0;
-    std::vector<std::string> failed;                  // functions that could not be declared at all
+    std::vector<std::string> failed;                  // what could not be declared, and why
+    std::vector<std::string> declared_types;          // the game's types declared (declare_type)
+    int declared_objects = 0;                         // named objects declared (declare_object)
     std::vector<std::string> objects;                 // the objects the game names, such as clock
     std::map<std::string, std::string> object_types;  // each object's type, as types names it
     std::vector<TypeInfo> types;
@@ -64,9 +68,10 @@ std::vector<const FunctionInfo*> methods_of(const Reference& r, const std::strin
 // The tweak at the data path `tags`, or null.
 const TweakInfo* tweak_at(const Reference& r, const std::vector<std::string>& tags);
 
-// Reads the reference at `path` and declares its native functions in `ctx`, skipping names
-// `ctx` already has (Baker's own). A function keeps its status: a stub stays a stub. False
-// with `error` if the file is missing or not a reference.
+// Reads the reference at `path` and declares in `ctx` its native functions, its types with
+// their methods, and its named objects, skipping what `ctx` already has (Baker's own). A
+// function keeps its status: a stub stays a stub. False with `error` if the file is missing or
+// not a reference.
 bool load_reference(baker::Context& ctx, const std::string& path, Reference& out,
                     std::string& error);
 

@@ -268,9 +268,25 @@ Diagnosis diagnose(const Setup& setup, const baker::Context& ctx, const Buffers&
         found.add(report.warnings, Severity::Warning);  // the one-way rule
         if (undefined_fails)
             for (const baker::CheckReport::Demand& d : report.demand) {
-                // A method's class is the game's, which the server cannot declare: only
-                // functions are reported. A call on an object the game names is no typo.
-                if (d.stub || !d.on.str().empty()) continue;
+                if (d.stub) continue;
+                // A method a declared type of the game's lacks; one on a type the reference
+                // does not describe cannot be told from a typo, and is left alone.
+                if (!d.on.str().empty()) {
+                    if (std::find(setup.types.begin(), setup.types.end(), d.on.str()) ==
+                        setup.types.end())
+                        continue;
+                    for (const baker::CheckReport::Site& site : d.sites) {
+                        Problem p;
+                        p.file = canonical_path(std::string(site.file.str()));
+                        p.line = site.line;
+                        p.code = "undefined";
+                        p.key = std::string(d.name.str());
+                        p.message = "'" + std::string(d.on.str()) + "' has no method '" +
+                                    std::string(d.name.str()) + "' in the game's reference";
+                        found.problems.push_back(std::move(p));
+                    }
+                    continue;
+                }
                 if (std::find(setup.objects.begin(), setup.objects.end(), d.name.str()) !=
                     setup.objects.end())
                     continue;

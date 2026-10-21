@@ -89,9 +89,11 @@ its layers as the game would, with the text of open editors in place of the file
 - **load errors:** syntax, directives, includes, located to the column. A layer that does not
   read does not stop the layers above it from being checked;
 - **calls:** a call with the wrong number of arguments for every overload, or a literal
-  argument of the wrong type, in the data and in `#autorun` commands, checked against the
-  game's functions as its reference describes them; a call to a function nothing defines (not
-  a stub) is an error, a likely typo;
+  argument of the wrong type (a game type's too, by the values the reference gives it), in the
+  data and in `#autorun` commands, checked against the game's functions as its reference
+  describes them; a call to a function nothing defines (not a stub) is an error, a likely
+  typo. A call on an object the game names is held to its type's methods and its bases'
+  (`Context::declare_type`, `declare_object`): `{scheduler dely_task 2 ...}` is an error;
 - **the one-way rule:** a harder pack calling a softer pack's script function (a warning);
 - **shapes:** a value of the wrong type or out of range (an error), a field no shape declares
   (information).
@@ -142,10 +144,10 @@ type, default and metadata, and holds the stack to them. A value its tweak canno
 wrong type, outside its range or `one_of`) is an error; a key beside a group's tweaks that no
 tweak reads, as a misspelling looks, is a warning. In Duel, `(buffer 50)` and a stray
 `(hit_paws 3)` under `(duel ...)` show as `stacks_duel check` reports them, on the same lines.
-A tweak of a type of the game's own (`vec2`) cannot be made without the game's code
-(`requirements/0017`); for those, and for a range written beside a value no tweak reads, a
-value outside its range is a warning: only the running game refuses it. A shape's range is
-`check`'s error.
+A tweak of a type of the game's own (`vec2`) is made from the value types the reference gives
+it (`DescribedTweaks`, Baker 0.4.0). For a tweak Baker cannot describe, and for a range
+written beside a value no tweak reads, a value outside its range is a warning: only the
+running game refuses it. A shape's range is `check`'s error.
 
 **Go-to-definition** jumps from:
 
@@ -336,11 +338,10 @@ tools/lsp_client.py --replace data/default.dta "(health 1000)" "(health 0)" -- b
 
 ### Limits of this pass
 
-- Method calls are not checked, only offered and described: `Context::declare` declares
-  functions, not the game's types and methods (`requirements/0018`). Calls on the objects the
-  game names are not reported as undefined.
-- A parameter of a type of the game's own takes any value: `Context::declare` knows Baker's
-  types, not the game's.
+- A parameter of a type of the game's own takes any value when the reference does not say
+  what its values are (one written before `baker.reference/1.2`).
+- A tweak Baker cannot make from its description (a fixed-size list, such as Cube's `color`,
+  whose values the reference does not describe) is not checked, beyond its range.
 - Live values come from one console port for the whole workspace, and their inlay hints
   are not refreshed when only the game changes.
 - A layer's hints are from the last check in which every layer read, so while a file does
@@ -412,7 +413,7 @@ requests about one frame (6–20 ms).
 
 ## Baker
 
-The server builds against a released Baker, `zach/baker` `v0.3.0`, through its public headers.
+The server builds against a released Baker, `zach/baker` `v0.4.0`, through its public headers.
 `-DBAKER_EDITOR_BAKER_DIR=PATH` builds against a local checkout instead. The stacks it is
 tried on come from Baker's development repository, `zach/baker-dev` (`stacks/`), which the
 release leaves out.

@@ -30,10 +30,12 @@ baker::Status status_of(const std::string& s) {
 struct Described {
     std::deque<std::string> text;
     std::vector<std::vector<baker::ParamDescription>> params;
+    std::deque<std::vector<std::string_view>> values;  // each parameter's value types
     std::vector<baker::OverloadDescription> overloads;
     bool widened = false;
 
-    // `widen`: a type that is not Baker's own becomes "value".
+    // `widen`: a type that is not Baker's own becomes "value", for a reference that does not
+    // say what its values are.
     Described(const nlohmann::json& f, bool widen) {
         const nlohmann::json list = f.value("overloads", nlohmann::json::array());
         params.reserve(list.size());
@@ -45,8 +47,14 @@ struct Described {
                     type = "value";
                     widened = true;
                 }
-                ps.push_back(
-                    {keep(std::move(type)), keep(p.value("kind", "value")), p.value("raw", false)});
+                // Baker's type of each of a game type's values (1.2), so check holds a literal
+                // argument to them.
+                std::vector<std::string_view>& vs = values.emplace_back();
+                for (const nlohmann::json& v : p.value("values", nlohmann::json::array()))
+                    if (v.is_string()) vs.push_back(keep(v.get<std::string>()));
+                ps.push_back({keep(std::move(type)), keep(p.value("kind", "value")),
+                              p.value("raw", false),
+                              std::span<const std::string_view>(vs.data(), vs.size())});
             }
             overloads.push_back({std::span<const baker::ParamDescription>(ps.data(), ps.size()),
                                  keep(o.value("result", "value"))});
@@ -73,6 +81,60 @@ std::string signature(const std::string& name, const nlohmann::json& overload) {
 
 namespace {
 
+// Declares the reference's types with their methods (declare_type), each after its bases:
+// a type whose bases are not known yet waits for a later pass. A type the Context already
+// has (one of Baker's own) is left as it is.
+void declare_types(baker::Context& ctx, const nlohmann::json& doc, Reference& out) {
+    const nlohmann::json types =
+        doc.value("types", nlohmann::json::array());  // `waiting` points in
+    std::vector<const nlohmann::json*> waiting;
+    for (const nlohmann::json& t : types)
+        if (t.is_object() && !t.value("name", "").empty()) waiting.push_back(&t);
+    for (bool progress = true; progress && !waiting.empty();) {
+        progress = false;
+        for (auto it = waiting.begin(); it != waiting.end();) {
+            const nlohmann::json& t = **it;
+            const std::string name = t.value("name", "");
+            std::vector<baker::Symbol> bases;
+            bool ready = true;
+            for (const nlohmann::json& b : t.value("bases", nlohmann::json::array()))
+                if (b.is_string()) {
+                    bases.emplace_back(b.get<std::string>());
+                    const bool waits =
+                        std::any_of(waiting.begin(), waiting.end(), [&b](const nlohmann::json* w) {
+                            return w->value("name", "") == b.get<std::string>();
+                        });
+                    ready = ready && !waits;
+                }
+            if (!ready) {
+                ++it;
+                continue;
+            }
+            std::deque<Described> described;
+            std::vector<baker::MethodDescription> methods;
+            for (const nlohmann::json& m : t.value("methods", nlohmann::json::array())) {
+                if (!m.is_object() || m.value("name", "").empty()) continue;
+                Described& d = described.emplace_back(m, false);
+                methods.push_back({baker::Symbol(m.value("name", "")),
+                                   std::span<const baker::OverloadDescription>(
+                                       d.overloads.data(), d.overloads.size())});
+            }
+            auto r = ctx.declare_type(
+                baker::Symbol(name), std::span<const baker::Symbol>(bases.data(), bases.size()),
+                std::span<const baker::MethodDescription>(methods.data(), methods.size()));
+            // A type the Context already has is Baker's own, as fully known as a declared one.
+            if (r || std::string(r.error().message()).find("already") != std::string::npos)
+                out.declared_types.push_back(name);
+            else
+                out.failed.push_back("type " + name + ": " + std::string(r.error().message()));
+            it = waiting.erase(it);
+            progress = true;
+        }
+    }
+    for (const nlohmann::json* t : waiting)
+        out.failed.push_back("type " + t->value("name", "") + ": its bases are not declared");
+}
+
 void read_tweaks(const nlohmann::json& doc, Reference& out) {
     for (const nlohmann::json& t : doc.value("tweaks", nlohmann::json::array())) {
         if (!t.is_object() || t.value("path", "").empty()) continue;
@@ -96,9 +158,13 @@ void read_tweaks(const nlohmann::json& doc, Reference& out) {
         info.step = t.value("step", 0.0);
         info.desc = t.value("desc", "");
         info.kind = t.value("kind", "");
+        info.group = t.value("group", "");
         info.dev_only = t.value("dev_only", false);
         for (const nlohmann::json& o : t.value("one_of", nlohmann::json::array()))
             if (o.is_string()) info.one_of.push_back(o.get<std::string>());
+        if (const nlohmann::json v = t.value("values", nlohmann::json()); v.is_array())
+            for (const nlohmann::json& x : v)
+                if (x.is_string()) info.values.push_back(x.get<std::string>());
     }
 }
 
@@ -207,6 +273,16 @@ bool load_reference(baker::Context& ctx, const std::string& path, Reference& out
             for (const nlohmann::json& o : m.value("overloads", nlohmann::json::array()))
                 info.signatures.push_back(signature(type.name + " " + info.name, o));
         }
+    }
+    declare_types(ctx, doc, out);
+    for (const auto& [name, type] : out.object_types) {
+        const baker::Symbol object(name);
+        if (ctx.has_func(object)) continue;  // Baker's own, or a function of the game's
+        // An object the Context already has is Baker's own, such as its scheduler.
+        if (auto r = ctx.declare_object(object, baker::Symbol(type)))
+            ++out.declared_objects;
+        else if (std::string(r.error().message()).find("already") == std::string::npos)
+            out.failed.push_back("object " + name + ": " + std::string(r.error().message()));
     }
     return true;
 }

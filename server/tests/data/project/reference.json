@@ -1,6 +1,6 @@
 {
  "reference": {
-  "schema": "baker.reference/1.1",
+  "schema": "baker.reference/1.2",
   "functions": [
    {
     "name": "game.spawn",
@@ -107,7 +107,11 @@
        {
         "type": "vec2",
         "kind": "value",
-        "raw": false
+        "raw": false,
+        "values": [
+         "float32",
+         "float32"
+        ]
        }
       ],
       "result": "value",
@@ -119,7 +123,7 @@
   ],
   "types": [
    {
-    "name": "Scheduler",
+    "name": "Turret",
     "bases": [
      "Ticker"
     ],
@@ -222,11 +226,15 @@
    {
     "name": "clock",
     "type": "Scheduler"
+   },
+   {
+    "name": "tower",
+    "type": "Turret"
    }
   ]
  },
  "tweaks": {
-  "schema": "baker.tweaks/1",
+  "schema": "baker.tweaks/1.2",
   "tweaks": [
    {
     "path": "world.gravity",
@@ -243,6 +251,44 @@
     "kind": "",
     "group": "world",
     "dev_only": true,
+    "source": null,
+    "values": [
+     "float32"
+    ]
+   },
+   {
+    "path": "world.aim",
+    "type": "vec2",
+    "values": [
+     "float32",
+     "float32"
+    ],
+    "default": "(0 0)",
+    "value": "(0 0)",
+    "bound": false,
+    "range": null,
+    "step": 0.0,
+    "desc": "Where the world looks",
+    "kind": "",
+    "group": "world",
+    "dev_only": false,
+    "one_of": [],
+    "source": null
+   },
+   {
+    "path": "world.old",
+    "type": "fixed-size list",
+    "values": null,
+    "default": "1 2",
+    "value": "1 2",
+    "bound": false,
+    "range": null,
+    "step": 0.0,
+    "desc": "",
+    "kind": "",
+    "group": "world",
+    "dev_only": false,
+    "one_of": [],
     "source": null
    }
   ]
