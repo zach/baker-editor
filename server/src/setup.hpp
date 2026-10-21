@@ -37,6 +37,9 @@ struct Setup {
     std::vector<std::string> types;
     // The running game's console, on 127.0.0.1; 0: none.
     uint16_t console_port = 4555;
+    // A port for the projects under a directory (canonical), from --console DIR=PORT: the
+    // nearest wins, else console_port. A workspace of several games runs each on its own.
+    std::vector<std::pair<std::string, uint16_t>> console_ports;
     // Inlay hints show the running game's value where a live edit differs from the files.
     bool live_inlays = false;
 
@@ -63,6 +66,8 @@ inline constexpr const char* kUsage =
     "                              calls are checked and undefined ones are errors\n"
     "  --console-port N            a running game's console on 127.0.0.1 (default 4555;\n"
     "                              0: none): hover shows its live values\n"
+    "  --console DIR=PORT          the console of the games under DIR, one per game in a\n"
+    "                              workspace of several\n"
     "  --live-inlays               show the game's live value beside each value it\n"
     "                              differs from, as an inlay hint\n"
     "  --stdio                     speak LSP on stdin and stdout (the default)\n"

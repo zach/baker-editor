@@ -45,7 +45,13 @@ public:
     // Handles one message from the client at `now`.
     void handle(const nlohmann::json& message, Clock::time_point now);
     // When a check is due; empty when none is.
-    [[nodiscard]] std::optional<Clock::time_point> due() const { return due_; }
+    [[nodiscard]] std::optional<Clock::time_point> check_due() const { return due_; }
+    // When anything is next due: a check, or asking a running game whether it changed.
+    [[nodiscard]] std::optional<Clock::time_point> due() const;
+    // Does what is due at `now`.
+    void tick(Clock::time_point now);
+    // How often a game is asked whether its stack changed, while live inlays are on.
+    static constexpr std::chrono::milliseconds kPoll{1000};
     // Checks every project and publishes what changed.
     void check_now();
     // After `exit`: the process's status (0 if `shutdown` came first).
@@ -62,6 +68,7 @@ private:
         Reference reference;
         std::unique_ptr<GameTweaks> tweaks;  // the reference's, for Baker's check_tweaks
         std::shared_ptr<Loaded> loaded;      // the last check's, for hover and completion
+        uint16_t port = 0;                   // its game's console
         int game_generation = 0;             // the console connection game_is() last asked
         bool game_ours = false;
     };
@@ -118,7 +125,15 @@ private:
     bool initialized_ = false;
     std::vector<std::pair<int, std::string>> pending_log_;  // until `initialized`
 
-    Live live_;
+    // The running games' consoles, by port: each project's is its setup's.
+    std::map<uint16_t, std::unique_ptr<Live>> lives_;
+    Live& live_of(const Checked& c);
+    Live& live_at(const std::string& file);  // the project's that holds `file`, else the default
+    // While live inlays are on: when each game is next asked whether its stack changed, and
+    // what it answered last.
+    Clock::time_point next_poll_{};
+    std::map<uint16_t, std::string> stamps_;
+    void poll(Clock::time_point now);
     Send send_;
     Buffers buffers_;
     std::map<std::string, std::string> uris_;  // canonical path -> the client's URI

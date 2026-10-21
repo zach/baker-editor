@@ -127,6 +127,15 @@ game's.
 
 **Effort:** about two days.
 
+**As built:** the server polls each project's game once a second while live inlays are on,
+and refreshes the hints when its answer moves: `{config.epoch}` where the game binds it (note
+0020); else the newest time in `{config.journal T}`, which answers only edits after T, so an
+unchanged game answers an empty list; else `{config.unsaved}`. The plan's `{config.unsaved}`
+was not enough: it names the paths with live edits, so a second edit of the same path looked
+like no change. One `Live` per port; `--console DIR=PORT` (`baker.console.ports`) gives a
+project's. In Duel a value set from the game's console reaches the hints in 524 to 981 ms;
+Duel on 4556 and Cube on 4557 each show their own value in hover.
+
 ## D5. Running scenarios on what is in the editor
 
 **Why:** a scenario run reads the saved files, so a person tuning a value must save before
@@ -179,6 +188,6 @@ nothing from Baker. D6 last, once D1 has proven what is published, and not befor
 | D1 Run it in VS Code | none | Integration tests done (VSCodium, in CI); the manual pass is the owner's |
 | D2 The game's tweaks, checked by Baker | note 0017, met by Baker 0.4.0 | Done (first pass) |
 | D3 Method calls and the game's types | note 0018, met by Baker 0.4.0 | Done (first pass) |
-| D4 Live values that follow the game | note 0020: the config's epoch on the console, the port in the project file | Next |
-| D5 Running scenarios on what is in the editor | none | |
+| D4 Live values that follow the game | note 0020: the config's epoch on the console, the port in the project file | Done (first pass), on the journal until note 0020 |
+| D5 Running scenarios on what is in the editor | none | Next |
 | D6 Published | none; the owner's accounts | Waits for Baker 1.0 (the owner's call) |

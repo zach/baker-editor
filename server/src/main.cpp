@@ -89,7 +89,6 @@ int main(int argc, char** argv) {
                 std::_Exit(*code);
             }
         }
-        if (const auto due = server.due(); due && *due <= baker_lsp::Server::Clock::now())
-            server.check_now();
+        server.tick(baker_lsp::Server::Clock::now());
     }
 }

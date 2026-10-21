@@ -58,6 +58,17 @@ bool parse_args(std::span<const std::string> args, Setup& setup, std::string& er
                 return false;
             }
             setup.console_port = static_cast<uint16_t>(port);
+        } else if (a == "--console") {
+            const size_t eq = v.rfind('=');
+            char* end = nullptr;
+            const unsigned long port =
+                eq == std::string::npos ? 0 : std::strtoul(v.c_str() + eq + 1, &end, 10);
+            if (eq == std::string::npos || eq == 0 || !end || *end || port > 65535) {
+                error = "--console takes DIR=PORT, not " + v;
+                return false;
+            }
+            setup.console_ports.emplace_back(canonical_path(v.substr(0, eq)),
+                                             static_cast<uint16_t>(port));
         } else if (a == "--reference") {
             setup.reference = canonical_path(v);
         } else {

@@ -368,3 +368,139 @@ TEST_CASE("no game, or another project's: nothing to evaluate or try") {
     CHECK(c.request(3, "textDocument/codeAction", c.at(2, 3)).empty());
     CHECK(c.request(3, "textDocument/codeAction", c.at_health()).empty());
 }
+
+namespace {
+
+// The refreshes the server asked the client for since `sent` was cleared.
+int refreshes(const std::vector<json>& sent) {
+    int n = 0;
+    for (const json& m : sent) n += m.value("method", "") == "workspace/inlayHint/refresh";
+    return n;
+}
+
+}  // namespace
+
+TEST_CASE("live inlays follow the game: refreshed when its epoch moves, and only then") {
+    std::atomic<int> epoch{1};
+    MockConsole game([&epoch](const std::string& cmd) -> json {
+        if (cmd == "{config.epoch}") return {{"ok", true}, {"text", std::to_string(epoch.load())}};
+        if (cmd.rfind("{config.explain", 0) == 0) return explained(kDefault, false);
+        return not_a_function("x");
+    });
+    Client c(game.port(), true);
+    const auto now = Server::Clock::now();
+    REQUIRE(c.server.due());
+    CHECK(*c.server.due() <= now);  // a poll is due, as well as nothing else
+    c.sent.clear();
+    c.server.tick(now);
+    CHECK(refreshes(c.sent) == 1);  // a game came up
+    c.sent.clear();
+    c.server.tick(now + Server::kPoll);
+    CHECK(refreshes(c.sent) == 0);  // nothing changed
+    epoch = 2;
+    c.server.tick(now + 2 * Server::kPoll);
+    CHECK(refreshes(c.sent) == 1);
+    c.sent.clear();
+    c.server.tick(now + 2 * Server::kPoll + std::chrono::milliseconds(10));
+    CHECK(refreshes(c.sent) == 0);  // asked at most once a poll
+    bool asked_epoch = false;
+    for (const std::string& cmd : game.commands())
+        asked_epoch = asked_epoch || cmd == "{config.epoch}";
+    CHECK(asked_epoch);
+}
+
+TEST_CASE("a game with no epoch is followed by its unsaved edits") {
+    std::mutex mutex;
+    std::string unsaved = "()";
+    MockConsole game([&](const std::string& cmd) -> json {
+        std::lock_guard lock(mutex);
+        if (cmd == "{config.unsaved}") return {{"ok", true}, {"text", unsaved}};
+        if (cmd.rfind("{config.explain", 0) == 0) return explained(kDefault, false);
+        return not_a_function(cmd);
+    });
+    Client c(game.port(), true);
+    const auto now = Server::Clock::now();
+    c.server.tick(now);
+    c.sent.clear();
+    c.server.tick(now + Server::kPoll);
+    CHECK(refreshes(c.sent) == 0);
+    {
+        std::lock_guard lock(mutex);
+        unsaved = "(fighters.kestrel.health)";
+    }
+    c.server.tick(now + 2 * Server::kPoll);
+    CHECK(refreshes(c.sent) == 1);
+}
+
+TEST_CASE("each project's game on its own port") {
+    MockConsole game([](const std::string& cmd) -> json {
+        if (cmd.rfind("{config.explain", 0) == 0) return explained(kDefault, true);
+        return not_a_function("x");
+    });
+    uint16_t closed = 0;
+    {
+        net::Listener l;
+        closed = l.port();
+    }
+    std::vector<json> sent;
+    Setup s = Client::setup(closed, false);  // the default port: no game
+    s.console_ports = {{kProject, game.port()}};
+    Server server(s, [&sent](const json& m) { sent.push_back(m); });
+    server.handle(
+        {{"jsonrpc", "2.0"}, {"id", 1}, {"method", "initialize"}, {"params", json::object()}}, {});
+    server.handle(
+        {{"jsonrpc", "2.0"},
+         {"method", "textDocument/didOpen"},
+         {"params", {{"textDocument", {{"uri", uri_from_path(kDefault)}, {"text", kText}}}}}},
+        {});
+    server.check_now();
+    sent.clear();
+    const json pos = {{"line", 1}, {"character", 23}};
+    server.handle(
+        {{"jsonrpc", "2.0"},
+         {"id", 2},
+         {"method", "textDocument/hover"},
+         {"params", {{"textDocument", {{"uri", uri_from_path(kDefault)}}}, {"position", pos}}}},
+        {});
+    std::string shown;
+    for (const json& m : sent)
+        if (m.contains("id") && m["id"] == 2) shown = m["result"]["contents"]["value"];
+    CHECK(shown.find("**Live**, the game on 127.0.0.1:" + std::to_string(game.port())) !=
+          std::string::npos);
+}
+
+TEST_CASE("a game with no epoch is followed by its journal: each live edit, the same path too") {
+    std::atomic<int64_t> last{0};  // the newest edit's time; 0: none
+    std::vector<std::string> asked;
+    std::mutex mutex;
+    MockConsole game([&](const std::string& cmd) -> json {
+        std::lock_guard lock(mutex);
+        if (cmd.rfind("{config.journal", 0) == 0) {
+            asked.push_back(cmd);
+            const int64_t since = cmd == "{config.journal}" ? 0 : std::stoll(cmd.substr(16));
+            json entries = json::array();
+            if (last > 0 && last >= since)
+                entries.push_back({{"path", "fighters.kestrel.health"}, {"time_ns", last.load()}});
+            return {{"ok", true}, {"text", "(...)"}, {"value", entries}};
+        }
+        if (cmd.rfind("{config.explain", 0) == 0) return explained(kDefault, false);
+        return not_a_function(cmd);
+    });
+    Client c(game.port(), true);
+    const auto now = Server::Clock::now();
+    c.server.tick(now);
+    c.sent.clear();
+    c.server.tick(now + Server::kPoll);
+    CHECK(refreshes(c.sent) == 0);
+    last = 100;  // an edit
+    c.server.tick(now + 2 * Server::kPoll);
+    CHECK(refreshes(c.sent) == 1);
+    c.sent.clear();
+    c.server.tick(now + 3 * Server::kPoll);
+    CHECK(refreshes(c.sent) == 0);
+    last = 200;  // the same path, edited again
+    c.server.tick(now + 4 * Server::kPoll);
+    CHECK(refreshes(c.sent) == 1);
+    std::lock_guard lock(mutex);
+    CHECK(asked.back() == "{config.journal 101}");  // only what is newer
+}

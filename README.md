@@ -191,8 +191,15 @@ hints in the other layers' open editors (`workspace/inlayHint/refresh`).
 With `--live-inlays` (`baker.live.inlays`) and a game answering, a value a live edit has
 changed in the game shows it: `(health 1000) live 1234`. The server asks the game about
 every value in the visible lines at once (at most 200), within the console's 50 ms; without
-a game, or past the budget, nothing is shown. The hints are asked for when the editor
-scrolls or the text changes, not when the game changes a value.
+a game, or past the budget, nothing is shown. They follow the game: once a second the server
+asks it whether its stack changed (its `{config.epoch}`, once Baker's console has one; until
+then the newest live edit in `{config.journal}`, which answers only what is newer), and has
+the editor ask for the hints again when it did. In Duel, a value set from the game's own
+console shows in the open file 0.5 to 1 second later, with no edit or scroll.
+
+Each game in a workspace of several can have its own console: `baker.console.ports`
+(`--console DIR=PORT`) names a port for the projects under a directory, such as
+`{"stacks/duel": 4556, "stacks/cube": 4557}`; the rest use `baker.console.port`.
 
 ## The merged stack, and what a layer changes
 
@@ -342,8 +349,8 @@ tools/lsp_client.py --replace data/default.dta "(health 1000)" "(health 0)" -- b
   what its values are (one written before `baker.reference/1.2`).
 - A tweak Baker cannot make from its description (a fixed-size list, such as Cube's `color`,
   whose values the reference does not describe) is not checked, beyond its range.
-- Live values come from one console port for the whole workspace, and their inlay hints
-  are not refreshed when only the game changes.
+- A game's console port is the setting's, not its project file's, until Baker's project file
+  can name one (`requirements/0020`).
 - A layer's hints are from the last check in which every layer read, so while a file does
   not read, its hints can sit a line off.
 - A symbol field with no `(one_of ...)` is completed from use: the first use of a value is not

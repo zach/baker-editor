@@ -69,10 +69,16 @@
           "default": "",
           "description": "The game binary that runs a project's scenarios (`sim`), when its project file names none with (tool ...). Relative to the project's directory; ${project} is that directory's name, as in /path/to/build/bin/stacks_${project}."
         },
+        "baker.console.ports": {
+          "type": "object",
+          "default": {},
+          "additionalProperties": {"type": "number", "minimum": 0, "maximum": 65535},
+          "description": "A game's console port for the projects under a directory, for a workspace of several games: {\"stacks/duel\": 4556}. Directories are relative to the workspace folder; others use baker.console.port."
+        },
         "baker.live.inlays": {
           "type": "boolean",
           "default": false,
-          "description": "Show the running game's value beside each value a live edit in the game has changed, as an inlay hint."
+          "description": "Show the running game's value beside each value a live edit in the game has changed, as an inlay hint, refreshed when the game changes (asked once a second)."
         }
       }
     },

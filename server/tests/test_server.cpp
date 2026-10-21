@@ -322,3 +322,19 @@ TEST_CASE("exit after shutdown is a clean exit") {
     d.notify("exit", json::object());
     CHECK(d.server.exit_code() == 1);
 }
+
+TEST_CASE("--console names a game's port for the projects under a directory") {
+    Setup s;
+    std::string error;
+    const std::vector<std::string> args = {"--console", "stacks/duel=4556", "--console",
+                                           "/w/hearth=4557"};
+    REQUIRE(parse_args(args, s, error));
+    REQUIRE(s.console_ports.size() == 2);
+    CHECK(s.console_ports[0].first == canonical_path("stacks/duel"));
+    CHECK(s.console_ports[0].second == 4556);
+    CHECK(s.console_ports[1].second == 4557);
+    Setup bad;
+    const std::vector<std::string> no_port = {"--console", "stacks/duel"};
+    CHECK(!parse_args(no_port, bad, error));
+    CHECK(error.find("DIR=PORT") != std::string::npos);
+}

@@ -57,6 +57,13 @@ public:
     bool can_clear();
     static constexpr const char* kClear = "config.clear";
 
+    // What the game's stack is now, to compare with the last time: its epoch, where the game
+    // binds kEpoch; else the time of its last live edit, from {config.journal since}, which
+    // answers only what is newer; else its unsaved paths, as text. Which, is asked once per
+    // connection. Empty if no game answers.
+    std::optional<std::string> stamp();
+    static constexpr const char* kEpoch = "config.epoch";
+
 private:
     bool ready();
     // Whether the game binds `function`, asked by calling it as `{function args}`, which must
@@ -69,6 +76,8 @@ private:
     int next_id_ = 1;
     std::optional<bool> write_back_;
     std::optional<bool> clear_;
+    std::optional<bool> epoch_, journal_;
+    int64_t journal_ns_ = -1;  // the newest live edit's time seen; -1 before the first ask
     int generation_ = 0;
 };
 

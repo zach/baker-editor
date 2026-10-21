@@ -28,6 +28,8 @@ bool Live::ready() {
     next_try_ = now + kRetry;
     write_back_.reset();
     clear_.reset();
+    epoch_.reset();
+    journal_.reset();
     if (!connection_.connect(port_, static_cast<int>(kTimeout.count()))) return false;
     ++generation_;
     return true;
@@ -119,6 +121,37 @@ bool Live::can_clear() {
     // A path no game has: clearing it drops nothing, however the command treats it.
     if (!clear_) clear_ = binds(kClear, "baker_editor.no_such_value");
     return clear_.value_or(false);
+}
+
+std::optional<std::string> Live::stamp() {
+    if (!ready()) return std::nullopt;
+    const std::string connection = std::to_string(generation_) + ":";  // a game started again
+    // A bound config.epoch called with no arguments answers it.
+    if (!epoch_) epoch_ = binds(kEpoch);
+    if (!epoch_) return std::nullopt;  // no game answered
+    if (*epoch_) {
+        const auto reply = ask("{" + std::string(kEpoch) + "}");
+        if (!reply || !reply->value("ok", false)) return std::nullopt;
+        return connection + reply->value("text", "");
+    }
+    if (!journal_) {
+        journal_ = binds("config.journal");
+        journal_ns_ = -1;
+    }
+    if (journal_ && *journal_) {
+        const auto reply =
+            ask(journal_ns_ < 0 ? std::string("{config.journal}")
+                                : "{config.journal " + std::to_string(journal_ns_ + 1) + "}");
+        if (!reply || !reply->value("ok", false)) return std::nullopt;
+        for (const nlohmann::json& e : reply->value("value", nlohmann::json::array()))
+            if (e.is_object() && e.value("time_ns", int64_t{-1}) > journal_ns_)
+                journal_ns_ = e.value("time_ns", int64_t{-1});
+        if (journal_ns_ < 0) journal_ns_ = 0;  // no edit yet: from now on, every one is newer
+        return connection + std::to_string(journal_ns_);
+    }
+    const auto reply = ask("{config.unsaved}");
+    if (!reply || !reply->value("ok", false)) return std::nullopt;
+    return connection + reply->value("text", "");
 }
 
 }  // namespace baker_lsp

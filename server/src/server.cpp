@@ -37,8 +37,7 @@ std::string parent_of(const std::string& path) {
 
 }  // namespace
 
-Server::Server(Setup setup, Send send)
-    : given_(std::move(setup)), live_(given_.console_port), send_(std::move(send)) {
+Server::Server(Setup setup, Send send) : given_(std::move(setup)), send_(std::move(send)) {
     fixed_ = !given_.project.empty() || given_.by_hand();
     if (fixed_) add(given_);
 }
@@ -97,7 +96,62 @@ void Server::add(Setup setup) {
             for (const std::string& f : r.failed) log(kLogWarning, "not declared: " + f);
         }
     }
+    // Its console: the nearest --console directory above the project, else the default.
+    c.port = given_.console_port;
+    size_t nearest = 0;
+    const std::string dir = key.empty() ? std::string() : parent_of(key);
+    for (const auto& [under_dir, port] : given_.console_ports)
+        if ((dir == under_dir || dir.starts_with(under_dir + "/")) && under_dir.size() >= nearest) {
+            c.port = port;
+            nearest = under_dir.size();
+        }
     c.setup = std::move(setup);
+}
+
+Live& Server::live_of(const Checked& c) {
+    std::unique_ptr<Live>& live = lives_[c.port];
+    if (!live) live = std::make_unique<Live>(c.port);
+    return *live;
+}
+
+Live& Server::live_at(const std::string& file) {
+    if (const Checked* c = project_of(file)) return live_of(*c);
+    std::unique_ptr<Live>& live = lives_[given_.console_port];
+    if (!live) live = std::make_unique<Live>(given_.console_port);
+    return *live;
+}
+
+std::optional<Server::Clock::time_point> Server::due() const {
+    if (!given_.live_inlays || !initialized_ || !refresh_inlays_) return due_;
+    if (!due_ || next_poll_ < *due_) return next_poll_;
+    return due_;
+}
+
+void Server::tick(Clock::time_point now) {
+    if (due_ && *due_ <= now) check_now();
+    if (given_.live_inlays && initialized_ && refresh_inlays_ && next_poll_ <= now) poll(now);
+}
+
+void Server::poll(Clock::time_point now) {
+    next_poll_ = now + kPoll;
+    bool changed = false;
+    std::set<uint16_t> asked;
+    for (auto& [key, c] : projects_) {
+        if (c.port == 0 || !asked.insert(c.port).second) continue;
+        const auto stamp = live_of(c).stamp();
+        if (!stamp) {
+            stamps_.erase(c.port);  // no game: nothing live to refresh until one answers
+            continue;
+        }
+        auto [it, added] = stamps_.try_emplace(c.port, *stamp);
+        if (!added && it->second != *stamp) {
+            it->second = *stamp;
+            changed = true;
+        } else if (added) {
+            changed = true;  // a game came up
+        }
+    }
+    if (changed) refresh_inlays();
 }
 
 void Server::find_project(const std::string& path) {
@@ -317,8 +371,9 @@ json Server::hover(const json& params) {
     if (!h) return nullptr;
     if (!h->path.empty())
         if (const auto chain = live_chain(*c, h->path)) {
-            h->markdown += "\n\n**Live**, the game on 127.0.0.1:" + std::to_string(live_.port()) +
-                           ":\n\n| layer | value | where | |\n|---|---|---|---|";
+            h->markdown +=
+                "\n\n**Live**, the game on 127.0.0.1:" + std::to_string(live_of(*c).port()) +
+                ":\n\n| layer | value | where | |\n|---|---|---|---|";
             for (const LiveEntry& e : *chain) {
                 std::string where = e.file.substr(e.file.rfind('/') + 1);
                 if (e.line > 0) where += ":" + std::to_string(e.line);
@@ -382,7 +437,7 @@ json Server::definition(const json& params) {
 
 std::optional<std::vector<LiveEntry>> Server::live_chain(const Checked& c,
                                                          const std::string& path) {
-    auto chain = live_.explain(path);
+    auto chain = live_of(c).explain(path);
     if (!chain) return std::nullopt;
     // The game on the port may be another project's: live only if its files are this one's.
     for (const LiveEntry& e : *chain)
@@ -458,9 +513,10 @@ std::string first_line(const std::string& text) {
 }  // namespace
 
 bool Server::game_is(Checked& c) {
-    if (!live_.reachable()) return false;
-    if (c.game_generation == live_.generation()) return c.game_ours;
-    c.game_generation = live_.generation();
+    Live& live = live_of(c);
+    if (!live.reachable()) return false;
+    if (c.game_generation == live.generation()) return c.game_ours;
+    c.game_generation = live.generation();
     c.game_ours = false;
     // A value from the project's data: the game is the project's if the files it says the
     // value comes from are in the project's directory.
@@ -474,7 +530,7 @@ bool Server::game_is(Checked& c) {
             if (s.brackets[b].open != '(' || s.brackets[b].has_child) continue;
             const std::vector<std::string> tags = s.data_path(static_cast<int>(b));
             if (tags.empty()) continue;
-            const auto chain = live_.explain(path_text(tags));
+            const auto chain = live.explain(path_text(tags));
             if (!chain) return false;  // no game answers, or its packs differ: not this one
             for (const LiveEntry& e : *chain)
                 if (!e.file.empty()) {
@@ -514,11 +570,12 @@ json Server::code_actions(const json& params) {
     for (const LiveEntry& e : *chain)
         live_edit = live_edit || (e.layer == "scratch" && e.standing == "wins");
     if (!live_edit) return out;
-    if (live_.can_write_back())
-        out.push_back(
-            command_json("Write the live value here", "baker.writeBack", json::array({data})));
-    if (live_.can_clear())
-        out.push_back(command_json("Revert the live edit", "baker.revert", json::array({data})));
+    if (live_of(*c).can_write_back())
+        out.push_back(command_json("Write the live value here", "baker.writeBack",
+                                   json::array({data, uri_for(path)})));
+    if (live_of(*c).can_clear())
+        out.push_back(command_json("Revert the live edit", "baker.revert",
+                                   json::array({data, uri_for(path)})));
     return out;
 }
 
@@ -530,12 +587,13 @@ void Server::refresh_inlays() {
 }
 
 void Server::evaluate(const std::string& path, size_t at, const std::string& command) {
-    const auto reply = live_.ask(command, kEvaluateTimeout);
+    Live& live = live_at(path);
+    const auto reply = live.ask(command, kEvaluateTimeout);
     Evaluated result{at, {}, command};
     int type = kLogInfo;
     if (!reply) {
         result.label = "\u2717 no game answered";
-        result.tooltip = "no game answers on 127.0.0.1:" + std::to_string(live_.port());
+        result.tooltip = "no game answers on 127.0.0.1:" + std::to_string(live.port());
         type = kLogError;
     } else if (reply->value("ok", false)) {
         std::string text = reply->value("text", "");
@@ -589,10 +647,16 @@ json Server::execute(const json& params) {
         }
         return nullptr;
     }
+    // The data path, and the document it was asked from, whose project's game is meant.
+    const auto game = [&]() -> Live& {
+        return live_at(args.size() > 1 && args[1].is_string()
+                           ? canonical_path(path_from_uri(args[1].get<std::string>()))
+                           : std::string());
+    };
     if (command == "baker.revert") {
         if (args.empty() || !args[0].is_string()) return nullptr;
         const std::string path = args[0].get<std::string>();
-        const auto reply = live_.ask("{" + std::string(Live::kClear) + " " + path + "}");
+        const auto reply = game().ask("{" + std::string(Live::kClear) + " " + path + "}");
         if (!reply || !reply->value("ok", false))
             send_({{"jsonrpc", "2.0"},
                    {"method", "window/showMessage"},
@@ -608,11 +672,12 @@ json Server::execute(const json& params) {
     if (command != "baker.writeBack") return nullptr;
     if (args.empty() || !args[0].is_string()) return nullptr;
     const std::string path = args[0].get<std::string>();
-    const auto reply = live_.ask("{config.write_back " + path + "}");
+    Live& live = game();
+    const auto reply = live.ask("{config.write_back " + path + "}");
     std::string message;
     int type = kLogError;
     if (!reply) {
-        message = "no game answers on 127.0.0.1:" + std::to_string(live_.port());
+        message = "no game answers on 127.0.0.1:" + std::to_string(live.port());
     } else if (!reply->value("ok", false)) {
         message = "the game did not write " + path + ": " +
                   reply->value("error", json::object()).value("message", "");
@@ -847,7 +912,8 @@ json Server::inlay_hints(const json& params) {
                                     h.shadowed ? "`" + h.path + "`: a higher layer overrides it"
                                                : "`" + h.path + "`: overrides a lower layer"));
     }
-    if (!given_.live_inlays || live_.port() == 0) return out;
+    Live& live = live_of(*c);
+    if (!given_.live_inlays || live.port() == 0) return out;
 
     // The running game's value where a live edit differs from the file value it overrides.
     const Structure s = read_structure(text);  // the whole file: a value's path is its arrays'
@@ -864,18 +930,18 @@ json Server::inlay_hints(const json& params) {
         leaves.push_back(static_cast<int>(b));
         paths.push_back(path_text(tags));
     }
-    const auto chains = live_.explain_many(paths);
+    const auto chains = live.explain_many(paths);
     if (!chains) return out;
     for (size_t i = 0; i < chains->size(); ++i) {
         const std::vector<LiveEntry>& chain = (*chains)[i];
         if (chain.size() < 2 || chain.back().layer != "scratch") continue;
-        const LiveEntry& live = chain.back();
+        const LiveEntry& edit = chain.back();
         const LiveEntry& filed = chain[chain.size() - 2];  // the files' winner, below it
         const Bracket& br = s.brackets[leaves[i]];
         if (filed.file.empty() || canonical_path(filed.file) != path ||
-            filed.line != lines.position(br.begin).first + 1 || filed.value == live.value)
+            filed.line != lines.position(br.begin).first + 1 || filed.value == edit.value)
             continue;
-        out.push_back(hint_json(lines, br.end, "live " + live.value,
+        out.push_back(hint_json(lines, br.end, "live " + edit.value,
                                 "the running game's value, a live edit not yet written"));
     }
     return out;
