@@ -115,10 +115,22 @@ export class Scenarios {
                 }
                 continue;
             }
+            // The game reads the files on disk: what to do with this project's unsaved ones.
+            const unsaved = await this.unsaved(suite);
+            if (unsaved === undefined) {  // the person cancelled
+                for (const item of items) {
+                    run.skipped(item);
+                    this.verdicts.set(item.id, "skipped");
+                }
+                continue;
+            }
             for (const item of items) run.started(item);
             const names = items.map((i) => i.label);
-            run.appendOutput(`${tool} ${simArgs(names).join(" ")}\r\n` +
-                             "(the game reads the saved files)\r\n");
+            run.appendOutput(`${tool} ${simArgs(names).join(" ")}\r\n`);
+            if (unsaved.length)
+                run.appendOutput("Run with the saved files: not yet saved, so not run: " +
+                                 unsaved.map((d) => path.relative(suite.directory, d.uri.fsPath))
+                                     .join(", ") + "\r\n");
             const started = Date.now();
             const {stdout, stderr, code} = await this.exec(tool, simArgs(names), suite.directory,
                                                            token);
@@ -160,6 +172,31 @@ export class Scenarios {
                                                   {uri: suite.project, results});
         }
         run.end();
+    }
+
+    // The project's files with unsaved changes the run would not see, after saving them if
+    // baker.sim.save says to (asking, if it says "ask"); undefined if the person cancelled.
+    private async unsaved(suite: Suite): Promise<vscode.TextDocument[] | undefined> {
+        const dir = suite.directory + path.sep;
+        const dirty = vscode.workspace.textDocuments.filter(
+            (d) => d.isDirty && d.uri.scheme === "file" && d.uri.fsPath.startsWith(dir));
+        if (!dirty.length) return [];
+        let choice = vscode.workspace.getConfiguration("baker").get<string>("sim.save", "ask");
+        if (choice === "ask") {
+            const save = "Save and Run", saved = "Run the Saved Files";
+            const names = dirty.map((d) => path.basename(d.uri.fsPath)).join(", ");
+            const picked = await vscode.window.showWarningMessage(
+                `The game runs the files on disk, and ${names} ${dirty.length === 1 ? "has" : "have"} ` +
+                    "unsaved changes.",
+                {modal: true}, save, saved);
+            if (!picked) return undefined;
+            choice = picked === save ? "always" : "never";
+        }
+        if (choice === "always") {
+            for (const d of dirty) await d.save();
+            return [];
+        }
+        return dirty;
     }
 
     private exec(tool: string, args: string[], cwd: string, token: vscode.CancellationToken):

@@ -154,6 +154,12 @@ and run" fails the scenario; "never" runs the saved files and says so.
 
 **Effort:** half a day.
 
+**As built:** as planned, in the test view's run: the project's unsaved files are found
+under its directory; `baker.sim.save` is `ask` (a modal: Save and Run, Run the Saved Files,
+or cancel, which skips the run), `always` or `never`, and a run of the saved files lists in
+its output the files it did not see. The integration suite covers `never` and `always` with
+an unsaved edit that breaks a scenario; the modal cannot be shown in VS Code's tests.
+
 ## D6. Published
 
 **Why:** today the extension is a `.vsix` built by hand, and the tree-sitter grammar is set up
@@ -189,5 +195,5 @@ nothing from Baker. D6 last, once D1 has proven what is published, and not befor
 | D2 The game's tweaks, checked by Baker | note 0017, met by Baker 0.4.0 | Done (first pass) |
 | D3 Method calls and the game's types | note 0018, met by Baker 0.4.0 | Done (first pass) |
 | D4 Live values that follow the game | note 0020: the config's epoch on the console, the port in the project file | Done (first pass), on the journal until note 0020 |
-| D5 Running scenarios on what is in the editor | none | Next |
+| D5 Running scenarios on what is in the editor | none | Done (first pass) |
 | D6 Published | none; the owner's accounts | Waits for Baker 1.0 (the owner's call) |

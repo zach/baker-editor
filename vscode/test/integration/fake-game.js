@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // A game binary for the test view's tests: answers `sim [--scenario NAME]... --json` for the
 // test project's scenarios with a fixed baker.sim/1, as Baker's host kit writes it. A file
-// named `fail` in the project's directory makes units.alive fail in `opening`.
+// named `fail` in the project's directory, or BREAK in data/default.dta on disk, makes
+// units.alive fail in `opening`.
 const fs = require("fs");
 const path = require("path");
 
@@ -16,7 +17,9 @@ for (let i = 1; i < args.length; ++i)
 const dir = process.cwd();
 const scenarios = path.join(dir, "scenarios", "basic.dta");
 const objectives = path.join(dir, "metrics", "units.dta");
-const fail = fs.existsSync(path.join(dir, "fail"));
+// The data on disk breaking it, as an edit that has been saved would.
+const fail = fs.existsSync(path.join(dir, "fail")) ||
+             fs.readFileSync(path.join(dir, "data", "default.dta"), "utf8").includes("BREAK");
 const lines = {opening: 2, long: 6};
 const runs = (asked.length ? asked : ["long", "opening"]).sort().map((scenario) => ({
     scenario, file: scenarios, line: lines[scenario], seed: 1, steps: 60,

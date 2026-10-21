@@ -69,6 +69,17 @@
           "default": "",
           "description": "The game binary that runs a project's scenarios (`sim`), when its project file names none with (tool ...). Relative to the project's directory; ${project} is that directory's name, as in /path/to/build/bin/stacks_${project}."
         },
+        "baker.sim.save": {
+          "type": "string",
+          "enum": ["ask", "always", "never"],
+          "enumDescriptions": [
+            "Ask before a run, when a file of the project has unsaved changes.",
+            "Save the project's unsaved files, then run.",
+            "Run the saved files, and say which were not saved."
+          ],
+          "default": "ask",
+          "description": "What a scenario run does with the project's unsaved files: the game reads the files on disk."
+        },
         "baker.console.ports": {
           "type": "object",
           "default": {},

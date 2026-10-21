@@ -175,6 +175,9 @@ suite("Baker in VS Code", function () {
     });
 
     test("the scenarios are tests, and a failed objective is marked where it is declared", async () => {
+        // Earlier tests leave documents unsaved, though as they were: run without asking.
+        const settings = vscode.workspace.getConfiguration("baker");
+        await settings.update("sim.save", "never", vscode.ConfigurationTarget.Workspace);
         await api.scenarios.discover();
         const ids = api.scenarios.ids();
         assert.strictEqual(ids.length, 2, ids.join(", "));
@@ -189,6 +192,27 @@ suite("Baker in VS Code", function () {
             (d) => /units\.alive failed in scenario opening/.test(d.message)));
         fs.unlinkSync(path.join(project, "fail"));
 
+        // An unsaved edit that breaks it: "never" runs the saved files, "always" saves first.
+        const doc = await baker(defaultUri);
+        const before = doc.getText();
+        const restore = await setText(doc, "; BREAK\n" + before);
+        try {
+            await settings.update("sim.save", "never", vscode.ConfigurationTarget.Workspace);
+            await api.scenarios.runAll();
+            assert.strictEqual(api.scenarios.verdicts.get(opening), "passed");
+            assert.ok(doc.isDirty);
+            await settings.update("sim.save", "always", vscode.ConfigurationTarget.Workspace);
+            await api.scenarios.runAll();
+            assert.strictEqual(api.scenarios.verdicts.get(opening), "failed");
+            assert.ok(!doc.isDirty);
+        } finally {
+            await restore();
+            await doc.save();
+            await settings.update("sim.save", "never", vscode.ConfigurationTarget.Workspace);
+        }
+        await api.scenarios.runAll();
+        assert.strictEqual(api.scenarios.verdicts.get(opening), "passed");
+
         // A scenario file made on disk is listed, with no save in the editor.
         const extra = path.join(project, "scenarios", "extra.dta");
         fs.writeFileSync(extra, "(scenario added (seconds 1))\n");
@@ -196,5 +220,6 @@ suite("Baker in VS Code", function () {
             api.scenarios.ids().some((id) => id.endsWith("#added")));
         fs.unlinkSync(extra);
         await until("it to go", () => !api.scenarios.ids().some((id) => id.endsWith("#added")));
+        await settings.update("sim.save", undefined, vscode.ConfigurationTarget.Workspace);
     });
 });

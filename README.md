@@ -247,8 +247,12 @@ A project, scenario or objective file made or deleted on disk lists the scenario
 The binary is the project file's `(tool "build/bin/my_game")`, else the setting
 `baker.sim.tool`, relative to the project's directory, where `${project}` is the directory's
 name: Baker's stacks build theirs outside the project, so
-`/path/to/build-stacks/bin/stacks_${project}` runs each stack's own. The game reads the
-saved files.
+`/path/to/build-stacks/bin/stacks_${project}` runs each stack's own.
+
+The game reads the files on disk. When a file of the project has unsaved changes, a run asks
+first: **Save and Run**, or **Run the Saved Files**. `baker.sim.save` makes the answer stick
+(`always` saves, `never` runs the saved files); a run without them says in its output which
+files it did not see.
 
 In Duel, all eight scenarios (in `sim/cpu.dta` and `sim/frames.dta`) run in 137 ms and pass.
 A jab doing 400 damage fails three: `frame_data` with `duel.combo_ceiling failed ... value
