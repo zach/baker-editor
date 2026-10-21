@@ -11,8 +11,9 @@ layer's read plus the merge and the check.
 ## Why
 
 An editor checks the stack on every pause in typing. In Baker's Duel grown to a 2 MB
-`default.dta`, a check takes 100 to 200 ms, almost all of it reading the 2 MB layer again
-although the person is typing in a ten-line `local.dta`. A language server, a watch-mode CI
+`default.dta`, a check takes 100 to 200 ms, reading the 2 MB layer again each time although
+the person is typing in a ten-line `local.dta` (how much of it is the read alone is not
+measured; a check stopped early by a syntax error in it took about 50 ms). A language server, a watch-mode CI
 checker, or an agent checking each of its edits pays this on every change. Games reload by
 file already (`reload()`); a tool that hands Baker the text of open editors through a reader
 has no file times to go by.
