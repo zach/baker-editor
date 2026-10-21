@@ -149,7 +149,7 @@ what they take.
 
 D1 first: every later step is checked by it. D2 and D3 each wait on a Baker note; their notes
 can go together at the start, and the steps follow when a release has them. D4 and D5 need
-nothing from Baker. D6 last, once D1 has proven what is published.
+nothing from Baker. D6 last, once D1 has proven what is published, and not before Baker reaches 1.0.
 
 | Step | Baker | Status |
 |---|---|---|
@@ -158,4 +158,4 @@ nothing from Baker. D6 last, once D1 has proven what is published.
 | D3 Method calls and the game's types | a note: types and methods from a description | |
 | D4 Live values that follow the game | a note: the config's epoch on the console | |
 | D5 Running scenarios on what is in the editor | none | |
-| D6 Published | none; the owner's accounts | |
+| D6 Published | none; the owner's accounts | Waits for Baker 1.0 (the owner's call) |

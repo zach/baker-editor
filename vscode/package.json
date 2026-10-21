@@ -110,6 +110,7 @@
   "scripts": {
     "compile": "tsc -p . --noEmit && esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node --target=node18 && esbuild src/project.ts src/views.ts src/sim.ts --outdir=out --format=cjs --platform=node",
     "test": "node test/grammar.test.js && node test/project.test.js && node test/views.test.js && node test/sim.test.js",
+    "integration": "node test/integration/run.js",
     "package": "vsce package --no-dependencies",
     "bundle-server": "node -e \"const fs=require('fs'),p=require('path');const exe=process.platform==='win32'?'baker-lsp.exe':'baker-lsp';fs.mkdirSync('server',{recursive:true});fs.copyFileSync(p.join(process.argv[1]||'../build/server',exe),p.join('server',exe));fs.chmodSync(p.join('server',exe),0o755)\""
   },
@@ -119,10 +120,12 @@
   "devDependencies": {
     "@types/node": "20.14.10",
     "@types/vscode": "1.90.0",
+    "@vscode/test-electron": "2.4.1",
     "@vscode/vsce": "3.2.1",
+    "esbuild": "0.23.1",
+    "mocha": "10.7.3",
     "typescript": "5.6.3",
     "vscode-oniguruma": "2.0.1",
-    "vscode-textmate": "9.1.0",
-    "esbuild": "0.23.1"
+    "vscode-textmate": "9.1.0"
   }
 }

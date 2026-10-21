@@ -40,6 +40,30 @@ jobs:
       - run: npm test
       - run: npx vsce package --no-dependencies
 
+  # The extension inside VS Code (plan D1): a pinned VS Code, headless, against the server
+  # built here and a copy of the server's test project.
+  vscode-integration:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the server
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --target baker-lsp
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/cache@v4
+        with:
+          path: vscode/.vscode-test
+          key: vscode-test-1.90.2
+      - name: Run the integration tests
+        working-directory: vscode
+        run: |
+          npm ci
+          npm run compile
+          xvfb-run -a npm run integration
+
   tree-sitter:
     runs-on: ubuntu-24.04
     defaults:

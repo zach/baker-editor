@@ -13,6 +13,8 @@ import {outcomes, simArgs, SimResults, Suite, toolFor} from "./sim";
 export class Scenarios {
     private readonly controller = vscode.tests.createTestController("baker", "Baker scenarios");
     private readonly suites = new Map<string, Suite>();  // by the project item's id
+    // Each scenario's last verdict, by its item's id: passed, failed, errored or skipped.
+    readonly verdicts = new Map<string, string>();
 
     constructor(private readonly client: () => LanguageClient | undefined,
                 context: vscode.ExtensionContext) {
@@ -58,6 +60,20 @@ export class Scenarios {
         this.controller.items.replace(items);
     }
 
+    // The scenarios listed, by their items' ids.
+    ids(): string[] {
+        const out: string[] = [];
+        this.controller.items.forEach((p) => p.children.forEach((s) => out.push(s.id)));
+        return out;
+    }
+
+    // Runs every scenario, as the test view's Run All does.
+    async runAll(): Promise<void> {
+        const cancel = new vscode.CancellationTokenSource();
+        await this.run(new vscode.TestRunRequest(), cancel.token);
+        cancel.dispose();
+    }
+
     private async run(request: vscode.TestRunRequest,
                       token: vscode.CancellationToken): Promise<void> {
         const run = this.controller.createTestRun(request);
@@ -85,7 +101,10 @@ export class Scenarios {
                 const why = new vscode.TestMessage(
                     "No game binary to run: name it in the project file, (tool \"build/bin/game\"), " +
                     "or set baker.sim.tool.");
-                for (const item of items) run.errored(item, why);
+                for (const item of items) {
+                    run.errored(item, why);
+                    this.verdicts.set(item.id, "errored");
+                }
                 continue;
             }
             for (const item of items) run.started(item);
@@ -105,12 +124,16 @@ export class Scenarios {
             if (!results || code === 2) {
                 const why = new vscode.TestMessage(
                     `${path.basename(tool)} could not run (exit ${code}): ${stderr.trim() || stdout.trim()}`);
-                for (const item of items) run.errored(item, why);
+                for (const item of items) {
+                    run.errored(item, why);
+                    this.verdicts.set(item.id, "errored");
+                }
                 continue;
             }
             const verdicts = outcomes(results);
             for (const item of items) {
                 const o = verdicts.get(item.label);
+                this.verdicts.set(item.id, !o ? "skipped" : o.passed ? "passed" : "failed");
                 if (!o) {
                     run.skipped(item);
                 } else if (o.passed) {

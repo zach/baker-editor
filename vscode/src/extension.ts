@@ -86,7 +86,12 @@ function serverPath(context: vscode.ExtensionContext): string {
     return fs.existsSync(bundled) ? bundled : exe;
 }
 
-export async function activate(context: vscode.ExtensionContext): Promise<void> {
+// What activate gives back: for the integration tests, which drive the test view.
+export interface Api {
+    scenarios: Scenarios;
+}
+
+export async function activate(context: vscode.ExtensionContext): Promise<Api> {
     context.subscriptions.push(vscode.workspace.onDidOpenTextDocument(claim));
     for (const doc of vscode.workspace.textDocuments) await claim(doc);
 
@@ -135,6 +140,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     await client.start();
     const scenarios = new Scenarios(() => client, context);
     void scenarios.discover();
+    return {scenarios};
 }
 
 export async function deactivate(): Promise<void> {
