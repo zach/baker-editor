@@ -1,0 +1,161 @@
+# Plan D: the editor support, proven and finished
+
+Plans B and C are built (`README.md`, `dev/features-plan.md`), each step a first pass, on
+Baker 0.3.0. This round turns the first passes into something a person can rely on: it runs
+the extension where people use it, closes the gaps the README lists under *Limits of this
+pass*, and gets the extension and grammar to the people who would use them. Each step names
+what it needs from Baker; a need goes as a requirement note, as before.
+
+## D1. Run it in VS Code
+
+**Why:** CI tests the server and the extension's logic in Node, and every feature has been
+tried from the shell client, but the extension has never run inside VS Code. The test view,
+color picker, code lenses, inlays, virtual documents and code actions are each a contract
+with VS Code that only VS Code can check.
+
+**What:**
+- Integration tests with `@vscode/test-electron` (VS Code's own harness), in a CI job that
+  downloads a pinned VS Code and runs headless (`xvfb-run`) on Linux, against the test
+  project and the server built in the same job:
+  - a `.dta` under a project gets the language `baker`; one elsewhere does not;
+  - a syntax error and a shape error show as diagnostics;
+  - hover, completion (a field's value snippet, a `one_of` list), go-to-definition across
+    layers, rename;
+  - an override's inlay hint and its faded shadowed value;
+  - a color swatch, and the picker's rewrite;
+  - **Show the merged stack** and **Show what a layer changes** open, and definition from them
+    jumps to the file;
+  - the test view lists the project's scenarios and runs one against a small fake game
+    binary written for the test (it prints a fixed `baker.sim/1`), failing and passing.
+- A manual pass by the owner on Windows, with the stacks, from a checklist in the README:
+  what CI cannot see (how it looks, how fast it feels on Duel's 2 MB file).
+
+**Acceptance:** the job is green on every push; the checklist is done once and its findings
+fixed or recorded.
+
+**Effort:** about three days.
+
+## D2. The game's tweaks, checked by Baker
+
+**Why:** Baker 0.3.0's `check_tweaks(root, registry)` holds the data to the game's tweaks:
+a value of the wrong type, outside its range or `one_of`, a tweak the data never sets, and a
+misspelled key beside a group's tweaks. The server already warns on tweak ranges itself
+(`hints.cpp`), a second copy of a rule Baker now owns.
+
+**What:** the server builds a registry from the reference's tweaks and runs `check_tweaks`
+with every check, in place of its own range warnings; its errors are errors, as the game's
+`check` reports them, and its warnings are warnings, located.
+
+**Baker:** `check_tweaks` reads registered `Tweak<T>` objects. The server can make those for
+Baker's own types (`int32`, `float32`, `bool`, `symbol`, `string`), but not for a game's own
+(`vec2`), whose tweaks would be left out. One requirement note: registering a tweak from its
+description (`baker.tweaks/1.1`: path, type name, default, metadata), as `Context::declare`
+does for functions (note 0003), so a tool holds data to every tweak without the game's code.
+Until then, the basic types alone, and the rest by the server's range rule.
+
+**Acceptance:** in Duel, `(buffer 50)` is the same error in the editor as in `stacks_duel
+check`; a misspelled key under `(duel ...)` is a warning; the server's own range rule is gone
+for every tweak Baker checks.
+
+**Effort:** about two days here, plus one Baker note.
+
+## D3. Method calls and the game's types
+
+**Why:** the first two limits the README lists. A call on an object the game names
+(`{clock thread_task ...}`) is not checked at all, and a parameter of the game's own type
+takes any value: `Context::declare` declares functions only.
+
+**What:** with Baker's help, the server declares the reference's types and their methods, so
+`check` counts a method call's arguments and types its literal ones, and a literal of the
+wrong shape for a game type (a `vec2` given one number) is an error. Hover and completion on
+a method (after `{clock `) come from the same declarations.
+
+**Baker:** one requirement note: declaring a type with its methods from the reference's
+description, and checking a call on a named object against them, at no cost to a game.
+
+**Acceptance:** in a stack with a named object, a method call with the wrong argument count is
+an error in the editor and in the game's `check`; completion after `{clock ` offers its
+methods.
+
+**Effort:** about two days here, after the Baker note.
+
+## D4. Live values that follow the game
+
+**Why:** live inlay hints are asked for when the editor scrolls or the text changes, not
+when the game changes a value, and one console port serves the whole workspace, so two games
+running at once cannot both be live.
+
+**What:**
+- while live inlays are on and a game answers, the server asks it at most once a second
+  whether its live edits changed, and refreshes the inlays (`workspace/inlayHint/refresh`)
+  when they did; nothing is asked while no game answers;
+- the console port per project: the project file's, if Baker gives it one, else a setting
+  mapping a project directory to a port.
+
+**Baker:** the console has no cheap "has anything changed" question: `Config::epoch()` moves
+on every live edit, but no command reports it. One requirement note: a `config.epoch` command
+(or the epoch in every reply), and optionally `(console 4555)` in the project file for tools.
+Until then, `{config.unsaved}` once a second, which is one reply per poll.
+
+**Acceptance:** with Duel running and live inlays on, `{config.set fighters.kestrel.health
+1234}` from the console shows `live 1234` in the open `default.dta` within about a second,
+with no edit or scroll; with two stacks running on two ports, each file's hover is its own
+game's.
+
+**Effort:** about two days.
+
+## D5. Running scenarios on what is in the editor
+
+**Why:** a scenario run reads the saved files, so a person tuning a value must save before
+each run, and a run after an unsaved edit silently tests the old value.
+
+**What:** before a run, if a file of that project has unsaved changes, the test view asks:
+save them and run, or run the saved files. A setting makes the answer stick (`baker.sim.save`:
+`ask`, `always`, `never`). The run's output says which files it read.
+
+**Baker:** none for this. (Running a game on unsaved text would need the game to read its
+files through the editor; the kit's `CommandHooks::reader` makes that possible in-process,
+not across a process boundary. Not proposed.)
+
+**Acceptance:** with an unsaved edit that breaks an objective, running asks first, and "save
+and run" fails the scenario; "never" runs the saved files and says so.
+
+**Effort:** half a day.
+
+## D6. Published
+
+**Why:** today the extension is a `.vsix` built by hand, and the tree-sitter grammar is set up
+by hand in each editor. Nobody outside this repository can install either.
+
+**What:**
+- the extension on the VS Code Marketplace and Open VSX, under the owner's publisher, with
+  the server bundled per platform (Windows x64, Linux x64, macOS arm64 and x64) from CI, and
+  a release job that publishes on a tag;
+- the tree-sitter grammar proposed to nvim-treesitter, Helix's `languages.toml`, and as a Zed
+  extension, each with its queries;
+- a short user guide in the README: install, open a project, what each feature does.
+
+**Owner's decisions:** the publisher name and account, the extension's name and icon, the
+license text shown, and whether to submit to each registry. Every publish and every
+submission to another project is the owner's to approve, one at a time.
+
+**Acceptance:** `code --install-extension` from the Marketplace gives a working extension on
+Windows and Linux with no build; each grammar submission is open or merged.
+
+**Effort:** about three days, most of it CI for four platforms; the registries' reviews take
+what they take.
+
+## Order and status
+
+D1 first: every later step is checked by it. D2 and D3 each wait on a Baker note; their notes
+can go together at the start, and the steps follow when a release has them. D4 and D5 need
+nothing from Baker. D6 last, once D1 has proven what is published.
+
+| Step | Baker | Status |
+|---|---|---|
+| D1 Run it in VS Code | none | Next |
+| D2 The game's tweaks, checked by Baker | a note: tweaks from a description | |
+| D3 Method calls and the game's types | a note: types and methods from a description | |
+| D4 Live values that follow the game | a note: the config's epoch on the console | |
+| D5 Running scenarios on what is in the editor | none | |
+| D6 Published | none; the owner's accounts | |

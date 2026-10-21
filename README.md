@@ -18,6 +18,10 @@ Plan C (`dev/features-plan.md`), one step at a time: outline and rename, which l
 the text, evaluating in the running game, the merged stack, value hints, and scenarios as
 tests are done (first passes, below).
 
+Plan D (`dev/next-plan.md`) is next: running the extension inside VS Code in CI, the game's
+tweaks checked by Baker, method calls and game types, live values that follow the game,
+scenarios run on unsaved text, and publishing the extension and the grammar.
+
 ## The VS Code extension
 
 `vscode/` is the extension: a TextMate grammar for highlighting, and a client that starts
