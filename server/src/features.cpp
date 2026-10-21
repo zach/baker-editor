@@ -133,10 +133,25 @@ std::optional<Hover> hover(std::string_view text, size_t offset, const Loaded& l
         if (std::find(reference.objects.begin(), reference.objects.end(), c.token) !=
             reference.objects.end()) {
             h.markdown = "object `" + c.token + "`, which the game names";
+            if (const auto t = reference.object_types.find(c.token);
+                t != reference.object_types.end()) {
+                h.markdown += ": a `" + t->second + "`";
+                const std::vector<const FunctionInfo*> methods = methods_of(reference, c.token);
+                for (size_t i = 0; i < methods.size(); ++i)
+                    h.markdown += (i ? ", `" : "\n\nmethods: `") + methods[i]->name + "`";
+            }
             return h;
         }
         return std::nullopt;
     }
+    // A method, in a call on one of the game's objects: {scheduler delay_task ...}.
+    if (!c.stack.empty() && c.stack.back().open == '{' && c.index == 1)
+        for (const FunctionInfo* m : methods_of(reference, c.stack.back().tag))
+            if (m->name == c.token) {
+                h.markdown = function_markdown(*m) + "\n\nmethod of `" +
+                             reference.object_types.at(c.stack.back().tag) + "`";
+                return h;
+            }
     if (const Definition* d = defined(loaded.macros, c.token)) {
         h.markdown =
             "macro `" + d->name + "`, defined at " + where(baker::Symbol(d->file), d->line);
@@ -388,6 +403,19 @@ Completions complete(std::string_view text, size_t offset, const Loaded& loaded,
         if (item.label.compare(0, typed.size(), typed) == 0) out.items.push_back(std::move(item));
     };
 
+    // The method of a call on one of the game's objects: its type's methods.
+    if (!c.stack.empty() && c.stack.back().open == '{' && c.index == 1) {
+        const std::vector<const FunctionInfo*> methods = methods_of(reference, c.stack.back().tag);
+        if (!methods.empty()) {
+            for (const FunctionInfo* m : methods) {
+                if (m->status == "deprecated") continue;
+                offer({m->name, Kind::Method,
+                       m->signatures.empty() ? std::string() : m->signatures.front(),
+                       function_markdown(*m)});
+            }
+            return out;
+        }
+    }
     if (!c.stack.empty() && c.index == 0) {
         const Frame& inner = c.stack.back();
         if (inner.open == '{') {  // a command: functions, script functions, objects

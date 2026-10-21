@@ -104,6 +104,29 @@ void read_tweaks(const nlohmann::json& doc, Reference& out) {
 
 }  // namespace
 
+std::vector<const FunctionInfo*> methods_of(const Reference& r, const std::string& object) {
+    std::vector<const FunctionInfo*> out;
+    const auto type = r.object_types.find(object);
+    if (type == r.object_types.end()) return out;
+    std::vector<std::string> todo{type->second}, seen;
+    while (!todo.empty()) {  // the type, then its bases, each once
+        const std::string name = todo.front();
+        todo.erase(todo.begin());
+        if (std::find(seen.begin(), seen.end(), name) != seen.end()) continue;
+        seen.push_back(name);
+        for (const TypeInfo& t : r.types) {
+            if (t.name != name) continue;
+            for (const FunctionInfo& m : t.methods) {
+                const bool shadowed = std::any_of(
+                    out.begin(), out.end(), [&m](const auto* o) { return o->name == m.name; });
+                if (!shadowed) out.push_back(&m);
+            }
+            todo.insert(todo.end(), t.bases.begin(), t.bases.end());
+        }
+    }
+    return out;
+}
+
 const TweakInfo* tweak_at(const Reference& r, const std::vector<std::string>& tags) {
     for (const TweakInfo& t : r.tweaks)
         if (t.tags == tags) return &t;
@@ -164,8 +187,27 @@ bool load_reference(baker::Context& ctx, const std::string& path, Reference& out
         if (d.widened) ++out.widened;
     }
     for (const nlohmann::json& o : doc.value("objects", nlohmann::json::array()))
-        if (o.is_object() && !o.value("name", "").empty())
+        if (o.is_object() && !o.value("name", "").empty()) {
             out.objects.push_back(o.value("name", ""));
+            if (!o.value("type", "").empty()) out.object_types[o.value("name", "")] = o["type"];
+        }
+    for (const nlohmann::json& t : doc.value("types", nlohmann::json::array())) {
+        if (!t.is_object() || t.value("name", "").empty()) continue;
+        TypeInfo& type = out.types.emplace_back();
+        type.name = t.value("name", "");
+        for (const nlohmann::json& b : t.value("bases", nlohmann::json::array()))
+            if (b.is_string()) type.bases.push_back(b.get<std::string>());
+        for (const nlohmann::json& m : t.value("methods", nlohmann::json::array())) {
+            if (!m.is_object() || m.value("name", "").empty()) continue;
+            FunctionInfo& info = type.methods.emplace_back();
+            info.name = m.value("name", "");
+            info.doc = m.value("doc", "");
+            info.status = m.value("status", "normal");
+            info.tier = "native";
+            for (const nlohmann::json& o : m.value("overloads", nlohmann::json::array()))
+                info.signatures.push_back(signature(type.name + " " + info.name, o));
+        }
+    }
     return true;
 }
 

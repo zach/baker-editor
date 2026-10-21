@@ -33,6 +33,7 @@ std::optional<Hover> hover(std::string_view text, size_t offset, const Loaded& l
 
 // LSP's CompletionItemKind values for what completion offers.
 enum class Kind {
+    Method = 2,
     Function = 3,
     Field = 5,
     Variable = 6,

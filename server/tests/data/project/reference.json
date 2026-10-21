@@ -117,7 +117,103 @@
     ]
    }
   ],
-  "types": [],
+  "types": [
+   {
+    "name": "Scheduler",
+    "bases": [
+     "Ticker"
+    ],
+    "methods": [
+     {
+      "name": "delay_task",
+      "status": "normal",
+      "replacement": "",
+      "doc": "Runs `body` once, `t` units from now.",
+      "message": "",
+      "overloads": [
+       {
+        "params": [
+         {
+          "type": "float",
+          "kind": "value",
+          "raw": false
+         },
+         {
+          "type": "values...",
+          "kind": "rest",
+          "raw": false
+         }
+        ],
+        "result": "value",
+        "min_args": 1,
+        "max_args": 2
+       }
+      ]
+     },
+     {
+      "name": "cancel",
+      "status": "normal",
+      "replacement": "",
+      "doc": "Ends a task.",
+      "message": "",
+      "overloads": [
+       {
+        "params": [
+         {
+          "type": "int",
+          "kind": "value",
+          "raw": false
+         }
+        ],
+        "result": "nothing",
+        "min_args": 1,
+        "max_args": 1
+       }
+      ]
+     }
+    ],
+    "properties": [],
+    "handlers": []
+   },
+   {
+    "name": "Ticker",
+    "bases": [],
+    "methods": [
+     {
+      "name": "cancel",
+      "status": "normal",
+      "replacement": "",
+      "doc": "The base's cancel, which Scheduler's replaces.",
+      "message": "",
+      "overloads": [
+       {
+        "params": [],
+        "result": "nothing",
+        "min_args": 0,
+        "max_args": 0
+       }
+      ]
+     },
+     {
+      "name": "tick",
+      "status": "normal",
+      "replacement": "",
+      "doc": "Steps once.",
+      "message": "",
+      "overloads": [
+       {
+        "params": [],
+        "result": "nothing",
+        "min_args": 0,
+        "max_args": 0
+       }
+      ]
+     }
+    ],
+    "properties": [],
+    "handlers": []
+   }
+  ],
   "script_classes": [],
   "globals": [],
   "packs": [],

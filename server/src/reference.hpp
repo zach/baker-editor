@@ -4,6 +4,7 @@
 // check to count and type a call's arguments against, and learns the objects the game names.
 #include <baker/script.hpp>
 
+#include <map>
 #include <string>
 #include <vector>
 
@@ -18,6 +19,13 @@ struct FunctionInfo {
     std::string tier;    // native or script
     std::string file;    // where a script function is defined; empty for a native one
     int line = 0;
+};
+
+// A type of the game's, with the methods a call on its objects may name.
+struct TypeInfo {
+    std::string name;
+    std::vector<std::string> bases;
+    std::vector<FunctionInfo> methods;  // signatures written {Type method params...}
 };
 
 // A tweak of the game's (baker.tweaks/1): a constant its code reads from the data.
@@ -41,11 +49,17 @@ struct Reference {
     // Functions with a parameter of a type Context::declare does not know, one of the game's
     // own: declared with it taking any value.
     int widened = 0;
-    std::vector<std::string> failed;   // functions that could not be declared at all
-    std::vector<std::string> objects;  // the objects the game names, such as clock
-    std::vector<FunctionInfo> all;     // every function the reference lists, Baker's too
-    std::vector<TweakInfo> tweaks;     // from the stacks' {reference, tweaks, shapes}
+    std::vector<std::string> failed;                  // functions that could not be declared at all
+    std::vector<std::string> objects;                 // the objects the game names, such as clock
+    std::map<std::string, std::string> object_types;  // each object's type, as types names it
+    std::vector<TypeInfo> types;
+    std::vector<FunctionInfo> all;  // every function the reference lists, Baker's too
+    std::vector<TweakInfo> tweaks;  // from the stacks' {reference, tweaks, shapes}
 };
+
+// The methods a call on `object` may name: its type's, then its bases', or none if the
+// object or its type is unknown.
+std::vector<const FunctionInfo*> methods_of(const Reference& r, const std::string& object);
 
 // The tweak at the data path `tags`, or null.
 const TweakInfo* tweak_at(const Reference& r, const std::vector<std::string>& tags);

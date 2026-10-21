@@ -112,7 +112,9 @@ beside the value in the data (`(buffer 5 (range 1 20) (desc ...))`), the game's 
 path (its type, code default, range, whether the data sets it, and whether it is dev only), and
 every layer that contributes to it from the files, with its value, file and line, and which
 one wins (`Config::explain`). On a command's head it shows the function's signatures and doc
-from the game's reference; on a macro or a script function, where it is defined.
+from the game's reference; on a macro or a script function, where it is defined; on an
+object the game names, its type and methods, and on a method of a call on it (`{scheduler
+delay_task ...}`), its signatures and doc, from the reference's `types`.
 
 **Completion** offers, where the cursor is:
 
@@ -122,7 +124,8 @@ from the game's reference; on a macro or a script function, where it is defined.
   `(health` in `local.dta` writes `(health 1000`), else the tweak's code default, else the
   middle of its range, else its type's zero;
 - naming a command (after `{`): the game's functions with their signatures, the data's
-  script functions, and the objects the game names;
+  script functions, and the objects the game names; after an object (`{scheduler `), its
+  type's methods and its bases', with their signatures;
 - a symbol field's value: the symbols its shape field or tweak allows, `(one_of ...)`, in the
   order declared (in Duel, `(button ` offers `light heavy kick special`, and `check` reports
   `(button lite)`); for a field with no list, the values the project's files give it, most
@@ -333,9 +336,9 @@ tools/lsp_client.py --replace data/default.dta "(health 1000)" "(health 0)" -- b
 
 ### Limits of this pass
 
-- Method calls are not checked: the reference describes the game's types and their methods,
-  but `Context::declare` declares functions only. Calls on the objects the game names are not
-  reported as undefined.
+- Method calls are not checked, only offered and described: `Context::declare` declares
+  functions, not the game's types and methods (`requirements/0018`). Calls on the objects the
+  game names are not reported as undefined.
 - A parameter of a type of the game's own takes any value: `Context::declare` knows Baker's
   types, not the game's.
 - Live values come from one console port for the whole workspace, and their inlay hints
