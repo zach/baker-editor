@@ -79,6 +79,11 @@ private:
     nlohmann::json execute(const nlohmann::json& params);
     nlohmann::json inlay_hints(const nlohmann::json& params);
     nlohmann::json code_lenses(const nlohmann::json& params);
+    // baker/scenarios: the project's scenarios and objectives, and the binary that runs them.
+    nlohmann::json scenarios(const nlohmann::json& params, std::string& error);
+    // baker/simResults: a run's results (baker.sim/1), whose failures are published with the
+    // project's problems until those scenarios run again.
+    void sim_results(const nlohmann::json& params);
     // A swatch on each value Baker calls a color, and the text a picked color writes.
     nlohmann::json document_colors(const nlohmann::json& params);
     nlohmann::json color_presentations(const nlohmann::json& params);
@@ -122,6 +127,8 @@ private:
         std::string label, tooltip;
     };
     std::map<std::string, std::vector<Evaluated>> evaluated_;
+    // What the last run of each scenario found: project file -> scenario -> problems.
+    std::map<std::string, std::map<std::string, std::vector<Problem>>> sim_;
     bool refresh_inlays_ = false;  // the client takes workspace/inlayHint/refresh
     int next_request_ = 1;         // the id of our next request to the client
     std::optional<Clock::time_point> due_;

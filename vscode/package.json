@@ -64,6 +64,11 @@
           "maximum": 65535,
           "description": "The running game's console on 127.0.0.1, for live values in hover and \"Write the live value here\". 0: none."
         },
+        "baker.sim.tool": {
+          "type": "string",
+          "default": "",
+          "description": "The game binary that runs a project's scenarios (`sim`), when its project file names none with (tool ...). Relative to the project's directory; ${project} is that directory's name, as in /path/to/build/bin/stacks_${project}."
+        },
         "baker.live.inlays": {
           "type": "boolean",
           "default": false,
@@ -103,8 +108,8 @@
     ]
   },
   "scripts": {
-    "compile": "tsc -p . --noEmit && esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node --target=node18 && esbuild src/project.ts src/views.ts --outdir=out --format=cjs --platform=node",
-    "test": "node test/grammar.test.js && node test/project.test.js && node test/views.test.js",
+    "compile": "tsc -p . --noEmit && esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node --target=node18 && esbuild src/project.ts src/views.ts src/sim.ts --outdir=out --format=cjs --platform=node",
+    "test": "node test/grammar.test.js && node test/project.test.js && node test/views.test.js && node test/sim.test.js",
     "package": "vsce package --no-dependencies",
     "bundle-server": "node -e \"const fs=require('fs'),p=require('path');const exe=process.platform==='win32'?'baker-lsp.exe':'baker-lsp';fs.mkdirSync('server',{recursive:true});fs.copyFileSync(p.join(process.argv[1]||'../build/server',exe),p.join('server',exe));fs.chmodSync(p.join('server',exe),0o755)\""
   },

@@ -13,6 +13,7 @@ add_library(baker_lsp_core STATIC
   src/live.cpp
   src/merged.cpp
   src/hints.cpp
+  src/scenarios.cpp
   src/outline.cpp
   src/net.cpp
   src/positions.cpp
@@ -47,6 +48,7 @@ if(BAKER_EDITOR_BUILD_TESTS)
     tests/test_live.cpp
     tests/test_merged.cpp
     tests/test_hints.cpp
+    tests/test_scenarios.cpp
     tests/test_outline.cpp
     tests/test_positions.cpp
     tests/test_scan.cpp

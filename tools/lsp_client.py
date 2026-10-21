@@ -8,7 +8,7 @@
                      [--outline FILE] [--references FILE LINE COL]
                      [--inlays FILE FIRST LAST] [--run FILE LINE COL TITLE]
                      [--merged FILE] [--layer-effect FILE LAYER] [--lenses FILE]
-                     [--colors FILE]
+                     [--colors FILE] [--sim FILE TOOL]
                      -- baker-lsp ARGS...
 
 Starts the server, opens each --open file (with its edit, if --replace names it; with TEXT
@@ -17,7 +17,10 @@ one a line as file:line:col: severity: message, then each hover's markdown and e
 completion's labels (LINE and COL 1-based, COL in characters), each inlay hint on lines
 FIRST to LAST, and shuts the server down. --run runs the code action TITLE there, such as
 "Evaluate in the game", and prints the file's inlay hints after it. --merged and
---layer-effect print the views of FILE's project (baker/merged, baker/layerEffect).
+--layer-effect print the views of FILE's project (baker/merged, baker/layerEffect). --sim
+lists FILE's project's scenarios (baker/scenarios), runs them with TOOL (the project's own
+tool if it names one) as the editor's test view does, prints each verdict, and gives the
+results to the server (baker/simResults), whose diagnostics are then printed.
 Exit status: 1 if any error was published, else 0.
 """
 import json
@@ -88,6 +91,11 @@ def main(argv):
             asks.append(("merged", opts[i + 1], 0, 0))
             opens.append(opts[i + 1])
             i += 2
+        elif opts[i] == "--sim":
+            asks.append(("sim", opts[i + 1], 0, 0))
+            titles[len(asks) - 1] = opts[i + 2]
+            opens.append(opts[i + 1])
+            i += 3
         elif opts[i] == "--colors":
             asks.append(("colors", opts[i + 1], 0, 0))
             opens.append(opts[i + 1])
@@ -149,7 +157,11 @@ def main(argv):
                                     "apply": "codeAction", "outline": "documentSymbol",
                                     "references": "references", "inlays": "inlayHint",
                                     "run": "codeAction", "lenses": "codeLens", "colors": "documentColor",
-                                    "merged": "", "layer-effect": ""}[what]
+                                    "merged": "", "layer-effect": "", "sim": ""}[what]
+        if what == "sim":
+            send(proc, {"jsonrpc": "2.0", "id": 100 + n, "method": "baker/scenarios",
+                        "params": {"uri": uri(path)}})
+            continue
         if what in ("merged", "layer-effect"):
             send(proc, {"jsonrpc": "2.0", "id": 100 + n,
                         "method": "baker/merged" if what == "merged" else "baker/layerEffect",
@@ -171,6 +183,36 @@ def main(argv):
                 if "BAKER_LSP_TIMES" in os.environ:
                     print(f"time {m['id']}: {(time.time() - sent_at[m['id']]) * 1000:.0f} ms",
                           file=sys.stderr)
+    # --sim: run the suite with the game's binary, and hand the server the results.
+    for n, (what, path, line, col) in enumerate(asks):
+        suite = answers.get(100 + n)
+        if what != "sim" or not suite:
+            continue
+        tool = suite["tool"] or os.path.join(suite["directory"], titles[n])
+        names = [s["name"] for s in suite["scenarios"]]
+        args = [tool, "sim"] + [a for name in names for a in ("--scenario", name)] + ["--json"]
+        started = time.time()
+        done = subprocess.run(args, cwd=suite["directory"], capture_output=True, text=True)
+        print(f"--- sim: {len(names)} scenarios, exit {done.returncode}, "
+              f"{(time.time() - started) * 1000:.0f} ms")
+        results = json.loads(done.stdout)
+        verdict = {name: True for name in names}
+        for run in results.get("runs", []):
+            failed = not run["passed"] or any(
+                o["over"] == "seed" and not o["pass"] for o in run.get("objectives", []))
+            verdict[run["scenario"]] = verdict.get(run["scenario"], True) and not failed
+        for m in results.get("medians", []):
+            verdict[m["scenario"]] = verdict.get(m["scenario"], True) and m["pass"]
+        for name in names:
+            print(f"  {'passed' if verdict.get(name) else 'FAILED'}  {name}")
+        seen = len(messages)
+        send(proc, {"jsonrpc": "2.0", "method": "baker/simResults",
+                    "params": {"uri": suite["project"], "results": results}})
+        deadline = time.time() + 2  # until the diagnostics it brings are published
+        while time.time() < deadline and not any(
+                m.get("method") == "textDocument/publishDiagnostics" for m in messages[seen:]):
+            time.sleep(0.02)
+        time.sleep(0.2)
     # --apply: run the first code action's command; --run, the one titled.
     for n, (what, path, line, col) in enumerate(asks):
         actions = answers.get(100 + n) or []
@@ -238,7 +280,7 @@ def main(argv):
             continue
         if what == "run":
             continue
-        if what == "run":
+        if what in ("run", "sim"):
             continue
         if what in ("merged", "layer-effect"):
             error = next((m["error"]["message"] for m in messages

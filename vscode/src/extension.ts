@@ -9,6 +9,7 @@ import * as vscode from "vscode";
 import {LanguageClient, LanguageClientOptions, ServerOptions} from "vscode-languageclient/node";
 
 import {isBaker, PROJECT_FILE} from "./project";
+import {Scenarios} from "./tests";
 import {sourceAt, View, viewPath} from "./views";
 
 const VIEW_SCHEME = "baker-merged";
@@ -132,6 +133,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         vscode.commands.registerCommand("baker.evaluateHere", atCursor("baker.evaluate")),
         vscode.commands.registerCommand("baker.tryHere", atCursor("baker.try")));
     await client.start();
+    const scenarios = new Scenarios(() => client, context);
+    void scenarios.discover();
 }
 
 export async function deactivate(): Promise<void> {

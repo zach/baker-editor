@@ -7,6 +7,7 @@
 #include "positions.hpp"
 #include "reference.hpp"
 #include "scan.hpp"
+#include "scenarios.hpp"
 #include "structure.hpp"
 
 #include <baker/project.hpp>
@@ -178,6 +179,13 @@ void Server::request(const json& message) {
         reply["result"] = document_colors(message.value("params", json::object()));
     } else if (method == "textDocument/colorPresentation") {
         reply["result"] = color_presentations(message.value("params", json::object()));
+    } else if (method == "baker/scenarios") {
+        std::string error;
+        json result = scenarios(message.value("params", json::object()), error);
+        if (error.empty())
+            reply["result"] = std::move(result);
+        else
+            reply["error"] = {{"code", -32602}, {"message", error}};
     } else if (method == "textDocument/codeLens") {
         reply["result"] = code_lenses(message.value("params", json::object()));
     } else if (method == "textDocument/inlayHint") {
@@ -248,6 +256,9 @@ void Server::notification(const json& message, Clock::time_point now) {
             add(std::move(s));
         }
         schedule(now);
+    } else if (method == "baker/simResults") {
+        sim_results(params);
+        schedule(now);  // publish them
     } else if (method == "textDocument/didSave") {
         schedule(now);
     }
@@ -865,6 +876,56 @@ json Server::inlay_hints(const json& params) {
     return out;
 }
 
+namespace {
+
+json declared_json(const Declared& d, const std::function<std::string(const std::string&)>& uri) {
+    return {{"name", d.name}, {"uri", uri(d.file)},         {"line", d.line - 1},
+            {"desc", d.desc}, {"objectives", d.objectives}, {"median", d.median}};
+}
+
+}  // namespace
+
+json Server::scenarios(const json& params, std::string& error) {
+    const std::string path = canonical_path(path_from_uri(params.value("uri", std::string())));
+    Checked* c = project_of(path);
+    if (!c || c->setup.project.empty()) {
+        error = "no project file governs " + path;
+        return nullptr;
+    }
+    Suite suite;
+    if (!read_suite(c->setup.project, buffers_, suite, error)) return nullptr;
+    const auto uri = [this](const std::string& f) { return uri_for(f); };
+    json out = {{"project", uri_for(suite.project)},
+                {"directory", parent_of(suite.project)},
+                {"tool", suite.tool},
+                {"scenarios", json::array()},
+                {"objectives", json::array()}};
+    for (const Declared& d : suite.scenarios) out["scenarios"].push_back(declared_json(d, uri));
+    for (const Declared& d : suite.objectives) out["objectives"].push_back(declared_json(d, uri));
+    return out;
+}
+
+void Server::sim_results(const json& params) {
+    const std::string path = canonical_path(path_from_uri(params.value("uri", std::string())));
+    Checked* c = project_of(path);
+    const json results = params.value("results", json::object());
+    if (!c || c->setup.project.empty() || results.value("schema", "").rfind("baker.sim/1", 0) != 0)
+        return;
+    Suite suite;
+    std::string error;
+    if (!read_suite(c->setup.project, buffers_, suite, error)) return;
+    // Each scenario the results cover replaces what its last run found.
+    std::map<std::string, json> by_scenario;
+    for (const json& run : results.value("runs", json::array())) {
+        json& r = by_scenario[run.value("scenario", std::string())];
+        r["runs"].push_back(run);
+    }
+    for (const json& m : results.value("medians", json::array()))
+        by_scenario[m.value("scenario", std::string())]["medians"].push_back(m);
+    auto& found = sim_[c->setup.project];
+    for (const auto& [scenario, part] : by_scenario) found[scenario] = sim_problems(part, suite);
+}
+
 json Server::view(const std::string& method, const json& params, std::string& error) {
     const std::string path = canonical_path(path_from_uri(params.value("uri", std::string())));
     Checked* c = project_of(path);
@@ -1031,7 +1092,12 @@ void Server::check_now() {
             hints_changed = hints_changed || !c.loaded || c.loaded->hints != d.loaded->hints;
             c.loaded = d.loaded;
         }
-        for (const Problem& p : d.problems) {
+        // What the last runs of the project's scenarios found, until each runs again.
+        std::vector<Problem> problems = d.problems;
+        if (const auto sim = sim_.find(key); sim != sim_.end())
+            for (const auto& [scenario, found] : sim->second)
+                problems.insert(problems.end(), found.begin(), found.end());
+        for (const Problem& p : problems) {
             if (p.file.empty()) {
                 log(p.severity == Severity::Error ? kLogError : kLogWarning, p.message);
                 continue;
@@ -1040,7 +1106,7 @@ void Server::check_now() {
             buffers_.read(p.file, text);
             json diagnostic = {{"range", to_json(problem_range(text, p.line, p.column, p.key))},
                                {"severity", static_cast<int>(p.severity)},
-                               {"source", "baker"},
+                               {"source", p.code == "sim" ? "baker sim" : "baker"},
                                {"code", p.code},
                                {"message", p.message}};
             if (p.unnecessary) diagnostic["tags"] = json::array({1 /* Unnecessary */});

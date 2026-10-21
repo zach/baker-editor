@@ -4,4 +4,6 @@
    (include_dirs "data")
    (layers
       (default "data/default.dta")
-      (local "data/local.dta" optional)))
+      (local "data/local.dta" optional))
+   (scenarios "scenarios")   ; what the game's sim runs
+   (objectives "metrics"))   ; what it judges them by

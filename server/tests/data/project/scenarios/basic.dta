@@ -1,0 +1,7 @@
+; The test project's scenarios.
+(scenario opening (desc "Two archers take the field")
+   (seconds 1)
+   (start {game.spawn archer 2})
+   (objectives units.alive))
+(scenario long
+   (seconds 2))

@@ -1,0 +1,7 @@
+; What the test project's scenarios are judged by.
+(objective units.alive (desc "Someone is left standing")
+   (measure {game.wait 1})
+   (pass {> $value 0}))
+(objective units.fair (over median)
+   (measure {game.wait 1})
+   (pass {< $value 9}))

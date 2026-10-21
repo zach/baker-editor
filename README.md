@@ -14,9 +14,9 @@ Baker's integration plans.
 | 6 | tree-sitter grammar | First pass: `tree-sitter-baker/` (registries not submitted) |
 | - | VS Code extension | First pass: below |
 
-Plan C (`dev/features-plan.md`) comes next, one step at a time: outline and rename, which
-layer wins in the text, evaluating in the running game, the merged stack, and value hints are
-done (first passes, below); scenarios as tests follow.
+Plan C (`dev/features-plan.md`), one step at a time: outline and rename, which layer wins in
+the text, evaluating in the running game, the merged stack, value hints, and scenarios as
+tests are done (first passes, below).
 
 ## The VS Code extension
 
@@ -170,6 +170,33 @@ Go-to-definition from any line of either view jumps to where its value is writte
 is the stack as it was when opened; open it again after an edit. The server answers the
 custom requests `baker/merged`, `baker/layerEffect` (`{uri, layer}`) and `baker/layers`
 with `{text, sources}`, for other editors to show the same way.
+
+## Scenarios as tests
+
+Each project's scenarios are tests in VS Code's test view: the project file's `(scenarios
+...)` and `(objectives ...)` (Baker's host kit), listed by the server (`baker/scenarios`), each
+with a run button on the line that declares it. A run starts the game's own binary, `sim
+--scenario NAME... --json`, in the project's directory, and reads its `baker.sim/1`:
+
+- a scenario passes when every run and every median it is judged by passed; one that failed
+  lists each objective that failed, with its value, linked to where the objective is
+  declared;
+- the extension hands the results to the server (`baker/simResults`), which shows each
+  failure as an error on the objective's name and on the scenario's, and a failed command
+  where it is written, until that scenario runs again.
+
+The binary is the project file's `(tool "build/bin/my_game")`, else the setting
+`baker.sim.tool`, relative to the project's directory, where `${project}` is the directory's
+name: Baker's stacks build theirs outside the project, so
+`/path/to/build-stacks/bin/stacks_${project}` runs each stack's own. The game reads the
+saved files.
+
+In Duel, all eight scenarios (in `sim/cpu.dta` and `sim/frames.dta`) run in 137 ms and pass.
+A jab doing 400 damage fails three: `frame_data` with `duel.combo_ceiling failed ... value
+2000 (No combo does more than 35% of a fighter's health)`, on `(objective duel.combo_ceiling`
+and on `(scenario frame_data`, and two of the CPU's win rates by their medians.
+
+`tools/lsp_client.py --sim FILE TOOL` does the same from a shell.
 
 ## Live values
 
@@ -334,7 +361,7 @@ requests about one frame (6–20 ms).
 
 ## Baker
 
-The server builds against a released Baker, `zach/baker` `v0.2.1`, through its public headers.
+The server builds against a released Baker, `zach/baker` `v0.3.0`, through its public headers.
 `-DBAKER_EDITOR_BAKER_DIR=PATH` builds against a local checkout instead. The stacks it is
 tried on come from Baker's development repository, `zach/baker-dev` (`stacks/`), which the
 release leaves out.

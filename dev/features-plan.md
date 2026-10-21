@@ -208,6 +208,13 @@ owner chose to ask Baker first (`requirements/0016`: the project file names the 
 and the scenario and objective files, the kit runs scenarios with a located Baker result
 schema) and build this step on that, so the editor is not tied to one game's convention.
 
+**As built (Baker 0.3.0):** the extension runs the game's binary itself, so a run is
+cancellable and the server never waits on a game; the server lists the suite
+(`baker/scenarios`) and turns results into diagnostics (`baker/simResults`). The test view's
+run buttons on each scenario's line stand for the plan's code lens. The stacks name no
+`(tool ...)`, as each developer builds them elsewhere, so the setting `baker.sim.tool`
+(with `${project}`) names it.
+
 ## Order and status
 
 | Step | Status |
@@ -217,4 +224,4 @@ schema) and build this step on that, so the editor is not tied to one game's con
 | C3 Evaluate in the running game | Done (first pass), Revert with Baker 0.2.0 |
 | C4 The merged stack, and what a layer changes | Done (first pass) |
 | C5 Completion that knows the values, and Baker's hints | Done (first pass), allowed symbols with Baker 0.2.1 |
-| C6 Scenarios and objectives as tests | Waits for Baker note 0016: a scenario runner and the tool binary |
+| C6 Scenarios and objectives as tests | Done (first pass), on Baker 0.3.0's sim |

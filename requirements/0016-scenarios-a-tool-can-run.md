@@ -44,9 +44,9 @@ like. A tool can only support one game's convention, and must be told where its 
 
 ## Today
 
-The editor's server cannot run scenarios: Baker 0.2.1 has no scenario runner, and the
-project file names no binary. Baker's stacks have their own (`sim`, with its own JSON), which
-the editor does not build on, so that it is not tied to one game's convention.
+Met by Baker 0.3.0: `(tool ...)`, `(scenarios ...)` and `(objectives ...)` in the project
+file, the host kit's `sim`, and `baker.sim/1`, located. The editor's test view runs Duel's
+eight scenarios with it and shows a failed objective on its declaration and its scenario.
 
 ## Not included
 
