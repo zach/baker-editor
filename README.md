@@ -42,8 +42,41 @@ Settings: `baker.server.path` (default: the bundled server, else `baker-lsp` on 
 hints, off by default). A rebuilt reference or an edited project file on disk is read
 again; **Baker: Restart the language server** restarts it.
 
-The extension's tests tokenize Baker text with the grammar and check which files it calls
-Baker's; it has not been run inside VS Code from CI, which cannot download VS Code here.
+The extension's unit tests (`npm test`) tokenize Baker text with the grammar, check which
+files it calls Baker's, and read views' and scenarios' results. Its integration tests run it
+inside the editor (`@vscode/test-electron`) on a copy of the server's test project, through
+the provider commands the editor itself uses: diagnostics, hover, completion, definition,
+rename, inlay hints and the faded shadowed value, the color picker, the merged and layer
+views, and the test view against a fake game binary. CI runs them in VSCodium 1.90.2; locally:
+
+```sh
+cmake --build build                                   # the server
+cd vscode && npm ci && npm run compile
+VSCODE_EXECUTABLE=/path/to/codium xvfb-run -a npm run integration   # or no VSCODE_EXECUTABLE:
+                                                                    # VS Code 1.90.2 is downloaded
+```
+
+They pass in about 4 seconds once the editor is up.
+
+### A manual pass
+
+What CI cannot see, done once per round by a person, on Windows, with Baker's stacks:
+
+1. Install the `.vsix`, open baker-dev's `stacks/`: every game's files are Baker's, highlighted,
+   and checked; a syntax error shows within about 200 ms of the keystroke.
+2. In Duel's `default.dta`: hover a fighter's `health` and a move's `button`; complete `(button `;
+   rename a macro; fold and outline the file.
+3. Write a `local.dta` override: both lines show the hint, and the shadowed value is faded.
+4. Open the 2 MB Duel (a copy grown as in the measurements): typing, hover, outline and inlay
+   hints still feel immediate.
+5. **Baker: Show the merged stack** and **Show what a layer changes** from the project file's
+   code lenses; definition from a line of each.
+6. With `stacks_duel --console-write` running: hover's **Live** table; Evaluate
+   (Ctrl+Enter) on a command; Try a value, Write it back, Revert another.
+7. Set `baker.sim.tool` to the stacks' binaries (`.../stacks_${project}.exe`): the test view
+   lists Duel's scenarios, runs them, and a broken value fails one with its objective marked.
+
+Findings go in this section, fixed or recorded.
 
 ## Diagnostics
 

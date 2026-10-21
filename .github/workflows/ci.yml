@@ -40,10 +40,13 @@ jobs:
       - run: npm test
       - run: npx vsce package --no-dependencies
 
-  # The extension inside VS Code (plan D1): a pinned VS Code, headless, against the server
-  # built here and a copy of the server's test project.
+  # The extension inside VS Code (plan D1): VSCodium, the same editor without Microsoft's
+  # services, pinned and headless, against the server built here and a copy of the server's
+  # test project.
   vscode-integration:
     runs-on: ubuntu-24.04
+    env:
+      CODIUM: 1.90.2.24171
     steps:
       - uses: actions/checkout@v4
       - name: Build the server
@@ -55,10 +58,18 @@ jobs:
           node-version: 20
       - uses: actions/cache@v4
         with:
-          path: vscode/.vscode-test
-          key: vscode-test-1.90.2
+          path: codium
+          key: codium-${{ env.CODIUM }}
+      - name: Get VSCodium
+        run: |
+          if [ ! -x codium/codium ]; then
+            mkdir -p codium
+            curl -sSL "https://github.com/VSCodium/vscodium/releases/download/$CODIUM/VSCodium-linux-x64-$CODIUM.tar.gz" | tar -xz -C codium
+          fi
       - name: Run the integration tests
         working-directory: vscode
+        env:
+          VSCODE_EXECUTABLE: ${{ github.workspace }}/codium/codium
         run: |
           npm ci
           npm run compile

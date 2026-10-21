@@ -69,7 +69,8 @@ suite("Baker in VS Code", function () {
 
     test("a shape error and a syntax error are diagnostics", async () => {
         const doc = await baker(defaultUri);
-        const restore = await setText(doc, doc.getText().replace("(health 100)", "(health 0)"));
+        // The archer: local.dta overrides the knight's health, so the merged knight stays valid.
+        const restore = await setText(doc, doc.getText().replace("(health 60)", "(health 0)"));
         try {
             await until("the shape error", () => diagnostics(defaultUri).find(
                 (d) => d.severity === vscode.DiagnosticSeverity.Error && /health/.test(d.message)));

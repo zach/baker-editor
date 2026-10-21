@@ -35,6 +35,11 @@ fixed or recorded.
 
 **Effort:** about three days.
 
+**As built:** the suite runs in VSCodium 1.90.2 (the same editor without Microsoft's services,
+from GitHub's releases), which this environment and CI can both download; `VSCODE_EXECUTABLE`
+names it, and without it a pinned VS Code is downloaded. Ten tests, about 4 seconds. The
+manual checklist is in the README.
+
 ## D2. The game's tweaks, checked by Baker
 
 **Why:** Baker 0.3.0's `check_tweaks(root, registry)` holds the data to the game's tweaks:
@@ -153,8 +158,8 @@ nothing from Baker. D6 last, once D1 has proven what is published, and not befor
 
 | Step | Baker | Status |
 |---|---|---|
-| D1 Run it in VS Code | none | Next |
-| D2 The game's tweaks, checked by Baker | a note: tweaks from a description | |
+| D1 Run it in VS Code | none | Integration tests done (VSCodium, in CI); the manual pass is the owner's |
+| D2 The game's tweaks, checked by Baker | a note: tweaks from a description | Next |
 | D3 Method calls and the game's types | a note: types and methods from a description | |
 | D4 Live values that follow the game | a note: the config's epoch on the console | |
 | D5 Running scenarios on what is in the editor | none | |

@@ -1,8 +1,9 @@
 // Runs the integration tests inside VS Code (@vscode/test-electron): a pinned VS Code is
-// downloaded once into .vscode-test/, opened on a copy of the server's test project, and the
-// suite runs in its extension host. `npm run integration`, after `npm run compile` and a build
-// of the server (BAKER_LSP, else ../build/server/baker-lsp). On Linux without a display, run it
-// under xvfb-run.
+// downloaded once into .vscode-test/ (or VSCODE_EXECUTABLE names one, such as VSCodium's
+// `codium` binary), opened on a copy of the server's test project, and the suite runs in its
+// extension host. `npm run integration`, after `npm run compile` and a build of the server
+// (BAKER_LSP, else ../build/server/baker-lsp). On Linux without a display, run it under
+// xvfb-run.
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -36,13 +37,16 @@ async function main() {
         "baker.console.port": 0,  // no game's console: nothing waits on one
     }, null, 2));
 
+    const executable = process.env.VSCODE_EXECUTABLE;
     await runTests({
-        version: process.env.VSCODE_VERSION || "1.90.2",
+        ...(executable ? {vscodeExecutablePath: path.resolve(executable)}
+                       : {version: process.env.VSCODE_VERSION || "1.90.2"}),
         extensionDevelopmentPath: extension,
         extensionTestsPath: path.join(__dirname, "suite", "index.js"),
         extensionTestsEnv: {BAKER_INTEGRATION_WORKSPACE: work},
-        launchArgs: [work, "--disable-extensions", "--disable-workspace-trust",
-                     "--skip-welcome", "--skip-release-notes"],
+        launchArgs: [work, "--disable-extensions", "--disable-workspace-trust", "--skip-welcome",
+                     "--skip-release-notes", "--no-sandbox", "--disable-gpu",
+                     "--user-data-dir", path.join(work, ".user-data")],
     });
 }
 
