@@ -81,6 +81,9 @@ void Server::add(Setup setup) {
             c.have_reference = true;
             setup.objects = r.objects;
             c.reference = r;
+            c.tweaks = std::make_unique<GameTweaks>(c.reference.tweaks);
+            for (const std::string& t : c.tweaks->left_out())
+                log(kLogInfo, "tweak " + t + ": a type of the game's own, not checked by Baker");
             log(kLogInfo, "the game's reference: " + std::to_string(r.functions) + " functions, " +
                               std::to_string(r.overloads) + " overloads, " +
                               std::to_string(r.objects.size()) + " named objects, from " +
@@ -1082,10 +1085,17 @@ void Server::check_now() {
     bool hints_changed = false;
     for (auto& [key, c] : projects_) {
         Diagnosis d = diagnose(c.setup, *c.ctx, buffers_, c.have_reference);
-        // Ranges only the running game enforces: metadata in the data, and its tweaks'.
-        if (d.loaded)
-            for (Problem& p : range_problems(*d.loaded, c.reference))
+        // The game's tweaks, held to the data by Baker (check_tweaks) for its own types, and
+        // ranges only the running game enforces: metadata in the data, a game type's tweaks.
+        if (d.loaded) {
+            const GameTweaks* tweaks = c.tweaks.get();
+            for (Problem& p : range_problems(
+                     *d.loaded, c.reference,
+                     [tweaks](const std::string& path) { return tweaks && tweaks->checks(path); }))
                 d.problems.push_back(std::move(p));
+            if (tweaks)
+                for (Problem& p : tweaks->check(*d.loaded)) d.problems.push_back(std::move(p));
+        }
         // While a file is mid-edit it often does not read, and its layer, with the shapes
         // and packs it brings, drops out; hover and completion keep the last whole stack.
         if (d.loaded && (d.every_layer_read || !c.loaded)) {

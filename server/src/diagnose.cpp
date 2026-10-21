@@ -45,22 +45,7 @@ namespace {
 class Collector {
 public:
     void add(const baker::Error& e, Severity severity) {
-        Problem p;
-        if (!e.file().str().empty()) p.file = canonical_path(std::string(e.file().str()));
-        p.line = e.line();
-        p.column = e.column();
-        p.severity = severity;
-        p.code = std::string(baker::error_code_name(e.code()));
-        p.message = std::string(e.message());
-        if (!e.path().empty()) {
-            p.message += " (at " + std::string(e.path()) + ")";
-            p.key = last_path_element(e.path());
-        } else if (const size_t q = p.message.find('\''); q != std::string::npos) {
-            // A call's error names the function: "no overload of '-' takes 3 arguments".
-            const size_t end = p.message.find('\'', q + 1);
-            if (end != std::string::npos) p.key = p.message.substr(q + 1, end - q - 1);
-        }
-        problems.push_back(std::move(p));
+        problems.push_back(problem_of(e, severity));
     }
     void add(const baker::List<baker::Error>& errors, Severity severity) {
         for (const baker::Error& e : errors) add(e, severity);
@@ -136,6 +121,29 @@ void find_hints(const baker::Config& cfg, const baker::Project& project, Loaded&
         }
     }
 }
+
+}  // namespace
+
+Problem problem_of(const baker::Error& e, Severity severity) {
+    Problem p;
+    if (!e.file().str().empty()) p.file = canonical_path(std::string(e.file().str()));
+    p.line = e.line();
+    p.column = e.column();
+    p.severity = severity;
+    p.code = std::string(baker::error_code_name(e.code()));
+    p.message = std::string(e.message());
+    if (!e.path().empty()) {
+        p.message += " (at " + std::string(e.path()) + ")";
+        p.key = last_path_element(e.path());
+    } else if (const size_t q = p.message.find('\''); q != std::string::npos) {
+        // A call's error names the function: "no overload of '-' takes 3 arguments".
+        const size_t end = p.message.find('\'', q + 1);
+        if (end != std::string::npos) p.key = p.message.substr(q + 1, end - q - 1);
+    }
+    return p;
+}
+
+namespace {
 
 Diagnosis finish(Diagnosis& out, Collector& found, const std::set<std::string>& files,
                  std::chrono::steady_clock::time_point start) {

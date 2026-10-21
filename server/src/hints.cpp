@@ -53,10 +53,13 @@ bool values_only(const baker::Array& a) {
 }
 
 // A warning for the first number of `a` (at `tags`) outside its range, if any.
+using BakerChecks = std::function<bool(const std::string&)>;
+
 void check(const baker::Array& a, const std::vector<std::string>& tags, const Loaded& loaded,
-           const Reference& reference, std::vector<Problem>& out) {
+           const Reference& reference, const BakerChecks& baker_checks, std::vector<Problem>& out) {
     const Hints h = hints_at(loaded, reference, tags);
     if (!h.ranged || (h.field && h.field->ranged)) return;  // a shape's range is check's
+    if (h.tweak && baker_checks && baker_checks(h.tweak->path)) return;  // check_tweaks's
     for (size_t i = 1; i < a.size(); ++i) {
         const auto v = a[i].try_float();
         if (!v || (*v >= h.min && *v <= h.max)) continue;
@@ -78,15 +81,15 @@ void check(const baker::Array& a, const std::vector<std::string>& tags, const Lo
 }
 
 void walk(const baker::Array& a, std::vector<std::string>& tags, const Loaded& loaded,
-          const Reference& reference, std::vector<Problem>& out) {
+          const Reference& reference, const BakerChecks& baker_checks, std::vector<Problem>& out) {
     for (const baker::Node& n : a) {
         const baker::Array* child = n.try_array();
         if (!child || child->tag().empty()) continue;
         tags.emplace_back(child->tag().str());
         if (has_meta(*child) || (values_only(*child) && tweak_at(reference, tags)))
-            check(*child, tags, loaded, reference, out);
+            check(*child, tags, loaded, reference, baker_checks, out);
         else
-            walk(*child, tags, loaded, reference, out);
+            walk(*child, tags, loaded, reference, baker_checks, out);
         tags.pop_back();
     }
 }
@@ -173,13 +176,14 @@ bool is_color(const Hints& h, size_t count) {
     return h.kind.empty() && h.ranged && h.min == 0 && h.max == 1;
 }
 
-std::vector<Problem> range_problems(const Loaded& loaded, const Reference& reference) {
+std::vector<Problem> range_problems(const Loaded& loaded, const Reference& reference,
+                                    const BakerChecks& baker_checks) {
     std::vector<Problem> out;
     if (!loaded.config) return out;
     const baker::Ref<baker::Array> root = loaded.config->root();
     if (!root) return out;
     std::vector<std::string> tags;
-    walk(*root, tags, loaded, reference, out);
+    walk(*root, tags, loaded, reference, baker_checks, out);
     return out;
 }
 

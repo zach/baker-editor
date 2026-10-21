@@ -100,4 +100,7 @@ Diagnosis diagnose(const Setup& setup, const baker::Context& ctx, const Buffers&
 // file does without a project file.
 bool under(const std::string& path, const Setup& setup);
 
+// A Baker error as a problem: located as Baker locates it, keyed by its path's last element.
+Problem problem_of(const baker::Error& e, Severity severity);
+
 }  // namespace baker_lsp

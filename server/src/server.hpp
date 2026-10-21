@@ -9,6 +9,7 @@
 #include "live.hpp"
 #include "reference.hpp"
 #include "setup.hpp"
+#include "tweaks.hpp"
 
 #include <baker/script.hpp>
 
@@ -59,8 +60,9 @@ private:
         std::unique_ptr<baker::Context> ctx = std::make_unique<baker::Context>();
         bool have_reference = false;
         Reference reference;
-        std::shared_ptr<Loaded> loaded;  // the last check's, for hover and completion
-        int game_generation = 0;         // the console connection game_is() last asked
+        std::unique_ptr<GameTweaks> tweaks;  // the reference's, for Baker's check_tweaks
+        std::shared_ptr<Loaded> loaded;      // the last check's, for hover and completion
+        int game_generation = 0;             // the console connection game_is() last asked
         bool game_ours = false;
     };
 

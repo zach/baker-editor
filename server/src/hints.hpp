@@ -10,6 +10,7 @@
 #include <baker/array.hpp>
 #include <baker/shape.hpp>
 
+#include <functional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -50,7 +51,10 @@ bool is_color(const Hints& h, size_t count);
 const baker::Array* array_at(const Loaded& loaded, const std::vector<std::string>& tags);
 
 // Values outside their range where only the running game would enforce it: metadata in the
-// data, and the game's tweaks. A shape's range is check's, and is not repeated here.
-std::vector<Problem> range_problems(const Loaded& loaded, const Reference& reference);
+// data, and the game's tweaks. A shape's range is check's, and is not repeated here, nor is a
+// tweak's that `baker_checks` says Baker's check_tweaks holds the data to (tweaks.hpp).
+std::vector<Problem> range_problems(
+    const Loaded& loaded, const Reference& reference,
+    const std::function<bool(const std::string& tweak)>& baker_checks = {});
 
 }  // namespace baker_lsp

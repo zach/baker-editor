@@ -64,6 +64,12 @@ for every tweak Baker checks.
 
 **Effort:** about two days here, plus one Baker note.
 
+**As built:** `tweaks.cpp` makes a `Tweak<T>` per tweak of Baker's own types (a `Symbol` path,
+the metadata's strings kept beside them) in a registry per project, and runs `check_tweaks`
+with every check. A tweak the data does not set is not shown (it has no place in the files).
+The server's range rule stays for game types and for ranges written beside a value no tweak
+reads. The note is `requirements/0017`.
+
 ## D3. Method calls and the game's types
 
 **Why:** the first two limits the README lists. A call on an object the game names
@@ -159,8 +165,8 @@ nothing from Baker. D6 last, once D1 has proven what is published, and not befor
 | Step | Baker | Status |
 |---|---|---|
 | D1 Run it in VS Code | none | Integration tests done (VSCodium, in CI); the manual pass is the owner's |
-| D2 The game's tweaks, checked by Baker | a note: tweaks from a description | Next |
-| D3 Method calls and the game's types | a note: types and methods from a description | |
+| D2 The game's tweaks, checked by Baker | a note: tweaks from a description (0017) | Done (first pass) for Baker's types; game types wait on note 0017 |
+| D3 Method calls and the game's types | a note: types and methods from a description | Next |
 | D4 Live values that follow the game | a note: the config's epoch on the console | |
 | D5 Running scenarios on what is in the editor | none | |
 | D6 Published | none; the owner's accounts | Waits for Baker 1.0 (the owner's call) |

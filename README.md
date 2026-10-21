@@ -133,9 +133,16 @@ from the game's reference; on a macro or a script function, where it is defined.
 color)`, or 3 or 4 numbers ranged 0 to 1 with no kind, such as `(tint 0.9 0.5 0.2 (range 0
 1))`. Picking a color rewrites the numbers in place, at most three decimals each.
 
-**Ranges the game enforces:** a value outside the range written beside it in the data, or
-outside its tweak's range, is a warning: only the running game refuses it, when it sets the
-tweak. A shape's range is already an error, as `check` reports it.
+**The game's tweaks** are checked by Baker, as the game's own `check` checks them
+(`check_tweaks`, Baker 0.3.0): the server makes each tweak of the reference again, with its
+type, default and metadata, and holds the stack to them. A value its tweak cannot take (the
+wrong type, outside its range or `one_of`) is an error; a key beside a group's tweaks that no
+tweak reads, as a misspelling looks, is a warning. In Duel, `(buffer 50)` and a stray
+`(hit_paws 3)` under `(duel ...)` show as `stacks_duel check` reports them, on the same lines.
+A tweak of a type of the game's own (`vec2`) cannot be made without the game's code
+(`requirements/0017`); for those, and for a range written beside a value no tweak reads, a
+value outside its range is a warning: only the running game refuses it. A shape's range is
+`check`'s error.
 
 **Go-to-definition** jumps from:
 
@@ -362,6 +369,10 @@ At Baker fb613b4 and before, the same 2 MB check took 110–160 ms clean and 50�
 syntax error (one run each of three to six).
 
 A syntax error in the stacks shows about 155 ms after the keystroke, within the plan's 200 ms.
+
+The game's tweaks (D2), Release build (Clang), at Baker 0.3.0, on the 2 MB Duel:
+`check_tweaks` over Duel's eight tweaks takes 0.01 ms of a check, and the server's remaining
+range rule 3.7–4.2 ms (five runs; 2.6–3.0 ms at C5, on Baker 0.2.0).
 
 Value hints (C5), Release build (Clang), on the 2 MB Duel: the range warnings take 2.6–3.0 ms
 of each check; completing `(button ` (which reads every file of the project for the values in
