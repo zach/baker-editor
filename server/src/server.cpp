@@ -378,7 +378,7 @@ json Server::hover(const json& params) {
     if (!place(params, buffers_, path, text, offset)) return nullptr;
     Checked* c = project_of(path);
     if (!c || !c->loaded) return nullptr;
-    auto h = baker_lsp::hover(text, offset, *c->loaded, c->reference);
+    auto h = baker_lsp::hover(*read_of(path), offset, *c->loaded, c->reference);
     if (!h) return nullptr;
     if (!h->path.empty())
         if (const auto chain = live_chain(*c, h->path)) {
@@ -404,7 +404,7 @@ json Server::complete(const json& params) {
     Checked* c = project_of(path);
     if (!c || !c->loaded) return json::array();
     const Completions found = baker_lsp::complete(
-        text, offset, *c->loaded, c->reference, path,
+        *read_of(path), offset, *c->loaded, c->reference, path,
         [this](const std::string& f, std::string& out) { return buffers_.read(f, out); });
     json items = json::array();
     const json range = range_json(text, found.begin, found.end);
@@ -436,7 +436,7 @@ json Server::definition(const json& params) {
     };
     json out = json::array();
     for (const Location& l :
-         baker_lsp::definition(text, offset, path, *c->loaded, c->reference, exists)) {
+         baker_lsp::definition(*read_of(path), offset, path, *c->loaded, c->reference, exists)) {
         const int row = l.line > 0 ? l.line - 1 : 0;
         out.push_back({{"uri", uri_for(l.file)},
                        {"range",
@@ -571,7 +571,7 @@ json Server::code_actions(const json& params) {
     const auto leaf = leaf_at(text, offset);
     if (leaf) out.push_back(command_json("Try this value in the game", "baker.try", where));
 
-    const std::string data = data_path_at(text, offset);
+    const std::string data = data_path_at(*read_of(path), offset);
     if (data.empty()) return out;
     const auto chain = live_chain(*c, data);
     if (!chain) return out;

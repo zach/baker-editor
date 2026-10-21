@@ -44,8 +44,8 @@ Structure read_structure(std::string_view text) {
         if (t.kind == baker::TextTokenKind::Open) {
             const baker::TextBracket& b = read.brackets[next++];
             if (!open.empty()) s.brackets[static_cast<size_t>(open.back())].has_child = true;
-            s.brackets.push_back(
-                {b.open, open.empty() ? -1 : open.back(), b.begin, b.end, -1, false, b.closed});
+            s.brackets.push_back({b.open, open.empty() ? -1 : open.back(), b.begin, b.end, -1,
+                                  false, b.closed, counts.empty() ? 0 : counts.back() - 1});
             open.push_back(static_cast<int>(s.brackets.size() - 1));
             counts.push_back(0);
             continue;

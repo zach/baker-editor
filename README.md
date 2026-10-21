@@ -391,15 +391,17 @@ Baker's lexer in place of the server's own (note 0021), RelWithDebInfo build (Cl
 | | Before | After |
 |---|---|---|
 | The file's structure, read whole | 15–18 ms | 29–30 ms; Baker's read alone 19–26 ms |
-| The cursor's place at the end of the file | 8 ms | 20 ms |
+| The cursor's place at the end of the file | 8 ms | 20 ms, then under 0.1 ms from the kept read |
 | Outline, folds and colors after an edit (20 edits) | 87–102 ms | 85–94 ms |
-| A completion near the end of the file | 9.5 ms | 20 ms |
+| A completion near the end of the file | 9.5–10 ms | 20 ms, then 2.5 ms from the kept read |
 
-Baker's read is slower than the server's lexer was, and builds every token where the cursor's
-scan stopped at the cursor: a completion at the end of the 2 MB file takes about 10 ms more,
-a regression. A request on the whole file no longer reads it again: the structure is read
-once per edit and kept for the open file, so the requests after an edit cost no more than
-they did. Both reads give the same brackets, tokens and cursor as the server's lexer on every
+Baker's read is slower than the server's lexer was. A request no longer reads the file
+itself: an open file's structure is read once per edit and kept, and every request on that
+text (outline, folds, colors, lenses, inlays, hover, completion, definition, references,
+rename) works from it, the cursor's place found in it by binary search. So the requests after
+an edit cost no more than they did, and a completion costs a quarter of what it did. With
+the scan reading the text itself, a completion at the end of the 2 MB file had taken 20 ms,
+twice the old lexer's 10 ms. Both reads give the same brackets, tokens and cursor as the server's lexer on every
 `.dta` file of the stacks, the test project and the 2 MB file (2,000 cursor places in it).
 
 At Baker fb613b4 and before, the same 2 MB check took 110–160 ms clean and 50–60 ms with a

@@ -70,7 +70,7 @@ TEST_CASE("hover on a value overridden in local.dta shows both layers") {
     Fixture f("(units (knight (health 50)))\n");
     const std::string text = f.text_of(kDefault);
     const size_t at = text.find("100");
-    const auto h = hover(text, at, *f.loaded, f.reference);
+    const auto h = hover(FileRead(text), at, *f.loaded, f.reference);
     REQUIRE(h);
     CHECK(has(h->markdown, "`units/knight/health`"));
     CHECK(has(h->markdown, "`int`, 1 to 1000"));
@@ -82,7 +82,7 @@ TEST_CASE("hover on a value overridden in local.dta shows both layers") {
 TEST_CASE("hover on a command's head shows the function") {
     Fixture f;
     const auto [text, at] = cursor("(start {game.sp|awn archer 1})");
-    const auto h = hover(text, at, *f.loaded, f.reference);
+    const auto h = hover(FileRead(text), at, *f.loaded, f.reference);
     REQUIRE(h);
     CHECK(has(h->markdown, "{game.spawn symbol [int]}"));
 }
@@ -90,20 +90,20 @@ TEST_CASE("hover on a command's head shows the function") {
 TEST_CASE("hover on a macro, and on nothing") {
     Fixture f;
     auto [text, at] = cursor("(units (knight (speed SPE|EDY)))");
-    auto h = hover(text, at, *f.loaded, f.reference);
+    auto h = hover(FileRead(text), at, *f.loaded, f.reference);
     REQUIRE(h);
     CHECK(has(h->markdown, "macro `SPEEDY`"));
     std::tie(text, at) = cursor("(units  |  (knight))");
-    CHECK(!hover(text, at, *f.loaded, f.reference));
+    CHECK(!hover(FileRead(text), at, *f.loaded, f.reference));
 }
 
 TEST_CASE("completion offers every field of the enclosing shape") {
     Fixture f;
     auto [text, at] = cursor("(units (archer (|");
-    CHECK(labels(complete(text, at, *f.loaded, f.reference)) ==
+    CHECK(labels(complete(FileRead(text), at, *f.loaded, f.reference)) ==
           std::vector<std::string>{"health", "speed"});
     std::tie(text, at) = cursor("(units (archer (he|");
-    const Completions c = complete(text, at, *f.loaded, f.reference);
+    const Completions c = complete(FileRead(text), at, *f.loaded, f.reference);
     CHECK(labels(c) == std::vector<std::string>{"health"});
     CHECK(c.begin == text.size() - 2);  // replaces "he"
     CHECK(c.items[0].detail == "int");
@@ -112,15 +112,18 @@ TEST_CASE("completion offers every field of the enclosing shape") {
 TEST_CASE("completion offers functions in a command, macros as values, packs in requires") {
     Fixture f;
     auto [text, at] = cursor("(start {game.|");
-    const std::vector<std::string> functions = labels(complete(text, at, *f.loaded, f.reference));
+    const std::vector<std::string> functions =
+        labels(complete(FileRead(text), at, *f.loaded, f.reference));
     CHECK(functions == std::vector<std::string>{"game.spawn", "game.wait", "game.log", "game.later",
                                                 "game.aim", "game.twice"});
     std::tie(text, at) = cursor("(units (archer (speed S|");
-    CHECK(labels(complete(text, at, *f.loaded, f.reference)) == std::vector<std::string>{"SPEEDY"});
+    CHECK(labels(complete(FileRead(text), at, *f.loaded, f.reference)) ==
+          std::vector<std::string>{"SPEEDY"});
     std::tie(text, at) = cursor("(pack extra (level task) (requires |");
-    CHECK(labels(complete(text, at, *f.loaded, f.reference)) == std::vector<std::string>{"core"});
+    CHECK(labels(complete(FileRead(text), at, *f.loaded, f.reference)) ==
+          std::vector<std::string>{"core"});
     std::tie(text, at) = cursor("; (units (archer (|");
-    CHECK(complete(text, at, *f.loaded, f.reference).items.empty());
+    CHECK(complete(FileRead(text), at, *f.loaded, f.reference).items.empty());
 }
 
 namespace {
@@ -133,14 +136,16 @@ const auto on_disk = [](const std::string& f) {
 TEST_CASE("definition: from local.dta's override to the default.dta line it shadows") {
     Fixture f("(units (knight (health 50)))\n");
     const std::string local = "(units (knight (health 50)))\n";
-    const auto defs = definition(local, local.find("50"), kLocal, *f.loaded, f.reference, on_disk);
+    const auto defs =
+        definition(FileRead(local), local.find("50"), kLocal, *f.loaded, f.reference, on_disk);
     REQUIRE(defs.size() == 1);
     CHECK(defs[0].file == kDefault);
     CHECK(defs[0].line == 5);
 
     // And from default.dta, to the override above it.
     const std::string text = f.text_of(kDefault);
-    const auto up = definition(text, text.find("100"), kDefault, *f.loaded, f.reference, on_disk);
+    const auto up =
+        definition(FileRead(text), text.find("100"), kDefault, *f.loaded, f.reference, on_disk);
     REQUIRE(up.size() == 1);
     CHECK(up[0].file == kLocal);
     CHECK(up[0].line == 1);
@@ -149,62 +154,64 @@ TEST_CASE("definition: from local.dta's override to the default.dta line it shad
 TEST_CASE("definition: macros, script functions, packs, and files") {
     Fixture f;
     auto [text, at] = cursor("(units (knight (speed SPE|EDY)))");
-    auto defs = definition(text, at, kLocal, *f.loaded, f.reference, on_disk);
+    auto defs = definition(FileRead(text), at, kLocal, *f.loaded, f.reference, on_disk);
     REQUIRE(defs.size() == 1);
     CHECK(defs[0].file == kDefault);
     CHECK(defs[0].line == 10);
 
     std::tie(text, at) = cursor("(start {game.tw|ice 3})");
-    defs = definition(text, at, kLocal, *f.loaded, f.reference, on_disk);
+    defs = definition(FileRead(text), at, kLocal, *f.loaded, f.reference, on_disk);
     REQUIRE(defs.size() == 1);
     CHECK(defs[0].line == 11);
 
     std::tie(text, at) = cursor("(pack extra (level task) (requires co|re))");
-    defs = definition(text, at, kLocal, *f.loaded, f.reference, on_disk);
+    defs = definition(FileRead(text), at, kLocal, *f.loaded, f.reference, on_disk);
     REQUIRE(defs.size() == 1);
     CHECK(defs[0].file == kProject + "/packs/game/core.dta");
     CHECK(defs[0].line == 1);
 
     const std::string text2 = f.text_of(kDefault);
-    defs = definition(text2, text2.find("core.dta"), kDefault, *f.loaded, f.reference, on_disk);
+    defs = definition(FileRead(text2), text2.find("core.dta"), kDefault, *f.loaded, f.reference,
+                      on_disk);
     REQUIRE(defs.size() == 1);
     CHECK(defs[0].file == kProject + "/packs/game/core.dta");
 
     const std::string project = f.text_of(kProject + "/baker-project.dta");
-    defs = definition(project, project.find("data/default.dta") + 2,
+    defs = definition(FileRead(project), project.find("data/default.dta") + 2,
                       kProject + "/baker-project.dta", *f.loaded, f.reference, on_disk);
     REQUIRE(defs.size() == 1);
     CHECK(defs[0].file == kDefault);
-    CHECK(definition(project, project.find("data/local.dta") + 2, kProject + "/baker-project.dta",
-                     *f.loaded, f.reference, on_disk)
+    CHECK(definition(FileRead(project), project.find("data/local.dta") + 2,
+                     kProject + "/baker-project.dta", *f.loaded, f.reference, on_disk)
               .empty());  // not on disk
 }
 
 TEST_CASE("a call on one of the game's objects: its type's methods, and its bases'") {
     Fixture f;
     const auto [text, at] = cursor("#autorun {tower |}\n");
-    const Completions c = complete(text, at, *f.loaded, f.reference);
+    const Completions c = complete(FileRead(text), at, *f.loaded, f.reference);
     CHECK(labels(c) == std::vector<std::string>{"delay_task", "cancel", "tick"});
     CHECK(c.items[0].kind == Kind::Method);
     CHECK(c.items[0].detail == "{Turret delay_task float values...}");
     const auto [typed, at2] = cursor("#autorun {tower de|}\n");
-    CHECK(labels(complete(typed, at2, *f.loaded, f.reference)) ==
+    CHECK(labels(complete(FileRead(typed), at2, *f.loaded, f.reference)) ==
           std::vector<std::string>{"delay_task"});
 
     // Turret's cancel, not its base's.
     const auto [call, at3] = cursor("#autorun {tower can|cel 3}\n");
-    const auto h = hover(call, at3, *f.loaded, f.reference);
+    const auto h = hover(FileRead(call), at3, *f.loaded, f.reference);
     REQUIRE(h);
     CHECK(has(h->markdown, "{Turret cancel int}"));
     CHECK(has(h->markdown, "Ends a task."));
     CHECK(has(h->markdown, "method of `Turret`"));
     const auto [object, at4] = cursor("#autorun {tow|er tick}\n");
-    const auto o = hover(object, at4, *f.loaded, f.reference);
+    const auto o = hover(FileRead(object), at4, *f.loaded, f.reference);
     REQUIRE(o);
     CHECK(has(o->markdown, "object `tower`, which the game names: a `Turret`"));
     CHECK(has(o->markdown, "methods: `delay_task`, `cancel`, `tick`"));
     // Not an object: no methods.
     const auto [other, at5] = cursor("#autorun {game.spawn |}\n");
-    const std::vector<std::string> offered = labels(complete(other, at5, *f.loaded, f.reference));
+    const std::vector<std::string> offered =
+        labels(complete(FileRead(other), at5, *f.loaded, f.reference));
     CHECK(std::find(offered.begin(), offered.end(), "delay_task") == offered.end());
 }

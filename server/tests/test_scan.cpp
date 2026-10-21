@@ -11,7 +11,7 @@ namespace {
 Cursor at(std::string text) {
     const size_t bar = text.find('|');
     text.erase(bar, 1);
-    return scan(text, bar);
+    return scan(read_structure(text), text, bar);
 }
 }  // namespace
 

@@ -113,9 +113,9 @@ const baker::shape::Shape* governing(const baker::shape::Set& shapes,
     return nullptr;
 }
 
-std::optional<Hover> hover(std::string_view text, size_t offset, const Loaded& loaded,
+std::optional<Hover> hover(const FileRead& read, size_t offset, const Loaded& loaded,
                            const Reference& reference) {
-    const Cursor c = scan(text, offset);
+    const Cursor c = scan(read.structure, read.text, offset);
     if (c.quiet || c.token.empty()) return std::nullopt;
     Hover h{{}, c.begin, c.end, {}};
 
@@ -223,8 +223,8 @@ std::optional<Hover> hover(std::string_view text, size_t offset, const Loaded& l
     return h;
 }
 
-std::string data_path_at(std::string_view text, size_t offset) {
-    const Cursor c = scan(text, offset);
+std::string data_path_at(const FileRead& read, size_t offset) {
+    const Cursor c = scan(read.structure, read.text, offset);
     if (c.quiet) return {};
     std::vector<std::string> tags = c.data_path();
     if (c.index == 0 && !c.token.empty()) {
@@ -235,10 +235,11 @@ std::string data_path_at(std::string_view text, size_t offset) {
     return tags.empty() ? std::string() : path_text(tags);
 }
 
-std::vector<Location> definition(std::string_view text, size_t offset, const std::string& file,
+std::vector<Location> definition(const FileRead& read, size_t offset, const std::string& file,
                                  const Loaded& loaded, const Reference& reference,
                                  const std::function<bool(const std::string&)>& exists) {
-    const Cursor c = scan(text, offset);
+    const std::string_view text = read.text;
+    const Cursor c = scan(read.structure, text, offset);
     std::vector<Location> out;
     if (c.token.empty()) return out;
     const std::string dir = file.substr(0, file.rfind('/') + 1);
@@ -354,19 +355,19 @@ bool symbol_like(const Token& t) {
 // (or, with no shape, whose parent is tagged as `parent`'s last), by how often, most first.
 std::vector<std::pair<std::string, int>> symbols_in_use(
     const Loaded& loaded, const std::vector<std::string>& parent, const std::string& tag,
-    const std::string& file, std::string_view text, size_t offset, const ReadFile& read) {
+    const std::string& file, const FileRead& here, size_t offset, const ReadFile& read) {
     const baker::shape::Shape* shape = governing(loaded.shapes, parent);
     std::map<std::string, int> counts;
     std::vector<std::string> files = loaded.files;
     if (std::find(files.begin(), files.end(), file) == files.end()) files.push_back(file);
     for (const std::string& f : files) {
         std::string own;
-        std::string_view t = text;
+        Structure own_structure;
         if (f != file) {
             if (!read(f, own)) continue;
-            t = own;
+            own_structure = read_structure(own);
         }
-        const Structure s = read_structure(t);
+        const Structure& s = f == file ? here.structure : own_structure;
         for (size_t b = 0; b < s.brackets.size(); ++b) {
             const Bracket& br = s.brackets[b];
             if (br.open != '(' || br.tag < 0 || s.tokens[br.tag].text != tag) continue;
@@ -391,9 +392,10 @@ std::vector<std::pair<std::string, int>> symbols_in_use(
 
 }  // namespace
 
-Completions complete(std::string_view text, size_t offset, const Loaded& loaded,
+Completions complete(const FileRead& here, size_t offset, const Loaded& loaded,
                      const Reference& reference, const std::string& file, const ReadFile& read) {
-    const Cursor c = scan(text, offset);
+    const std::string_view text = here.text;
+    const Cursor c = scan(here.structure, text, offset);
     Completions out;
     if (c.quiet) return out;
     out.begin = c.begin;
@@ -508,7 +510,7 @@ Completions complete(std::string_view text, size_t offset, const Loaded& loaded,
             }
             if (!h.one_of.empty()) return out;  // a value outside the list is an error
             for (const auto& [symbol, uses] :
-                 symbols_in_use(loaded, parent, c.stack.back().tag, file, text, offset, read)) {
+                 symbols_in_use(loaded, parent, c.stack.back().tag, file, here, offset, read)) {
                 char sort[16];
                 std::snprintf(sort, sizeof sort, "0%05d", rank++);
                 offer({symbol,

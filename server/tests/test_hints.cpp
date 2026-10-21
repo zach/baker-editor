@@ -40,7 +40,7 @@ struct Stack {
     std::vector<std::string> complete_at(const std::string& text, const std::string& file,
                                          std::vector<std::string>* snippets = nullptr) {
         const Completions c = complete(
-            text, text.size(), *loaded, reference, file,
+            FileRead(text), text.size(), *loaded, reference, file,
             [this](const std::string& f, std::string& out) { return buffers.read(f, out); });
         std::vector<std::string> out;
         for (const Completion& i : c.items) {
@@ -52,7 +52,7 @@ struct Stack {
 };
 
 std::string hover_at(Stack& s, const std::string& text, const std::string& token) {
-    const auto h = hover(text, text.find(token) + 1, *s.loaded, s.reference);
+    const auto h = hover(FileRead(text), text.find(token) + 1, *s.loaded, s.reference);
     return h ? h->markdown : std::string();
 }
 

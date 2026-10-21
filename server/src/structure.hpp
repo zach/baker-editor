@@ -19,6 +19,7 @@ struct Bracket {
     int tag = -1;            // its first token's index in Structure::tokens, or -1
     bool has_child = false;  // holds a bracket of its own
     bool closed = false;     // false: it runs to the text's end
+    int index = 0;           // its place in its parent, as Token::index
 };
 
 struct Token {

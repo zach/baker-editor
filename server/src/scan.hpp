@@ -1,8 +1,9 @@
 #pragma once
-// Where the cursor is in Baker text, read from the text alone: the brackets that enclose it,
-// each with its tag, and the token under it. It is read with Baker's lexer
-// (structure.hpp) up to the cursor's line end, and needs no parse, so it works on text
-// being typed, which often does not parse (an unclosed `(kestrel (hea`).
+// Where the cursor is in Baker text, from the text's structure (structure.hpp, Baker's lexer):
+// the brackets that enclose it, each with its tag, and the token under it. It needs no parse,
+// so it works on text being typed, which often does not parse (an unclosed `(kestrel (hea`).
+#include "structure.hpp"
+
 #include <string>
 #include <string_view>
 #include <vector>
@@ -33,7 +34,8 @@ struct Cursor {
     [[nodiscard]] std::vector<std::string> parent_path() const;
 };
 
-Cursor scan(std::string_view text, size_t offset);
+// `s` is `text`'s structure, as read_structure gives it.
+Cursor scan(const Structure& s, std::string_view text, size_t offset);
 
 // A Path's text for `tags`, quoting a segment that needs it: menu/'bacon and eggs'/price.
 std::string path_text(const std::vector<std::string>& tags);

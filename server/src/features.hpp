@@ -26,9 +26,9 @@ struct Hover {
 };
 
 // The data path the cursor's value or array name is at, as a Path's text; empty if none.
-std::string data_path_at(std::string_view text, size_t offset);
+std::string data_path_at(const FileRead& read, size_t offset);
 
-std::optional<Hover> hover(std::string_view text, size_t offset, const Loaded& loaded,
+std::optional<Hover> hover(const FileRead& read, size_t offset, const Loaded& loaded,
                            const Reference& reference);
 
 // LSP's CompletionItemKind values for what completion offers.
@@ -59,9 +59,9 @@ struct Completions {
 // Reads a project file's text, as the server sees it (an open editor's, else the disk's).
 using ReadFile = std::function<bool(const std::string& path, std::string& out)>;
 
-// `file` is the text's own path; with `read`, a symbol value is completed from the values the
-// project's files give the same field.
-Completions complete(std::string_view text, size_t offset, const Loaded& loaded,
+// Each takes the file's text as read (structure.hpp). `file` is the text's own path; with `read`, a
+// symbol value is completed from the values the project's files give the same field.
+Completions complete(const FileRead& here, size_t offset, const Loaded& loaded,
                      const Reference& reference, const std::string& file = {},
                      const ReadFile& read = {});
 
@@ -76,7 +76,7 @@ struct Location {
 //   local.dta's override to the default.dta line it shadows;
 // - a file named in #include, #require or #merge, or a layer's file in the project file.
 // `exists` says whether a file can be read (the editor's buffers, else the disk).
-std::vector<Location> definition(std::string_view text, size_t offset, const std::string& file,
+std::vector<Location> definition(const FileRead& read, size_t offset, const std::string& file,
                                  const Loaded& loaded, const Reference& reference,
                                  const std::function<bool(const std::string&)>& exists);
 
