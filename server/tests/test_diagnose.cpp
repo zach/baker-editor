@@ -1,6 +1,8 @@
 #include "diagnose.hpp"
 #include "reference.hpp"
 
+#include <baker/std_interop.hpp>
+
 #include <doctest.h>
 
 #include <algorithm>
@@ -320,4 +322,83 @@ TEST_CASE("skipped and disabled layers are left out of the merge") {
                   "(project (pack_levels engine game task) (layers (default "
                   "\"data/default.dta\") (local \"data/local.dta\" optional disabled)))\n");
     CHECK(f.run().problems.empty());
+}
+
+namespace {
+
+// A check that reloads the kept stack finds what a fresh one finds.
+void same_as_fresh(Fixture& f, Kept& kept) {
+    const Diagnosis again = diagnose(f.setup, f.ctx, f.buffers, true, &kept);
+    const Diagnosis fresh = f.run();
+    CHECK(again.problems == fresh.problems);
+    CHECK(again.files == fresh.files);
+    CHECK(again.every_layer_read == fresh.every_layer_read);
+    REQUIRE(static_cast<bool>(again.loaded) == static_cast<bool>(fresh.loaded));
+    if (!fresh.loaded) return;
+    const Loaded& a = *again.loaded;
+    const Loaded& b = *fresh.loaded;
+    CHECK(a.hints == b.hints);
+    CHECK(a.files == b.files);
+    const auto names = [](const std::vector<Definition>& v) {
+        std::vector<std::string> out;
+        for (const Definition& d : v)
+            out.push_back(d.name + "@" + d.file + ":" + std::to_string(d.line));
+        return out;
+    };
+    CHECK(names(a.packs) == names(b.packs));
+    CHECK(names(a.macros) == names(b.macros));
+    CHECK(names(a.functions) == names(b.functions));
+    REQUIRE(a.config->root());
+    CHECK(baker::to_string(*a.config->root()) == baker::to_string(*b.config->root()));
+}
+
+}  // namespace
+
+TEST_CASE("a kept stack is reloaded, and checks as a fresh load does") {
+    Fixture f;
+    f.setup = from_file();
+    Kept kept;
+    same_as_fresh(f, kept);
+    REQUIRE(kept.config);
+    const baker::Config* first = kept.config.get();
+
+    // An edit to a layer reloads the same Config.
+    f.buffers.set(kLocal, "(units (knight (health 5000)))\n");
+    same_as_fresh(f, kept);
+    f.buffers.set(kLocal, "(units (knight (health 7)))\n");
+    same_as_fresh(f, kept);
+    CHECK(kept.config.get() == first);
+    f.buffers.set(kDefault, replaced(kDefault, "(speed 2.5)", "(speed fast)"));
+    same_as_fresh(f, kept);
+    f.buffers.erase(kDefault);
+
+    // A layer that does not read: fresh loads, each time, and the kept stack waits.
+    f.buffers.set(kLocal, "(units (knight (health 5))\n");
+    same_as_fresh(f, kept);
+    same_as_fresh(f, kept);
+    CHECK(kept.config.get() == first);
+    f.buffers.set(kLocal, "(units (knight (health 6)))\n");
+    same_as_fresh(f, kept);
+    CHECK(kept.config.get() == first);
+
+    // Nothing changed in the stack: an open scenario is still checked beside it.
+    f.buffers.set(kScenario, "(scenario {nope})\n");
+    same_as_fresh(f, kept);
+    f.buffers.erase(kScenario);
+
+    // The optional layer's file gone again.
+    f.buffers.erase(kLocal);
+    same_as_fresh(f, kept);
+    CHECK(kept.config.get() == first);
+
+    // A change to the project's layers opens the stack again.
+    f.buffers.set(
+        kProjectPath,
+        "(project (pack_levels engine game task) (include_dirs \"data\") (layers "
+        "(default \"data/default.dta\") (local \"data/local.dta\" optional disabled)))\n");
+    f.buffers.set(kLocal, "(units (knight (health 5000)))\n");
+    same_as_fresh(f, kept);
+    CHECK(kept.config.get() != first);
+    f.setup.skip = {"local"};
+    same_as_fresh(f, kept);
 }

@@ -417,6 +417,16 @@ The check is no slower: only the layers above the bottom one are asked for their
 override; asking the 2 MB bottom layer itself would cost about 100 ms. These checks are
 slower than the table above's 100–120 ms on this machine today, before and after alike.
 
+The kept stack (note 0024), RelWithDebInfo build (Clang), at Baker 0.5.0, on the 2 MB Duel: 20
+checks, each after an edit to a one-line `local.dta`. Loading the stack afresh for each, as
+the server did before, takes 106–117 ms (median of two runs; 90–243 ms in all); reloading the
+kept Config takes 55–60 ms (50–79 ms), as Baker reads again only the layer whose text changed.
+The previous commit's check of the same stack took 90–128 ms. The rest is the check itself
+(`baker::check` and the shapes), which reads the whole merged stack. While a layer does not
+read (a `local.dta` left unclosed), a check reloads, fails, and loads afresh: 94–97 ms
+against 91–92 ms for a fresh load alone (medians of two runs of 20), the failed reload's cost
+within the noise.
+
 Baker 0.1's example console sent each reply as its own write, so Nagle's algorithm held each
 one for a delayed acknowledgement: the same 113 values took about 50 ms, the console's whole
 budget, and the server asked Linux for immediate acknowledgements (`TCP_QUICKACK`) to bring

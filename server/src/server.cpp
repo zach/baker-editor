@@ -1162,7 +1162,7 @@ void Server::check_now() {
     std::map<std::string, json> by_uri;
     bool hints_changed = false;
     for (auto& [key, c] : projects_) {
-        Diagnosis d = diagnose(c.setup, *c.ctx, buffers_, c.have_reference);
+        Diagnosis d = diagnose(c.setup, *c.ctx, buffers_, c.have_reference, &c.kept);
         // The game's tweaks, held to the data by Baker (check_tweaks) for its own types, and
         // ranges only the running game enforces: metadata in the data, a game type's tweaks.
         if (d.loaded) {

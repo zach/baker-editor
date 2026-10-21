@@ -68,6 +68,7 @@ private:
         Reference reference;
         std::unique_ptr<GameTweaks> tweaks;  // the reference's, for Baker's check_tweaks
         std::shared_ptr<Loaded> loaded;      // the last check's, for hover and completion
+        Kept kept;                           // the stack, reloaded by the next check
         uint16_t port = 0;                   // its game's console
         int game_generation = 0;             // the console connection game_is() last asked
         bool game_ours = false;

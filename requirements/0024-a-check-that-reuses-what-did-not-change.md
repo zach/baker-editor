@@ -26,9 +26,13 @@ has no file times to go by.
 
 ## Today
 
-Met by Baker 0.5.0, with no new API: one Config kept, read through the reader, and `reload()`
-after each edit, which re-reads from the first layer whose text changed. The editor's server
-still loads fresh for each check until it keeps its Config.
+Met by Baker 0.5.0: `Config::reload()` compares each layer's text, read through the session's
+reader, and parses again only the lowest layer that changed and those above it. The editor's
+server keeps one Config per project and reloads it after each edit while the project's layers
+stay the same: on the 2 MB stack a check after an edit to a small top layer takes 55 to 60 ms
+where a fresh load takes 106 to 117 ms; the rest is the check of the merged stack. A reload
+that does not read changes nothing, so the server then loads afresh, as before, to check the
+layers above the one that does not read.
 
 ## Not included
 

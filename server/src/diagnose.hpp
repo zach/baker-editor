@@ -4,7 +4,9 @@
 // check and the shapes. A layer that does not read does not stop the load (go_on): the
 // layers above it are read too, so the editor shows every file's errors. An open .dta
 // file the layers do not read (a scenario, an objective) is read on its own and checked
-// beside them, as the game's `check` command checks its scenarios.
+// beside them, as the game's `check` command checks its scenarios. Given a Kept, a check
+// keeps the stack's Config for the next, which reloads it (Config::reload: only the layers
+// whose text changed are read again) while the project's layers and setup stay the same.
 #include "setup.hpp"
 
 #include <baker/config.hpp>
@@ -71,7 +73,7 @@ struct LayerHint {
 
 // What a check loaded, kept for hover and completion until the next check.
 struct Loaded {
-    std::unique_ptr<baker::Config> config;  // the stack as the game merges it
+    std::shared_ptr<baker::Config> config;  // the stack as the game merges it
     baker::shape::Set shapes;
     std::vector<Definition> packs;          // the packs the files declare
     std::vector<std::string> include_dirs;  // the project's, for files #include names
@@ -91,10 +93,22 @@ struct Diagnosis {
     bool every_layer_read = false;   // no layer failed: `loaded` is the whole stack
 };
 
+struct KeptRead;
+
+// One project's stack, kept from a check to the next. It is the last stack every layer of
+// read: while a layer does not, each check loads afresh, and the kept stack is reloaded
+// again once it does.
+struct Kept {
+    std::string key;                        // the project's layers and setup, as text
+    std::shared_ptr<baker::Config> config;  // null until a check keeps one
+    std::shared_ptr<KeptRead> read;         // its reader's state, and its merge's warnings
+};
+
 // `ctx` holds the game's functions (reference.hpp); `undefined_fails`: a call to a function
-// nothing defines is an error (with a reference), else not reported.
+// nothing defines is an error (with a reference), else not reported. With `kept`, the
+// project's stack is reloaded from it, and kept there; the result is a fresh load's.
 Diagnosis diagnose(const Setup& setup, const baker::Context& ctx, const Buffers& buffers,
-                   bool undefined_fails);
+                   bool undefined_fails, Kept* kept = nullptr);
 
 // Whether an open file belongs to the project: under the project file's directory. Every
 // file does without a project file.

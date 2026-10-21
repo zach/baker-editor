@@ -182,25 +182,66 @@ baker::Project project_of(const Setup& setup) {
 
 }  // namespace
 
-Diagnosis diagnose(const Setup& setup, const baker::Context& ctx, const Buffers& buffers,
-                   bool undefined_fails) {
-    const auto start = std::chrono::steady_clock::now();
-    Diagnosis out;
-    Collector found;
-    // Shared with the reader, which the kept Config holds after this returns.
-    const auto read_files = std::make_shared<std::set<std::string>>();
-    std::set<std::string>& files = *read_files;
+// What a check's stack reads through, kept with it: the buffers of the check that reads it,
+// the files read, and the warnings the last merge reported, which a reload that changes
+// nothing does not report again.
+struct KeptRead {
+    const Buffers* buffers = nullptr;
+    std::set<std::string> files;
+    std::vector<Problem> warnings;
+};
 
-    // Every file is read through the editor's buffers, the project file too.
-    const baker::LoadSession::Reader reader = [&buffers, read_files](std::string_view path,
-                                                                     baker::TextSink sink) {
+namespace {
+
+// Every file is read through the editor's buffers.
+baker::LoadSession::Reader reader_of(const std::shared_ptr<KeptRead>& read) {
+    return [read](std::string_view path, baker::TextSink sink) {
         const std::string file = canonical_path(std::string(path));
         std::string text;
-        if (!buffers.read(file, text)) return false;
-        read_files->insert(file);
+        if (!read->buffers->read(file, text)) return false;
+        read->files.insert(file);
         sink(text);
         return true;
     };
+}
+
+// What the stack is opened from: two checks with the same key open the same layers the
+// same way, so the second may reload the first's.
+std::string key_of(const baker::Project& project, const Setup& setup) {
+    std::string key;
+    const auto add = [&key](std::string_view s) {
+        key += std::to_string(s.size());
+        key += ':';
+        key += s;
+    };
+    for (const baker::ProjectLayer& l : project.layers) {
+        add(l.name.str());
+        add(l.path.str());
+        key += l.optional ? 'o' : '-';
+        key += l.enabled ? 'e' : '-';
+        key += l.dev_only ? 'd' : '-';
+    }
+    for (const auto* entries : {&project.pack_levels, &project.include_dirs, &project.defines}) {
+        key += '|';
+        for (const baker::ProjectEntry& e : *entries) add(e.value.str());
+    }
+    key += '|';
+    for (const std::string& name : setup.skip) add(name);
+    return key;
+}
+
+}  // namespace
+
+Diagnosis diagnose(const Setup& setup, const baker::Context& ctx, const Buffers& buffers,
+                   bool undefined_fails, Kept* kept) {
+    const auto start = std::chrono::steady_clock::now();
+    Diagnosis out;
+    Collector found;
+    // The files this check reads besides the stack's: the project file, scenarios.
+    const auto read_here = std::make_shared<KeptRead>();
+    read_here->buffers = &buffers;
+    const baker::LoadSession::Reader reader = reader_of(read_here);
+    std::set<std::string>& files = read_here->files;
 
     baker::Project project;
     if (setup.project.empty()) {
@@ -213,29 +254,63 @@ Diagnosis diagnose(const Setup& setup, const baker::Context& ctx, const Buffers&
         return finish(out, found, files, start);
     }
     auto loaded = std::make_shared<Loaded>();
-    loaded->config = std::make_unique<baker::Config>();
-    baker::Config& cfg = *loaded->config;
-    cfg.set_warning_handler([&found](const baker::Error& e) { found.add(e, Severity::Warning); });
-    cfg.session().set_reader(reader);
-    baker::ProjectOptions options{.go_on = true};
-    for (const std::string& name : setup.skip) options.skip.add(name);  // too many: refused
-    if (auto opened = baker::open_project(cfg, project, options); !opened) {
-        found.add(opened.error(), Severity::Error);
-    } else {
-        out.every_layer_read = opened->empty();
-        for (const baker::ProjectProblem& p : *opened) {
-            found.add(p.error, Severity::Error);
-            // A layer whose file is not there: on the project file, at the entry naming it.
-            Problem& last = found.problems.back();
-            if (!last.file.empty() || setup.project.empty()) continue;
-            last.file = setup.project;
-            for (const baker::ProjectLayer& l : project.layers)
-                if (l.name == p.layer) {
-                    last.line = l.path_at.line;
-                    last.column = l.path_at.column;
-                }
+    const std::string key = key_of(project, setup);
+
+    // The kept stack, reloaded. A reload that does not read changes nothing, and the check
+    // then loads afresh, so that the layers above the one that does not read are checked.
+    std::shared_ptr<KeptRead> stack_read;
+    if (kept && kept->config && kept->key == key) {
+        KeptRead& k = *kept->read;
+        k.buffers = &buffers;
+        k.files.clear();
+        std::vector<Problem> before = std::move(k.warnings);
+        k.warnings.clear();
+        const baker::Expected<bool> reloaded = kept->config->reload();
+        if (reloaded && *reloaded) {
+            loaded->config = kept->config;
+        } else {
+            k.warnings = std::move(before);
+            if (reloaded) loaded->config = kept->config;
+        }
+        if (loaded->config) {
+            stack_read = kept->read;
+            out.every_layer_read = true;
         }
     }
+    if (!loaded->config) {
+        stack_read = std::make_shared<KeptRead>();
+        stack_read->buffers = &buffers;
+        loaded->config = std::make_shared<baker::Config>();
+        baker::Config& cfg = *loaded->config;
+        cfg.set_warning_handler([read = stack_read](const baker::Error& e) {
+            read->warnings.push_back(problem_of(e, Severity::Warning));
+        });
+        cfg.session().set_reader(reader_of(stack_read));
+        baker::ProjectOptions options{.go_on = true};
+        for (const std::string& name : setup.skip) options.skip.add(name);  // too many: refused
+        if (auto opened = baker::open_project(cfg, project, options); !opened) {
+            found.add(opened.error(), Severity::Error);
+        } else {
+            out.every_layer_read = opened->empty();
+            for (const baker::ProjectProblem& p : *opened) {
+                found.add(p.error, Severity::Error);
+                // A layer whose file is not there: on the project file, at the entry naming it.
+                Problem& last = found.problems.back();
+                if (!last.file.empty() || setup.project.empty()) continue;
+                last.file = setup.project;
+                for (const baker::ProjectLayer& l : project.layers)
+                    if (l.name == p.layer) {
+                        last.line = l.path_at.line;
+                        last.column = l.path_at.column;
+                    }
+            }
+        }
+        if (kept && out.every_layer_read) *kept = {key, loaded->config, stack_read};
+    }
+    baker::Config& cfg = *loaded->config;
+    files.insert(stack_read->files.begin(), stack_read->files.end());
+    // What the merge warned of, and after it what the check adds through the same handler.
+    const size_t merge_warnings = stack_read->warnings.size();
 
     // An open .dta file the layers do not read, read on its own with the project's setup.
     baker::LoadSession extra_session;
@@ -321,7 +396,8 @@ Diagnosis diagnose(const Setup& setup, const baker::Context& ctx, const Buffers&
         // A field no shape declares: reported, never a failure.
         found.add(shaped.warnings, Severity::Information);
     }
-    cfg.set_warning_handler(nullptr);  // `found` goes with this call
+    for (const Problem& p : stack_read->warnings) found.problems.push_back(p);
+    stack_read->warnings.resize(merge_warnings);
     for (const baker::Pack& p : cfg.read_session().packs()) {
         // A pack is declared by its file's first form: the line of its (pack.
         Definition d{std::string(p.name.str()), canonical_path(std::string(p.file.str())), 1};

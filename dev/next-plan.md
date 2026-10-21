@@ -194,6 +194,10 @@ nothing from Baker. D6 last, once D1 has proven what is published, and not befor
 | D1 Run it in VS Code | none | Integration tests done (VSCodium, in CI); the manual pass is the owner's |
 | D2 The game's tweaks, checked by Baker | note 0017, met by Baker 0.4.0 | Done (first pass) |
 | D3 Method calls and the game's types | note 0018, met by Baker 0.4.0 | Done (first pass) |
-| D4 Live values that follow the game | note 0020: the config's epoch on the console, the port in the project file | Done (first pass), on the journal until note 0020 |
+| D4 Live values that follow the game | note 0020: the config's epoch on the console, the port in the project file | Done (first pass); polls `config.epoch` where the game binds it (note 0020, Baker 0.5.0) |
 | D5 Running scenarios on what is in the editor | none | Done (first pass) |
 | D6 Published | none; the owner's accounts | Waits for Baker 1.0 (the owner's call) |
+
+Baker 0.5.0, adopted in steps: the pin and the small workarounds' end (notes 0019, 0020,
+0022, 0023); one Config per project, reloaded after each edit (note 0024); then the server's
+own lexer replaced by Baker's `read_structure` (note 0021).
