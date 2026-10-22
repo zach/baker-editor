@@ -1,5 +1,7 @@
 #include "positions.hpp"
 
+#include <algorithm>
+
 namespace baker_lsp {
 namespace {
 
@@ -200,6 +202,93 @@ std::string uri_from_path(std::string_view path) {
         }
     }
     return uri;
+}
+
+namespace {
+
+std::vector<std::string_view> lines_of(std::string_view text) {
+    std::vector<std::string_view> out;
+    size_t start = 0;
+    for (size_t nl = text.find('\n'); nl != std::string_view::npos; nl = text.find('\n', start)) {
+        out.push_back(text.substr(start, nl - start));
+        start = nl + 1;
+    }
+    out.push_back(text.substr(start));
+    return out;
+}
+
+}  // namespace
+
+LineMap::LineMap(std::string_view before, std::string_view after) {
+    const std::vector<std::string_view> a = lines_of(before), b = lines_of(after);
+    to_.assign(a.size(), -1);
+    size_t head = 0;
+    while (head < a.size() && head < b.size() && a[head] == b[head]) {
+        to_[head] = static_cast<int>(head);
+        ++head;
+    }
+    size_t tail = 0;
+    while (tail < a.size() - head && tail < b.size() - head &&
+           a[a.size() - 1 - tail] == b[b.size() - 1 - tail]) {
+        to_[a.size() - 1 - tail] = static_cast<int>(b.size() - 1 - tail);
+        ++tail;
+    }
+    // The middle: the fewest lines removed and put in that turn one into the other (Myers'
+    // diff), in time and memory that grow with that number, not with the middle's length.
+    const size_t n = a.size() - head - tail, m = b.size() - head - tail;
+    if (n == 0 || m == 0) return;
+    const auto same = [&](int x, int y) {
+        return a[head + static_cast<size_t>(x)] == b[head + static_cast<size_t>(y)];
+    };
+    const int kn = static_cast<int>(n), km = static_cast<int>(m);
+    const int most = static_cast<int>(std::min<size_t>(n + m, kMaxEdits));
+    // v[k]: the furthest line of `a` reached on diagonal k (x - y), stored at k + most + 1;
+    // trace[d]: v after d edits, for diagonals -d to d.
+    std::vector<int> v(static_cast<size_t>(2 * most + 3), 0);
+    const auto at = [&](int k) -> int& { return v[static_cast<size_t>(k + most + 1)]; };
+    std::vector<std::vector<int>> trace;
+    int found = -1;
+    for (int d = 0; d <= most && found < 0; ++d) {
+        for (int k = -d; k <= d; k += 2) {
+            int x = (k == -d || (k != d && at(k - 1) < at(k + 1))) ? at(k + 1) : at(k - 1) + 1;
+            int y = x - k;
+            while (x < kn && y < km && same(x, y)) {
+                ++x;
+                ++y;
+            }
+            at(k) = x;
+            if (x >= kn && y >= km) found = d;
+        }
+        trace.emplace_back(v.begin() + (most + 1 - d), v.begin() + (most + 2 + d));
+    }
+    if (found < 0) return;                // too many edits: the middle's lines have no place
+    const auto was = [&](int d, int k) {  // v after d edits, on diagonal k
+        return trace[static_cast<size_t>(d)][static_cast<size_t>(k + d)];
+    };
+    int x = kn, y = km;
+    for (int d = found; d >= 0; --d) {
+        const int k = x - y;
+        int px = 0, py = 0;
+        if (d > 0) {
+            const int pk =
+                (k == -d || (k != d && was(d - 1, k - 1) < was(d - 1, k + 1))) ? k + 1 : k - 1;
+            px = was(d - 1, pk);
+            py = px - pk;
+        }
+        while (x > px && y > py) {  // the diagonal run: lines both keep
+            --x;
+            --y;
+            to_[head + static_cast<size_t>(x)] = static_cast<int>(head + static_cast<size_t>(y));
+        }
+        x = px;
+        y = py;
+    }
+}
+
+std::optional<int> LineMap::line(int line) const {
+    if (line < 1 || static_cast<size_t>(line) > to_.size() || to_[line - 1] < 0)
+        return std::nullopt;
+    return to_[line - 1] + 1;
 }
 
 }  // namespace baker_lsp

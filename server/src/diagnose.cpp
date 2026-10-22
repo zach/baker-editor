@@ -118,6 +118,7 @@ void find_hints(const baker::Config& cfg, const baker::Project& project, Loaded&
                 p.unnecessary = true;
                 p.message = "shadowed: " + short_name(file) + ":" + std::to_string(e.source.line) +
                             " sets it to " + value;
+                loaded.shadowed.push_back(p);
                 found.problems.push_back(std::move(p));
             }
         }
@@ -423,6 +424,8 @@ Diagnosis diagnose(const Setup& setup, const baker::Context& ctx, const Buffers&
         loaded->functions.push_back(
             {std::string(d.name.str()), canonical_path(std::string(d.file.str())), d.line});
     find_hints(cfg, project, *loaded, found);
+    for (const LayerHint& h : loaded->hints)
+        if (!loaded->texts.count(h.file)) buffers.read(h.file, loaded->texts[h.file]);
     loaded->files.assign(files.begin(), files.end());
     out.loaded = std::move(loaded);
     return finish(out, found, files, start);

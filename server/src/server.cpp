@@ -893,6 +893,31 @@ std::optional<size_t> hint_place(std::string_view text, const std::vector<size_t
     return end;
 }
 
+// Where the lines of a check's texts are now: a hint or a shadowed value found in a file as
+// the check read it is shown on its line in the file now, or not at all if that line changed.
+class Moved {
+public:
+    Moved(const Loaded& loaded, const Buffers& buffers) : loaded_(loaded), buffers_(buffers) {}
+    std::optional<int> line(const std::string& file, int line) {
+        const auto then = loaded_.texts.find(file);
+        if (then == loaded_.texts.end()) return line;
+        auto it = maps_.find(file);
+        if (it == maps_.end()) {
+            std::string now;
+            buffers_.read(file, now);
+            std::optional<LineMap> map;
+            if (now != then->second) map.emplace(then->second, now);
+            it = maps_.emplace(file, std::move(map)).first;
+        }
+        return it->second ? it->second->line(line) : line;
+    }
+
+private:
+    const Loaded& loaded_;
+    const Buffers& buffers_;
+    std::map<std::string, std::optional<LineMap>> maps_;  // empty: the text is the same
+};
+
 json hint_json(const LineIndex& lines, size_t at, const std::string& label,
                const std::string& tooltip) {
     const auto [line, character] = lines.position(at);
@@ -925,9 +950,12 @@ json Server::inlay_hints(const json& params) {
     if (!c || !c->loaded) return out;
     const std::vector<size_t> starts = line_starts(text);
 
+    Moved moved(*c->loaded, buffers_);
     for (const LayerHint& h : c->loaded->hints) {
-        if (h.file != path || h.line < first || h.line > last) continue;
-        if (const auto at = hint_place(text, starts, h.line, h.key))
+        if (h.file != path) continue;
+        const std::optional<int> line = moved.line(path, h.line);
+        if (!line || *line < first || *line > last) continue;
+        if (const auto at = hint_place(text, starts, *line, h.key))
             out.push_back(hint_json(lines, *at, h.label,
                                     h.shadowed ? "`" + h.path + "`: a higher layer overrides it"
                                                : "`" + h.path + "`: overrides a lower layer"));
@@ -1192,6 +1220,17 @@ void Server::check_now() {
         if (d.loaded && (d.every_layer_read || !c.loaded)) {
             hints_changed = hints_changed || !c.loaded || c.loaded->hints != d.loaded->hints;
             c.loaded = d.loaded;
+        }
+        // And its shadowed values, on their lines now: a check whose layers did not all read
+        // has lost the hints of the layer that did not.
+        if (!d.every_layer_read && c.loaded && c.loaded != d.loaded) {
+            std::erase_if(d.problems, [](const Problem& p) { return p.code == "shadowed"; });
+            Moved moved(*c.loaded, buffers_);
+            for (Problem p : c.loaded->shadowed)
+                if (const std::optional<int> line = moved.line(p.file, p.line)) {
+                    p.line = *line;
+                    d.problems.push_back(std::move(p));
+                }
         }
         // What the last runs of the project's scenarios found, until each runs again.
         std::vector<Problem> problems = d.problems;

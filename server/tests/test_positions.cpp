@@ -68,3 +68,43 @@ TEST_CASE("file URIs and paths") {
     CHECK(uri_from_path("C:/data/x.dta") == "file:///C:/data/x.dta");
     CHECK(path_from_uri(uri_from_path("/s/\xC3\xA9t\xC3\xA9.dta")) == "/s/\xC3\xA9t\xC3\xA9.dta");
 }
+
+TEST_CASE("a line map finds each kept line in the later text") {
+    const std::string before = "a\nb\nc\nd\ne\n";
+    // Two lines put in after the first, and the fourth edited.
+    const LineMap map(before, "a\nx\ny\nb\nc\nD\ne\n");
+    CHECK(map.line(1) == 1);
+    CHECK(map.line(2) == 4);
+    CHECK(map.line(3) == 5);
+    CHECK(!map.line(4));  // edited: no place
+    CHECK(map.line(5) == 7);
+    CHECK(!map.line(9));
+    // A line removed, and a repeated line matched in order.
+    const LineMap removed("x\n)\ny\n)\n", "x\ny\n)\n");
+    CHECK(map.line(1) == 1);
+    CHECK(removed.line(1) == 1);
+    CHECK(!removed.line(2));
+    CHECK(removed.line(3) == 2);
+    CHECK(removed.line(4) == 3);
+    CHECK(LineMap(before, before).line(3) == 3);
+}
+
+TEST_CASE("a line map keeps the lines between two edits far apart") {
+    std::string before;
+    for (int i = 0; i < 20000; ++i) before += "(line " + std::to_string(i) + ")\n";
+    std::string after = before;
+    after.insert(after.find("(line 5000)"), "; one\n; two\n");  // two lines in, at line 5001
+    after += "(open\n";                                         // and one left open at the end
+    const LineMap map(before, after);
+    CHECK(map.line(5000) == 5000);
+    CHECK(map.line(5001) == 5003);
+    CHECK(map.line(15000) == 15002);
+    CHECK(map.line(20000) == 20002);
+    // Past kMaxEdits lines of edits between them, the lines between have no place.
+    std::string rewritten = before;
+    for (size_t i = 0; i < 1200; ++i) rewritten.insert(rewritten.find("(line 3000)"), "x\n");
+    rewritten += "(open\n";
+    const LineMap far(before, rewritten);
+    CHECK(far.line(10) == 10);
+    CHECK(!far.line(15000));
+}

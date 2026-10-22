@@ -254,6 +254,56 @@ TEST_CASE("which layer wins: a hint on both values, and the shadowed one faded")
     sent.clear();
     server.check_now();  // nothing moved: no refresh
     for (const json& m : sent) CHECK(m.value("method", "") != "workspace/inlayHint/refresh");
+
+    // While the file does not read, the hint and the faded value stay on their line: three
+    // lines put in above it, and a bracket left open at the end.
+    const auto change = [&](const std::string& path, const std::string& to) {
+        server.handle({{"jsonrpc", "2.0"},
+                       {"method", "textDocument/didChange"},
+                       {"params",
+                        {{"textDocument", {{"uri", uri_from_path(path)}, {"version", 2}}},
+                         {"contentChanges", json::array({{{"text", to}}})}}}},
+                      now);
+    };
+    bool broken = false;  // the last check found a syntax error in default.dta
+    const auto shadowed_line = [&] {
+        sent.clear();
+        server.check_now();
+        int line = -1;
+        broken = false;
+        for (const json& m : sent)
+            if (m.value("method", "") == "textDocument/publishDiagnostics" &&
+                m["params"]["uri"] == uri_from_path(kDefault))
+                for (const json& d : m["params"]["diagnostics"]) {
+                    if (d["code"] == "shadowed") line = d["range"]["start"]["line"];
+                    if (d["code"] == "syntax") broken = true;
+                }
+        return line;
+    };
+    const size_t units = text.find("(units");
+    REQUIRE(units != std::string::npos);
+    std::string moved = text;
+    moved.insert(units, "; one\n; two\n; three\n");
+    moved += "\n(open\n";
+    change(kDefault, moved);
+    CHECK(shadowed_line() == 7);
+    CHECK(broken);
+    const json carried = hints(kDefault);
+    REQUIRE(carried.size() == 1);
+    CHECK(carried[0]["label"] == "\u2190 local.dta:2 (50)");
+    CHECK(carried[0]["position"] == json{{"line", 7}, {"character", 23}});
+    // The hinted line itself edited: its hint and faded value are dropped, not guessed at.
+    const size_t health = moved.find("(health 100)");
+    REQUIRE(health != std::string::npos);
+    change(kDefault, moved.replace(health, 12, "(health 120)"));
+    CHECK(shadowed_line() == -1);
+    CHECK(broken);
+    CHECK(hints(kDefault).empty());
+    // Once it reads again, the hints come from the new check.
+    change(kDefault, moved.substr(0, moved.size() - 7));
+    CHECK(shadowed_line() == 7);
+    CHECK(!broken);
+    CHECK(hints(kDefault).size() == 1);
 }
 
 TEST_CASE("no project and no layers: nothing is checked") {

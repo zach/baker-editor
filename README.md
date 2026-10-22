@@ -191,6 +191,12 @@ The overridden value is also a hint-level diagnostic, `shadowed`, tagged *unnece
 the editor fades it and a stale default reads as stale. Editing one layer refreshes the
 hints in the other layers' open editors (`workspace/inlayHint/refresh`).
 
+While a file does not read, which is most of the time a person types in it, the hints and
+faded values are those of the last check in which every layer read, carried to where their
+lines are now by a line diff of the text that check read and the text in the editor. A hint
+whose own line was edited is dropped until the file reads again, not guessed at. On the
+2 MB Duel the diff takes about 1 ms.
+
 With `--live-inlays` (`baker.live.inlays`) and a game answering, a value a live edit has
 changed in the game shows it: `(health 1000) live 1234`. The server asks the game about
 every value in the visible lines at once (at most 200), within the console's 50 ms; without
@@ -360,8 +366,6 @@ tools/lsp_client.py --replace data/default.dta "(health 1000)" "(health 0)" -- b
   what its values are (one written before `baker.reference/1.2`).
 - A tweak Baker cannot make from its description (a list, or a fixed-size list of a game's
   own type) is not checked, beyond its range.
-- A layer's hints are from the last check in which every layer read, so while a file does
-  not read, its hints can sit a line off.
 - A symbol field with no `(one_of ...)` is completed from use: the first use of a value is not
   offered, and a typo used twice is.
 - A color's components are taken as 0 to 1, as Baker's color rule has them.

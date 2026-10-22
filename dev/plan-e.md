@@ -28,6 +28,14 @@ the health line itself drops its hint until the file reads.
 
 **Effort:** about a day.
 
+**As built:** the last whole check keeps each hinted file's text and its faded values
+(`Loaded::texts`, `Loaded::shadowed`); a check whose layers do not all read, and every
+inlay request, carries them through `LineMap`: the same first and last lines, then Myers'
+line diff of the middle, whose cost grows with the lines edited (at most 1,000) and not with
+the file. On the 2 MB Duel, three lines put in mid-file with a bracket left open at the end
+map in about 1 ms. In Duel the acceptance holds: the hint and the faded value move from line
+18 to 21, and go when the health line itself is edited.
+
 ## E2. Every tweak checked, lists included
 
 **Why:** the README's second limit. A tweak Baker cannot make from its description is not
@@ -130,7 +138,7 @@ Windows pass (D1) is still the owner's.
 
 | Step | Baker | Status |
 |---|---|---|
-| E1 Hints that follow the text | none | Planned |
+| E1 Hints that follow the text | none | Done (first pass) |
 | E2 Every tweak checked, lists included | note 0025: list element types, arrays of a game's types | Planned; the note first |
 | E3 Highlighting from Baker's own tokens | none | Planned |
 | E4 Formatting as Baker writes | note 0026: a formatter for text that keeps comments | Planned; the note first |

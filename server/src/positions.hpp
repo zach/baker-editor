@@ -2,8 +2,10 @@
 // Positions: Baker locates a problem by line and column in code points (1-based, 0 when
 // unknown); LSP wants a range of 0-based lines and UTF-16 code units. File URIs map to
 // the paths Baker reads.
+#include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace baker_lsp {
 
@@ -42,5 +44,21 @@ std::string last_path_element(std::string_view path);
 // file:///a/b%20c.dta <-> /a/b c.dta. Only file URIs map; others give "".
 std::string path_from_uri(std::string_view uri);
 std::string uri_from_path(std::string_view path);
+
+// Where each line of one text is in a later version of it: the lines both keep, matched
+// in order (the same first and last lines, then the fewest lines removed and put in between,
+// as a line diff gives them), so that something located in the first text can be shown in
+// the second. A line that was edited, removed or replaced has no place; so has every line
+// between the first and last edits once there are more than kMaxEdits lines of edits.
+class LineMap {
+public:
+    static constexpr size_t kMaxEdits = 1000;
+    LineMap(std::string_view before, std::string_view after);
+    // Line `line` (1-based) of `before`, in `after`; empty if it has no place there.
+    [[nodiscard]] std::optional<int> line(int line) const;
+
+private:
+    std::vector<int> to_;  // by line of `before`, 0-based: its line in `after`, or -1
+};
 
 }  // namespace baker_lsp

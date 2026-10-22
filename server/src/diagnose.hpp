@@ -83,6 +83,10 @@ struct Loaded {
     // Each overridden or overriding value, from the layers above the bottom one
     // (Config::layer_effect): their entries name the value below and where it is.
     std::vector<LayerHint> hints;
+    std::vector<Problem> shadowed;  // the hints' faded values, as problems (Hint, Unnecessary)
+    // Each hinted file's text as this check read it, so that a later check that does not read
+    // can carry the hints to where their lines are now (LineMap).
+    std::map<std::string, std::string> texts;
 };
 
 struct Diagnosis {
