@@ -140,6 +140,29 @@ suite("Baker in VS Code", function () {
             (d) => d.tags && d.tags.includes(vscode.DiagnosticTag.Unnecessary)));
     });
 
+    test("highlighting says what each name is: a macro, a {func}, a directive", async () => {
+        const legend = await vscode.commands.executeCommand(
+            "vscode.provideDocumentSemanticTokensLegend", defaultUri);
+        const doc = await baker(defaultUri);
+        const tokens = await until("semantic tokens", async () => {
+            const t = await vscode.commands.executeCommand(
+                "vscode.provideDocumentSemanticTokens", defaultUri);
+            return t && t.data.length ? t : undefined;
+        });
+        const found = [];
+        let line = 0, column = 0;
+        for (let i = 0; i + 4 < tokens.data.length; i += 5) {
+            line += tokens.data[i];
+            column = tokens.data[i] ? tokens.data[i + 1] : column + tokens.data[i + 1];
+            const name = doc.lineAt(line).text.substr(column, tokens.data[i + 2]);
+            const mods = legend.tokenModifiers.filter((m, b) => tokens.data[i + 4] & (1 << b));
+            found.push([name, legend.tokenTypes[tokens.data[i + 3]], ...mods].join(" "));
+        }
+        for (const want of ["#require keyword", "SPEEDY macro declaration",
+                            "game.twice function declaration", "$n variable"])
+            assert.ok(found.includes(want), `${want} in ${found.join(", ")}`);
+    });
+
     test("a color swatch, and the picker rewrites the numbers", async () => {
         const colors = await vscode.commands.executeCommand(
             "vscode.executeDocumentColorProvider", localUri);

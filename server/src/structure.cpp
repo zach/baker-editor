@@ -5,6 +5,22 @@
 #include <algorithm>
 
 namespace baker_lsp {
+namespace {
+
+TokenKind kind_of(baker::TextTokenKind k) {
+    switch (k) {
+        case baker::TextTokenKind::QuotedSymbol: return TokenKind::QuotedSymbol;
+        case baker::TextTokenKind::String: return TokenKind::String;
+        case baker::TextTokenKind::Int: return TokenKind::Int;
+        case baker::TextTokenKind::Float: return TokenKind::Float;
+        case baker::TextTokenKind::Variable: return TokenKind::Variable;
+        case baker::TextTokenKind::Directive: return TokenKind::Directive;
+        case baker::TextTokenKind::Macro: return TokenKind::Macro;
+        default: return TokenKind::Symbol;
+    }
+}
+
+}  // namespace
 
 std::string_view Structure::tag(int b) const {
     if (b < 0 || brackets[static_cast<size_t>(b)].tag < 0) return {};
@@ -56,6 +72,7 @@ Structure read_structure(std::string_view text) {
         token.quote = t.kind == baker::TextTokenKind::String         ? '"'
                       : t.kind == baker::TextTokenKind::QuotedSymbol ? '\''
                                                                      : 0;
+        token.kind = kind_of(t.kind);
         token.text = text.substr(t.begin, t.end - t.begin);
         if (token.quote && token.text.size() >= 2 && token.text.back() == token.quote)
             token.text = token.text.substr(1, token.text.size() - 2);

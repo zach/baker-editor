@@ -1,6 +1,7 @@
 #include "server.hpp"
 
 #include "features.hpp"
+#include "highlight.hpp"
 #include "hints.hpp"
 #include "merged.hpp"
 #include "outline.hpp"
@@ -207,6 +208,14 @@ void Server::request(const json& message) {
               {"inlayHintProvider", true},
               {"codeLensProvider", {{"resolveProvider", false}}},
               {"colorProvider", true},
+              {"semanticTokensProvider",
+               {{"legend",
+                 {{"tokenTypes",
+                   json(std::vector<std::string>(std::begin(kTokenTypes), std::end(kTokenTypes)))},
+                  {"tokenModifiers", json(std::vector<std::string>(std::begin(kTokenModifiers),
+                                                                   std::end(kTokenModifiers)))}}},
+                {"full", true},
+                {"range", true}}},
               {"executeCommandProvider",
                {{"commands",
                  json::array({"baker.writeBack", "baker.evaluate", "baker.try", "baker.revert"})}}},
@@ -250,6 +259,10 @@ void Server::request(const json& message) {
             reply["result"] = std::move(result);
         else
             reply["error"] = {{"code", -32602}, {"message", error}};
+    } else if (method == "textDocument/semanticTokens/full" ||
+               method == "textDocument/semanticTokens/range") {
+        reply["result"] = semantic_tokens(message.value("params", json::object()),
+                                          method == "textDocument/semanticTokens/range");
     } else if (method == "textDocument/codeLens") {
         reply["result"] = code_lenses(message.value("params", json::object()));
     } else if (method == "textDocument/inlayHint") {
@@ -1160,6 +1173,44 @@ json Server::color_presentations(const json& params) {
                         component(color.value("blue", 0.0));
     if (s.tokens.size() == 4) label += " " + component(color.value("alpha", 1.0));
     return json::array({{{"label", label}, {"textEdit", {{"range", range}, {"newText", label}}}}});
+}
+
+json Server::semantic_tokens(const json& params, bool ranged) {
+    const std::string path = document_of(params);
+    Checked* c = project_of(path);
+    if (c && !c->loaded) check_now();
+    const auto read = read_of(path);
+    if (!read) return {{"data", json::array()}};
+    int first = 0, last = INT32_MAX;  // 0-based lines
+    if (ranged) {
+        const json range = params.value("range", json::object());
+        first = range.value("start", json::object()).value("line", 0);
+        last = range.value("end", json::object()).value("line", 0);
+    }
+    // The values a higher layer overrides here, on their lines now.
+    std::vector<std::pair<int, std::string>> shadowed;
+    if (c && c->loaded) {
+        Moved moved(*c->loaded, buffers_);
+        for (const LayerHint& h : c->loaded->hints)
+            if (h.shadowed && h.file == path)
+                if (const std::optional<int> line = moved.line(path, h.line))
+                    shadowed.emplace_back(*line, h.key);
+    }
+    static const Reference kNone;
+    std::vector<int> data;
+    int line = 0, column = 0;  // the last token's, for LSP's relative encoding
+    for (const SemanticToken& t : baker_lsp::semantic_tokens(*read, c ? c->loaded.get() : nullptr,
+                                                             c ? c->reference : kNone, shadowed)) {
+        const auto [l, col] = read->lines.position(t.begin);
+        if (l < first || l > last) continue;
+        const auto [end_line, end_col] = read->lines.position(t.end);
+        if (end_line != l) continue;  // one across lines: the grammar colors it
+        data.insert(data.end(), {l - line, l == line ? col - column : col, end_col - col,
+                                 static_cast<int>(t.type), static_cast<int>(t.modifiers)});
+        line = l;
+        column = col;
+    }
+    return {{"data", std::move(data)}};
 }
 
 json Server::code_lenses(const json& params) {

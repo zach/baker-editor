@@ -41,6 +41,29 @@
         "path": "./syntaxes/baker.tmLanguage.json"
       }
     ],
+    "semanticTokenModifiers": [
+      {
+        "id": "tweak",
+        "description": "An array the game reads as a tweak"
+      },
+      {
+        "id": "shadowed",
+        "description": "A value a higher layer overrides"
+      }
+    ],
+    "semanticTokenScopes": [
+      {
+        "language": "baker",
+        "scopes": {
+          "property.tweak": [
+            "variable.other.property.tweak.baker"
+          ],
+          "property.shadowed": [
+            "comment.shadowed.baker"
+          ]
+        }
+      }
+    ],
     "configuration": {
       "title": "Baker",
       "properties": {

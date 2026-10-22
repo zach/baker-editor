@@ -81,6 +81,18 @@ for the test project; the 2 MB file's tokens answer within 100 ms.
 
 **Effort:** about two days.
 
+**As built:** `highlight.cpp` classifies the kept read's tokens (`Token::kind`, Baker's token
+kinds): directives, variables, macro definitions (the name of a top-level `[...]`) and uses,
+a `{func}`'s definition and calls, the game's functions and named objects with their
+methods, tweak fields and the shadowed value's field (carried by `LineMap` as E1's hints
+are). Strings and numbers stay with the grammar: on the 2 MB file the server's tokens are a
+few, not 240,000. The extension declares the `tweak` and `shadowed` modifiers and their
+scopes. The full request answers in 25 to 28 ms on the 2 MB file after an edit, almost all of
+it the file's read, shared with the other requests (looking up a tweak only for an array
+named as a tweak's last part took it from about 45 ms). The stacks use no macros or `{func}`
+in their data, so Duel shows its tweaks and its scenarios' game calls; the test project's
+server and integration tests check the rest.
+
 ## E4. Formatting as Baker writes
 
 **Why:** nothing formats Baker text. A person aligns brackets by hand, an agent's edit
@@ -140,6 +152,6 @@ Windows pass (D1) is still the owner's.
 |---|---|---|
 | E1 Hints that follow the text | none | Done (first pass) |
 | E2 Every tweak checked, lists included | note 0025: list element types, arrays of a game's types | Planned; the note first |
-| E3 Highlighting from Baker's own tokens | none | Planned |
+| E3 Highlighting from Baker's own tokens | none | Done (first pass) |
 | E4 Formatting as Baker writes | note 0026: a formatter for text that keeps comments | Planned; the note first |
 | E5 A large file stays responsive | none | Planned |

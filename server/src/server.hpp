@@ -90,6 +90,8 @@ private:
     nlohmann::json execute(const nlohmann::json& params);
     nlohmann::json inlay_hints(const nlohmann::json& params);
     nlohmann::json code_lenses(const nlohmann::json& params);
+    // textDocument/semanticTokens/full and /range (highlight.hpp), from the kept read.
+    nlohmann::json semantic_tokens(const nlohmann::json& params, bool ranged);
     // baker/scenarios: the project's scenarios and objectives, and the binary that runs them.
     nlohmann::json scenarios(const nlohmann::json& params, std::string& error);
     // baker/simResults: a run's results (baker.sim/1), whose failures are published with the

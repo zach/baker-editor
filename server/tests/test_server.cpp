@@ -304,6 +304,24 @@ TEST_CASE("which layer wins: a hint on both values, and the shadowed one faded")
     CHECK(shadowed_line() == 7);
     CHECK(!broken);
     CHECK(hints(kDefault).size() == 1);
+    // And highlighting marks the shadowed array's name, on the same line.
+    sent.clear();
+    server.handle({{"jsonrpc", "2.0"},
+                   {"id", 8},
+                   {"method", "textDocument/semanticTokens/full"},
+                   {"params", {{"textDocument", {{"uri", uri_from_path(kDefault)}}}}}},
+                  now);
+    std::vector<int> faded;  // lines (0-based) of tokens with the shadowed modifier
+    for (const json& m : sent)
+        if (m.contains("id") && m["id"] == 8) {
+            const json& data = m["result"]["data"];
+            int line = 0;
+            for (size_t i = 0; i + 4 < data.size(); i += 5) {
+                line += data[i].get<int>();
+                if (data[i + 4].get<int>() & 8) faded.push_back(line);
+            }
+        }
+    CHECK(faded == std::vector<int>{7});
 }
 
 TEST_CASE("no project and no layers: nothing is checked") {
@@ -407,4 +425,64 @@ TEST_CASE("a file's structure is read again after each edit, and dropped on clos
     CHECK(c.request(5, "textDocument/foldingRange", doc)["result"].empty());
     c.notify("textDocument/didClose", doc);
     CHECK(names(6).size() == 3);  // the file on disk
+}
+
+TEST_CASE("semantic tokens: what each name is, from Baker's lexer and the last check") {
+    Client c;
+    const json init = c.request(1, "initialize");
+    const json legend = init["result"]["capabilities"]["semanticTokensProvider"]["legend"];
+    const std::string text =
+        "#require \"../packs/game/core.dta\"\n"
+        "[SPEEDY 9]\n"
+        "(units (knight (health 100) (speed SPEEDY)))\n"
+        "(world (gravity 9))\n"
+        "#autorun {func game.twice ($n) {game.wait $n} {game.wait $n}}\n"
+        "#autorun {game.twice 2} {clock thread_task 1 {game.wait 1}}\n";
+    c.open(text);
+    c.server.check_now();
+    const json doc = {{"textDocument", {{"uri", uri_from_path(kDefault)}}}};
+    // Each token as "text type modifier...", decoded from LSP's relative encoding.
+    const auto decode = [&](const json& data) {
+        std::vector<std::string> out;
+        std::vector<std::string_view> lines;
+        for (size_t at = 0, nl; (nl = text.find('\n', at)) != std::string::npos; at = nl + 1)
+            lines.push_back(std::string_view(text).substr(at, nl - at));
+        int line = 0, column = 0;
+        for (size_t i = 0; i + 4 < data.size(); i += 5) {
+            line += data[i].get<int>();
+            column = data[i].get<int>() ? data[i + 1].get<int>() : column + data[i + 1].get<int>();
+            std::string t(lines[static_cast<size_t>(line)].substr(static_cast<size_t>(column),
+                                                                  data[i + 2].get<size_t>()));
+            t += " " + legend["tokenTypes"][data[i + 3].get<size_t>()].get<std::string>();
+            for (size_t m = 0; m < legend["tokenModifiers"].size(); ++m)
+                if (data[i + 4].get<int>() & (1 << m))
+                    t += " " + legend["tokenModifiers"][m].get<std::string>();
+            out.push_back(std::move(t));
+        }
+        return out;
+    };
+    const std::vector<std::string> full =
+        decode(c.request(2, "textDocument/semanticTokens/full", doc)["result"]["data"]);
+    const auto has = [&](const std::string& t) {
+        return std::find(full.begin(), full.end(), t) != full.end();
+    };
+    CHECK(has("#require keyword"));
+    CHECK(has("SPEEDY macro declaration"));
+    CHECK(has("SPEEDY macro"));
+    CHECK(has("gravity property tweak"));
+    CHECK(has("game.twice function declaration"));
+    CHECK(has("game.twice function"));
+    CHECK(has("game.wait function defaultLibrary"));
+    CHECK(has("$n variable"));
+    CHECK(has("clock variable defaultLibrary"));
+    CHECK(has("thread_task method defaultLibrary"));
+    CHECK(!has("health property"));  // a field, not a tweak: the grammar's color
+    // A range: only its lines.
+    const json range = {
+        {"textDocument", {{"uri", uri_from_path(kDefault)}}},
+        {"range",
+         {{"start", {{"line", 3}, {"character", 0}}}, {"end", {{"line", 3}, {"character", 99}}}}}};
+    const json ranged = c.request(3, "textDocument/semanticTokens/range", range)["result"]["data"];
+    REQUIRE(ranged.size() == 5);
+    CHECK(ranged[0] == 3);  // the first token's line, from the start of the file
 }

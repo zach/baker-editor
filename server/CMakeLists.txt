@@ -13,6 +13,7 @@ add_library(baker_lsp_core STATIC
   src/live.cpp
   src/merged.cpp
   src/hints.cpp
+  src/highlight.cpp
   src/scenarios.cpp
   src/tweaks.cpp
   src/outline.cpp

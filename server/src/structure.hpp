@@ -4,6 +4,7 @@
 // and every comment. Baker's own lexer reads it (baker::read_structure), so it serves text
 // that does not parse (an unclosed bracket runs to the end of the file) and cannot disagree
 // with Baker about what a token is. Outline, folding, references and rename are built on it.
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -22,12 +23,25 @@ struct Bracket {
     int index = 0;           // its place in its parent, as Token::index
 };
 
+// What a token is, as Baker's lexer reads it.
+enum class TokenKind : uint8_t {
+    Symbol,
+    QuotedSymbol,  // '...'
+    String,        // "..."
+    Int,
+    Float,
+    Variable,   // $name
+    Directive,  // #name
+    Macro,      // a use of a macro this text defines ([name ...] at the top level)
+};
+
 struct Token {
     std::string_view text;  // into the file's text: unquoted for a quoted symbol
     size_t begin = 0, end = 0;
     int bracket = -1;  // the innermost enclosing bracket, or -1 at the top
     int index = 0;     // its place in that bracket: 0 is the tag (or command)
     char quote = 0;    // '"' a string, '\'' a quoted symbol, 0 a bare token
+    TokenKind kind = TokenKind::Symbol;
 };
 
 struct Comment {

@@ -46,8 +46,8 @@ The extension's unit tests (`npm test`) tokenize Baker text with the grammar, ch
 files it calls Baker's, and read views' and scenarios' results. Its integration tests run it
 inside the editor (`@vscode/test-electron`) on a copy of the server's test project, through
 the provider commands the editor itself uses: diagnostics, hover, completion, definition,
-rename, inlay hints and the faded shadowed value, the color picker, the merged and layer
-views, and the test view against a fake game binary. CI runs them in VSCodium 1.90.2; locally:
+rename, inlay hints and the faded shadowed value, highlighting, the color picker, the merged
+and layer views, and the test view against a fake game binary. CI runs them in VSCodium 1.90.2; locally:
 
 ```sh
 cmake --build build                                   # the server
@@ -176,6 +176,29 @@ All four read each file's structure from its text with Baker's own lexer
 (`baker::read_structure`), so they work on text that does not parse, and know Baker's syntax
 as the parser does. An open file's structure is read once per edit and shared by every
 request on that text.
+
+## Highlighting
+
+The grammar colors Baker text by its shape; the server adds what a name is (semantic tokens,
+full and by range, from the open file's kept read):
+
+| Token | Type | Modifiers |
+|---|---|---|
+| `#include`, `#autorun`, ... | keyword | |
+| `$n` | variable | |
+| `[SPEEDY 9]`'s name; a use of it | macro | declaration; none |
+| `{func game.twice ...}`'s name; a call of it | function | declaration; none |
+| a call of the game's function, `{duel.reset}` | function | defaultLibrary |
+| a named object and its method, `{clock thread_task ...}` | variable, method | defaultLibrary |
+| an array the game reads as a tweak, `(buffer 5)` | property | tweak |
+| an array a higher layer overrides | property | shadowed |
+
+Strings, numbers and plain symbols are left to the grammar, which colors them the same: on
+a large file they are nearly all its tokens. The extension maps `tweak` and `shadowed` to
+scopes (`variable.other.property.tweak.baker`, `comment.shadowed.baker`) that a theme can
+color. Other editors get the same tokens from the server; tree-sitter still colors them
+where no server runs. On the 2 MB Duel, the tokens answer in 25 to 28 ms after an edit, the
+file's read included (the same read the outline, folds and colors use).
 
 ## Which layer wins, in the text
 
