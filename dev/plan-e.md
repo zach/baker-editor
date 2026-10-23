@@ -164,7 +164,7 @@ Windows pass (D1) is still the owner's.
 | Step | Baker | Status |
 |---|---|---|
 | E1 Hints that follow the text | none | Done (first pass) |
-| E2 Every tweak checked, lists included | note 0025: list element types, arrays of a game's types | Planned; the note first |
+| E2 Every tweak checked, lists included | note 0025: list element types, arrays of a game's types | Planned; note 0025 written |
 | E3 Highlighting from Baker's own tokens | none | Done (first pass) |
-| E4 Formatting as Baker writes | note 0026: a formatter for text that keeps comments | Planned; the note first |
+| E4 Formatting as Baker writes | note 0026: a formatter for text that keeps comments | Planned; note 0026 written |
 | E5 A large file stays responsive | none | Done (first pass) |
