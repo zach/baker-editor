@@ -57,17 +57,21 @@ int main(int argc, char** argv) {
     baker_lsp::Server server(std::move(setup), [](const nlohmann::json& message) {
         baker_lsp::write_message(stdout, message.dump());
     });
+    // Between messages it handles, the server takes in the ones that arrived meanwhile, so it
+    // answers in the order that keeps a person waiting least (Server::receive).
     for (;;) {
         std::deque<std::string> batch;
         {
             std::unique_lock lock(mutex);
             const auto ready = [&] { return !inbox.empty() || closed; };
-            if (const auto due = server.due())
-                wake.wait_until(lock, *due, ready);
-            else
-                wake.wait(lock, ready);
+            if (!server.busy()) {
+                if (const auto due = server.due())
+                    wake.wait_until(lock, *due, ready);
+                else
+                    wake.wait(lock, ready);
+            }
             batch.swap(inbox);
-            if (batch.empty() && closed) {  // the client went away without exit
+            if (batch.empty() && closed && !server.busy()) {  // the client went away without exit
                 std::fflush(stdout);
                 std::_Exit(1);
             }
@@ -78,16 +82,20 @@ int main(int argc, char** argv) {
                 std::fprintf(stderr, "baker-lsp: a message that is not JSON\n");
                 continue;
             }
-            try {
-                server.handle(message, baker_lsp::Server::Clock::now());
-            } catch (const std::exception& e) {
-                std::fprintf(stderr, "baker-lsp: a malformed message: %s\n", e.what());
+            server.receive(std::move(message));
+        }
+        try {
+            if (server.work(baker_lsp::Server::Clock::now())) {
+                if (const auto code = server.exit_code()) {
+                    // Not return: exit() would wait on stdin's lock, held by the blocked reader.
+                    std::fflush(stdout);
+                    std::_Exit(*code);
+                }
+                continue;
             }
-            if (const auto code = server.exit_code()) {
-                // Not return: exit() would wait on stdin's lock, held by the blocked reader.
-                std::fflush(stdout);
-                std::_Exit(*code);
-            }
+        } catch (const std::exception& e) {
+            std::fprintf(stderr, "baker-lsp: a malformed message: %s\n", e.what());
+            continue;
         }
         server.tick(baker_lsp::Server::Clock::now());
     }

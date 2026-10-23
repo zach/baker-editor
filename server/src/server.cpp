@@ -181,6 +181,84 @@ void Server::handle(const json& message, Clock::time_point now) {
         notification(message, now);
 }
 
+namespace {
+
+// A request for one of a file's views: it can wait behind what a person waits on, and is
+// stale once its file changes.
+bool is_view(const json& message) {
+    static const std::set<std::string> kViews = {"textDocument/documentSymbol",
+                                                 "textDocument/foldingRange",
+                                                 "textDocument/semanticTokens/full",
+                                                 "textDocument/semanticTokens/range",
+                                                 "textDocument/documentColor",
+                                                 "textDocument/inlayHint",
+                                                 "textDocument/codeLens"};
+    return message.contains("id") && kViews.count(message.value("method", ""));
+}
+
+std::string uri_of(const json& message) {  // without copying the params, an edit's text
+    const auto params = message.find("params");
+    if (params == message.end() || !params->is_object()) return {};
+    const auto doc = params->find("textDocument");
+    if (doc == params->end() || !doc->is_object()) return {};
+    const auto uri = doc->find("uri");
+    return uri != doc->end() && uri->is_string() ? uri->get<std::string>() : std::string();
+}
+
+}  // namespace
+
+void Server::receive(json message) {
+    if (message.is_object() && message.value("method", "") == "$/cancelRequest") {
+        const json id = message.value("params", json::object()).value("id", json());
+        for (auto it = queue_.begin(); it != queue_.end(); ++it)
+            if (it->contains("method") && it->contains("id") && (*it)["id"] == id) {
+                send_({{"jsonrpc", "2.0"},
+                       {"id", id},
+                       {"error", {{"code", -32800}, {"message", "cancelled"}}}});
+                queue_.erase(it);
+                break;
+            }
+        return;
+    }
+    queue_.push_back(std::move(message));
+}
+
+bool Server::work(Clock::time_point now) {
+    if (queue_.empty()) return false;
+    auto next =
+        std::find_if(queue_.begin(), queue_.end(), [](const json& m) { return !is_view(m); });
+    if (next == queue_.end()) {
+        // Only views wait: a due check first, then the oldest view.
+        if (due_ && *due_ <= now) {
+            check_now();
+            return true;
+        }
+        next = queue_.begin();
+    } else if (const std::string method = next->value("method", "");
+               method == "textDocument/didChange" || method == "textDocument/didClose") {
+        // The views of this file asked before this edit are of a text that is going. (An
+        // erase moves the deque's elements, so by index, and `next` found again after.)
+        const std::string uri = uri_of(*next);
+        for (size_t i = 0, end = static_cast<size_t>(next - queue_.begin()); i < end;) {
+            if (is_view(queue_[i]) && uri_of(queue_[i]) == uri) {
+                send_({{"jsonrpc", "2.0"},
+                       {"id", queue_[i]["id"]},
+                       {"error", {{"code", -32801}, {"message", "the text changed"}}}});
+                queue_.erase(queue_.begin() + static_cast<std::ptrdiff_t>(i));
+                --end;
+            } else {
+                ++i;
+            }
+        }
+        next =
+            std::find_if(queue_.begin(), queue_.end(), [](const json& m) { return !is_view(m); });
+    }
+    const json message = std::move(*next);
+    queue_.erase(next);
+    handle(message, now);
+    return true;
+}
+
 void Server::request(const json& message) {
     const std::string method = message.value("method", "");
     json reply = {{"jsonrpc", "2.0"}, {"id", message["id"]}};
@@ -197,7 +275,9 @@ void Server::request(const json& message) {
         reply["result"] = {
             {"capabilities",
              {{"textDocumentSync",
-               {{"openClose", true}, {"change", 1 /* full */}, {"save", {{"includeText", false}}}}},
+               {{"openClose", true},
+                {"change", 2 /* incremental */},
+                {"save", {{"includeText", false}}}}},
               {"hoverProvider", true},
               {"definitionProvider", true},
               {"documentSymbolProvider", true},
@@ -307,11 +387,28 @@ void Server::notification(const json& message, Clock::time_point now) {
         find_project(parent_of(path));
         schedule(now);
     } else if (method == "textDocument/didChange") {
-        const json& changes = params.value("contentChanges", json::array());
-        if (changes.empty()) return;
-        // Full sync: the last change holds the whole text.
+        const auto changes = params.find("contentChanges");
+        if (changes == params.end() || !changes->is_array() || changes->empty()) return;
+        // Incremental sync: each change replaces a range of the text as the ones before it
+        // left it; one with no range holds the whole text.
         const std::string path = canonical_path(document_path());
-        buffers_.set(path, changes.back().value("text", ""));
+        for (const json& change : *changes) {
+            const auto text = change.find("text");
+            if (text == change.end() || !text->is_string()) continue;
+            const auto range = change.find("range");
+            if (range == change.end()) {
+                buffers_.set(path, text->get<std::string>());
+                continue;
+            }
+            const std::string* now_text = buffers_.find(path);
+            if (!now_text) continue;  // not open: no text to change
+            const auto at = [&](const char* end) {
+                const json p = range->value(end, json::object());
+                return offset_of(*now_text, {p.value("line", 0), p.value("character", 0)});
+            };
+            const size_t begin = at("start"), end = std::max(begin, at("end"));
+            buffers_.replace(path, begin, end - begin, text->get_ref<const std::string&>());
+        }
         evaluated_.erase(path);  // its results sit at offsets of the old text
         // A scenario run's failures in it would sit on lines that moved: they go until the
         // next run.
@@ -384,13 +481,18 @@ bool place(const json& params, const Buffers& buffers, std::string& path, std::s
 
 }  // namespace
 
+Server::Checked* Server::loaded_for(const std::string& path) {
+    Checked* c = project_of(path);
+    if (c && !c->loaded) check_now();
+    return c && c->loaded ? c : nullptr;
+}
+
 json Server::hover(const json& params) {
-    if (due_) check_now();  // answer from the text as it is now
     std::string path, text;
     size_t offset = 0;
     if (!place(params, buffers_, path, text, offset)) return nullptr;
-    Checked* c = project_of(path);
-    if (!c || !c->loaded) return nullptr;
+    Checked* c = loaded_for(path);
+    if (!c) return nullptr;
     auto h = baker_lsp::hover(*read_of(path), offset, *c->loaded, c->reference);
     if (!h) return nullptr;
     if (!h->path.empty())
@@ -410,12 +512,11 @@ json Server::hover(const json& params) {
 }
 
 json Server::complete(const json& params) {
-    if (due_) check_now();
     std::string path, text;
     size_t offset = 0;
     if (!place(params, buffers_, path, text, offset)) return json::array();
-    Checked* c = project_of(path);
-    if (!c || !c->loaded) return json::array();
+    Checked* c = loaded_for(path);
+    if (!c) return json::array();
     const Completions found = baker_lsp::complete(
         *read_of(path), offset, *c->loaded, c->reference, path,
         [this](const std::string& f, std::string& out) { return buffers_.read(f, out); });
@@ -437,12 +538,11 @@ json Server::complete(const json& params) {
 }
 
 json Server::definition(const json& params) {
-    if (due_) check_now();
     std::string path, text;
     size_t offset = 0;
     if (!place(params, buffers_, path, text, offset)) return nullptr;
-    Checked* c = project_of(path);
-    if (!c || !c->loaded) return nullptr;
+    Checked* c = loaded_for(path);
+    if (!c) return nullptr;
     const auto exists = [this](const std::string& f) {
         std::string ignored;
         return buffers_.read(f, ignored);
@@ -943,8 +1043,8 @@ json hint_json(const LineIndex& lines, size_t at, const std::string& label,
 }  // namespace
 
 json Server::inlay_hints(const json& params) {
-    if (due_) check_now();
     const std::string path = document_of(params);
+    loaded_for(path);
     std::string text;
     json out = json::array();
     if (!buffers_.read(path, text)) return out;
@@ -1106,9 +1206,8 @@ json Server::document_colors(const json& params) {
     json out = json::array();
     const std::string path = document_of(params);
     std::string text;
-    Checked* c = project_of(path);
-    if (due_ || (c && !c->loaded)) check_now();
-    if (!c || !c->loaded || !buffers_.read(path, text)) return out;
+    Checked* c = loaded_for(path);
+    if (!c || !buffers_.read(path, text)) return out;
     const auto read = read_of(path);
     const Structure& s = read->structure;
     const LineIndex& lines = read->lines;

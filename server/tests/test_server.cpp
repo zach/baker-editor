@@ -64,11 +64,11 @@ struct Client {
 
 }  // namespace
 
-TEST_CASE("initialize offers full text sync") {
+TEST_CASE("initialize offers incremental text sync") {
     Client c;
     const json reply = c.request(1, "initialize");
     CHECK(reply["id"] == 1);
-    CHECK(reply["result"]["capabilities"]["textDocumentSync"]["change"] == 1);
+    CHECK(reply["result"]["capabilities"]["textDocumentSync"]["change"] == 2);
     CHECK(reply["result"]["capabilities"]["hoverProvider"] == true);
     CHECK(c.request(2, "textDocument/formatting")["error"]["code"] == -32601);
 }
@@ -485,4 +485,98 @@ TEST_CASE("semantic tokens: what each name is, from Baker's lexer and the last c
     const json ranged = c.request(3, "textDocument/semanticTokens/range", range)["result"]["data"];
     REQUIRE(ranged.size() == 5);
     CHECK(ranged[0] == 3);  // the first token's line, from the start of the file
+}
+
+TEST_CASE("an incremental change replaces its range, as the changes before it left the text") {
+    Client c;
+    c.request(1, "initialize");
+    c.open("(units (knight (health 100)))\n(t \"\U0001F600\" x)\n");
+    const auto range = [](int l0, int c0, int l1, int c1) {
+        return json{{"start", {{"line", l0}, {"character", c0}}},
+                    {"end", {{"line", l1}, {"character", c1}}}};
+    };
+    c.notify("textDocument/didChange",
+             {{"textDocument", {{"uri", uri_from_path(kDefault)}, {"version", 2}}},
+              {"contentChanges",
+               json::array({{{"range", range(0, 23, 0, 26)}, {"text", "120"}},
+                            {{"range", range(0, 0, 0, 0)}, {"text", "; top\n"}},
+                            // The x after the emoji, whose four bytes are two UTF-16 units.
+                            {{"range", range(2, 8, 2, 9)}, {"text", "yz"}}})}});
+    const json doc = {{"textDocument", {{"uri", uri_from_path(kDefault)}}}};
+    const json symbols = c.request(2, "textDocument/documentSymbol", doc)["result"];
+    REQUIRE(symbols.size() == 2);
+    CHECK(symbols[0]["range"]["start"]["line"] == 1);  // moved down by the line put in
+    CHECK(symbols[0]["children"][0]["children"][0]["detail"] == "120");
+    CHECK(symbols[1]["detail"] == "\"\U0001F600\" yz");
+    // A change with no range is the whole text.
+    c.change("(world (gravity 9))\n");
+    CHECK(c.request(3, "textDocument/documentSymbol", doc)["result"][0]["name"] == "world");
+}
+
+TEST_CASE("queued messages: what a person waits on first, stale and cancelled views dropped") {
+    Client c;
+    c.request(1, "initialize");
+    c.open("(units (knight (health 100)))\n");
+    c.server.check_now();
+    const json doc = {{"textDocument", {{"uri", uri_from_path(kDefault)}}}};
+    const auto req = [&](int id, const std::string& method, json params) {
+        return json{{"jsonrpc", "2.0"}, {"id", id}, {"method", method}, {"params", params}};
+    };
+    const json at = {{"textDocument", {{"uri", uri_from_path(kDefault)}}},
+                     {"position", {{"line", 0}, {"character", 17}}}};
+    const auto ids = [&] {  // the ids answered, in order, with each error's code
+        std::vector<std::string> out;
+        for (const json& m : c.sent)
+            if (m.contains("id") && !m.contains("method"))
+                out.push_back(std::to_string(m["id"].get<int>()) +
+                              (m.contains("error")
+                                   ? ":" + std::to_string(m["error"]["code"].get<int>())
+                                   : ""));
+        return out;
+    };
+    const auto drain = [&](Server::Clock::time_point now) {
+        while (c.server.work(now)) {
+        }
+    };
+
+    // A completion asked after an outline is answered first.
+    c.sent.clear();
+    c.server.receive(req(10, "textDocument/documentSymbol", doc));
+    c.server.receive(req(11, "textDocument/completion", at));
+    drain(c.now);
+    CHECK(ids() == std::vector<std::string>{"11", "10"});
+
+    // A cancelled request is answered as cancelled, and not handled.
+    c.sent.clear();
+    c.server.receive(req(12, "textDocument/foldingRange", doc));
+    c.server.receive({{"jsonrpc", "2.0"}, {"method", "$/cancelRequest"}, {"params", {{"id", 12}}}});
+    CHECK(!c.server.busy());
+    CHECK(ids() == std::vector<std::string>{"12:-32800"});
+
+    // A view asked before an edit of its file is stale: ContentModified; another file's
+    // view is not.
+    c.sent.clear();
+    const json other = {{"textDocument", {{"uri", uri_from_path(kProject + "/other.dta")}}}};
+    c.server.receive(req(16, "textDocument/foldingRange", doc));
+    c.server.receive(req(17, "textDocument/foldingRange", other));
+    c.server.receive(req(13, "textDocument/semanticTokens/full", doc));
+    c.server.receive(
+        {{"jsonrpc", "2.0"},
+         {"method", "textDocument/didChange"},
+         {"params",
+          {{"textDocument", {{"uri", uri_from_path(kDefault)}, {"version", 2}}},
+           {"contentChanges",
+            json::array({{{"text", "(units (knight (health 7))\n"}}})}}}});  // unclosed
+    c.server.receive(req(14, "textDocument/documentSymbol", doc));
+    drain(c.now);
+    CHECK(ids() == std::vector<std::string>{"16:-32801", "13:-32801", "17", "14"});
+
+    // Once the check is due, it runs before the views still waiting.
+    REQUIRE(c.server.check_due());
+    c.sent.clear();
+    c.server.receive(req(15, "textDocument/foldingRange", doc));
+    drain(*c.server.check_due());
+    REQUIRE(c.sent.size() >= 2);
+    CHECK(c.sent.front().value("method", "") == "textDocument/publishDiagnostics");
+    CHECK(c.sent.back()["id"] == 15);
 }

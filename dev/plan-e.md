@@ -141,6 +141,19 @@ check of the last keystroke.
 
 **Effort:** about two days.
 
+**As built:** the server takes incremental edits (the 2 MB text was 20 ms of JSON per
+keystroke); a queue (`Server::receive`, `work`) answers edits and the requests a person waits
+on first, a file's views after them, stale views ContentModified, cancelled ones at once, and
+runs a due check before waiting views; completion, hover, definition, inlay hints and colors
+answer from the last whole stack instead of running the due check. `tools/typing_bench.py`
+measures it as VS Code 1.90 asks (its debounce, read from its code: 25 ms for inlay hints,
+200 to 1,000 ms for the other views): completion 38–42 ms median, 49–66 ms worst, from
+186–199 ms. Diagnostics settle in 404 ms, the debounce and one check, where a forced check
+had settled them in 223–288 ms. With every view after every keystroke, 80–99 ms: the outline
+(54 ms) and colors (36 ms) are the views a completion can wait behind. The rest of a
+completion's time is the file's read (Baker's lexer, whole); reading only what an edit
+changed would take a Baker read that resumes from an edit, not yet asked for.
+
 ## Order and status
 
 E1 and E3 need nothing from Baker and can start at once; E5 next, since E3 adds a request on
@@ -154,4 +167,4 @@ Windows pass (D1) is still the owner's.
 | E2 Every tweak checked, lists included | note 0025: list element types, arrays of a game's types | Planned; the note first |
 | E3 Highlighting from Baker's own tokens | none | Done (first pass) |
 | E4 Formatting as Baker writes | note 0026: a formatter for text that keeps comments | Planned; the note first |
-| E5 A large file stays responsive | none | Planned |
+| E5 A large file stays responsive | none | Done (first pass) |

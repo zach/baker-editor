@@ -383,6 +383,21 @@ opens files, applies an edit, and prints the diagnostics.
 tools/lsp_client.py --replace data/default.dta "(health 1000)" "(health 0)" -- build/server/baker-lsp
 ```
 
+`tools/typing_bench.py FILE -- baker-lsp ARGS` types into a file through the server as VS
+Code would, and prints each completion's time from its keystroke and when the diagnostics
+settled (*Measurements*).
+
+### While a person types
+
+The editor sends each edit as the change alone (incremental sync). Messages are taken in as
+they arrive and answered in the order that keeps a person waiting least: edits, completion,
+hover and definition first, in order, from the last stack every layer read (they do not wait
+for the check an edit makes due); a file's views (outline, folds, highlighting, colors, inlay
+hints, lenses) after them, each answered *content modified* if an edit of its file came
+after it, as LSP provides, and a `$/cancelRequest` answers its request at once. The check
+runs 150 ms after the last edit, before any views still waiting. References, rename and the
+merged views still check first: they act on the whole project.
+
 ### Limits of this pass
 
 - A parameter of a type of the game's own takes any value when the reference does not say
@@ -474,6 +489,28 @@ The previous commit's check of the same stack took 90–128 ms. The rest is the 
 read (a `local.dta` left unclosed), a check reloads, fails, and loads afresh: 94–97 ms
 against 91–92 ms for a fresh load alone (medians of two runs of 20), the failed reload's cost
 within the noise.
+
+Typing at ten characters a second into the 2 MB Duel (`tools/typing_bench.py`, 13 keystrokes,
+a completion asked after each), RelWithDebInfo build (Clang), against the previous commit
+built the same way, two runs each:
+
+| | Before | After |
+|---|---|---|
+| Completion after its keystroke, as VS Code 1.90 asks for the views (inlay hints each keystroke, the rest once typing stops) | median 186–199 ms, worst 258–332 ms | median 38–42 ms, worst 49–66 ms |
+| The same, every view asked after every keystroke (a worst case) | median 326–352 ms | median 80–99 ms |
+| Diagnostics settled after the last keystroke | 223–288 ms | 404 ms: the debounce, one check (216–220 ms), and at most one view |
+
+Before, each completion ran the check its keystroke made due, and the editor sent the whole
+2 MB text with each keystroke (about 20 ms to parse). A completion now costs the file's read
+(Baker's lexer, 20 to 38 ms on this machine, which reads it whole: completion near the end
+of the file is the worst place) and the completion itself. Of the views, the outline takes
+about 54 ms (building its 5,000 symbols' JSON) and the colors 36 ms; with every view after
+every keystroke, a completion waits behind one of them, which VS Code's debounce never asks
+while a person types. Diagnostics settle later than before: the check now waits for the
+debounce, as the plan has it, where before a completion ran it at once. An edit to the 2 MB
+bottom layer itself checks in about the same time reloaded as loaded afresh (185–197 against
+175–204 ms, three runs each): Baker re-parses the lowest layer that changed and those above
+it, so `reload()` saves nothing there.
 
 Baker 0.1's example console sent each reply as its own write, so Nagle's algorithm held each
 one for a delayed acknowledgement: the same 113 values took about 50 ms, the console's whole

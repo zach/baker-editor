@@ -17,6 +17,7 @@
 #include <nlohmann/json.hpp>
 
 #include <chrono>
+#include <deque>
 #include <functional>
 #include <map>
 #include <memory>
@@ -45,6 +46,17 @@ public:
 
     // Handles one message from the client at `now`.
     void handle(const nlohmann::json& message, Clock::time_point now);
+
+    // Messages as they arrive, answered by work() in the order that keeps a person waiting
+    // least: a $/cancelRequest answers its queued request as cancelled at once; edits and the
+    // requests a person waits on (completion, hover, ...) go first, in order; the requests
+    // for a file's views (outline, folds, highlighting, colors, inlay hints, lenses) after
+    // them, each answered ContentModified instead if an edit of its file came after it. A
+    // check that is due runs before the views, so diagnostics settle while views wait.
+    void receive(nlohmann::json message);
+    // Handles the next queued message (or a due check before views); false if none waits.
+    bool work(Clock::time_point now);
+    [[nodiscard]] bool busy() const { return !queue_.empty(); }
     // When a check is due; empty when none is.
     [[nodiscard]] std::optional<Clock::time_point> check_due() const { return due_; }
     // When anything is next due: a check, or asking a running game whether it changed.
@@ -77,6 +89,10 @@ private:
 
     // The project an open file belongs to: the one whose directory is nearest above it.
     Checked* project_of(const std::string& path);
+    // The same, with a stack to answer from: the last whole one, even while a check is due,
+    // so that hover, completion and the hints do not wait for one (a check runs first only
+    // when there is none yet). Null if there is no project, or no stack.
+    Checked* loaded_for(const std::string& path);
     nlohmann::json hover(const nlohmann::json& params);
     nlohmann::json complete(const nlohmann::json& params);
     nlohmann::json definition(const nlohmann::json& params);
@@ -139,6 +155,7 @@ private:
     std::map<uint16_t, std::string> stamps_;
     void poll(Clock::time_point now);
     Send send_;
+    std::deque<nlohmann::json> queue_;  // received, not yet handled (receive, work)
     Buffers buffers_;
     // An open file's text, read (structure.hpp): read again only when its text changed.
     std::shared_ptr<const FileRead> read_of(const std::string& path);

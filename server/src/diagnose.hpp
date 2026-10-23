@@ -13,6 +13,7 @@
 #include <baker/script.hpp>
 #include <baker/shape.hpp>
 
+#include <algorithm>
 #include <map>
 #include <memory>
 #include <string>
@@ -41,6 +42,11 @@ class Buffers {
 public:
     void set(const std::string& path, std::string text) { text_[path] = std::move(text); }
     void erase(const std::string& path) { text_.erase(path); }
+    // Replaces `count` bytes at `at` of an open file's text; nothing if it is not open.
+    void replace(const std::string& path, size_t at, size_t count, std::string_view with) {
+        if (const auto it = text_.find(path); it != text_.end())
+            it->second.replace(std::min(at, it->second.size()), count, with);
+    }
     // The editor's text, or null if the file is not open.
     [[nodiscard]] const std::string* find(const std::string& path) const;
     // The editor's text, else the file's; false if neither.
