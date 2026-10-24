@@ -88,7 +88,8 @@ void Server::add(Setup setup) {
             c.reference = r;
             c.tweaks = std::make_unique<GameTweaks>(c.reference.tweaks);
             for (const std::string& t : c.tweaks->left_out())
-                log(kLogInfo, "tweak " + t + ": a type of the game's own, not checked by Baker");
+                log(kLogInfo,
+                    "tweak " + t + " (not checked: Baker cannot make it from its description)");
             log(kLogInfo, "the game's reference: " + std::to_string(r.functions) + " functions, " +
                               std::to_string(r.overloads) + " overloads, " +
                               std::to_string(r.declared_types.size()) + " types, " +

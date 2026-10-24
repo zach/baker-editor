@@ -58,6 +58,14 @@ gone.
 
 **Effort:** half a day here, after the Baker release.
 
+**As built (Baker 0.6.0):** the server reads each tweak's and parameter's `count`, `element`
+and `length` and passes them to `TweakDescription` and `ParamDescription`; a list tweak is made
+and checked, and a literal list argument held to its element. Hover names a list's elements
+(`fixed-size list of 2 vec2`). Completing a tweak's name writes its code default as the data
+writes it: the reference parenthesizes a value of several parts, so `(aim (0 0))` had been
+inserted for a `vec2`, which does not read; it is `(aim 0 0)` now, and `(path (0 0) (1 1))`
+for a list. The stacks have no list of a game's own type; the test project has one of each.
+
 ## E3. Highlighting from Baker's own tokens
 
 **Why:** VS Code colors Baker text with a TextMate grammar, and the other editors with
@@ -171,7 +179,7 @@ Windows pass (D1) is still the owner's.
 | Step | Baker | Status |
 |---|---|---|
 | E1 Hints that follow the text | none | Done (first pass) |
-| E2 Every tweak checked, lists included | note 0025: list element types, arrays of a game's types | Planned; note 0025 written |
+| E2 Every tweak checked, lists included | note 0025, met by Baker 0.6.0 | Done (first pass) |
 | E3 Highlighting from Baker's own tokens | none | Done (first pass) |
 | E4 Formatting as Baker writes | note 0026: a formatter for text that keeps comments | Planned; note 0026 written |
 | E5 A large file stays responsive | none | Done (first pass) |

@@ -60,7 +60,7 @@ struct Fixture {
     Fixture() {
         std::string error;
         REQUIRE(load_reference(ctx, setup.reference, reference, error));
-        CHECK(reference.functions == 5);
+        CHECK(reference.functions == 6);
         CHECK(reference.widened == 0);  // game.aim's vec2 says its values (1.2)
         CHECK(reference.failed.empty());
         setup.objects = reference.objects;
@@ -211,6 +211,18 @@ TEST_CASE("a parameter of the game's own type is held to its values, and counted
     const Diagnosis d = f.run();
     REQUIRE(d.problems.size() == 1);
     CHECK(d.problems[0].key == "game.aim");
+}
+
+TEST_CASE("a list parameter's literal argument is held to its element (baker.reference/1.4)") {
+    Fixture f;
+    f.buffers.set(kDefault,
+                  replaced(kDefault, "{game.spawn knight 2}", "{game.patrol ((0 0) (4 4))}"));
+    CHECK(f.run().problems.empty());
+    f.buffers.set(kDefault,
+                  replaced(kDefault, "{game.spawn knight 2}", "{game.patrol ((0 0) (4))}"));
+    const Diagnosis d = f.run();
+    REQUIRE(d.problems.size() == 1);
+    CHECK(d.problems[0].key == "game.patrol");
 }
 
 TEST_CASE("the project's scenarios and objectives are checked, open or not, as the game's check") {

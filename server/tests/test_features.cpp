@@ -115,7 +115,7 @@ TEST_CASE("completion offers functions in a command, macros as values, packs in 
     const std::vector<std::string> functions =
         labels(complete(FileRead(text), at, *f.loaded, f.reference));
     CHECK(functions == std::vector<std::string>{"game.spawn", "game.wait", "game.log", "game.later",
-                                                "game.aim", "game.twice"});
+                                                "game.aim", "game.patrol", "game.twice"});
     std::tie(text, at) = cursor("(units (archer (speed S|");
     CHECK(labels(complete(FileRead(text), at, *f.loaded, f.reference)) ==
           std::vector<std::string>{"SPEEDY"});
@@ -228,4 +228,16 @@ TEST_CASE("hover names a key field's table and a curve field") {
     h = hover(FileRead(text), at, *f.loaded, f.reference);
     REQUIRE(h);
     CHECK(has(h->markdown, "curve"));
+}
+
+TEST_CASE("hover on a list tweak names its elements") {
+    Fixture f("(world (path (0 0) (1 1)) (spawns 3 4))\n");
+    auto [text, at] = cursor("(world (pa|th (0 0) (1 1)))");
+    auto h = hover(FileRead(text), at, *f.loaded, f.reference);
+    REQUIRE(h);
+    CHECK(has(h->markdown, "`fixed-size list of 2 vec2`"));
+    std::tie(text, at) = cursor("(world (spa|wns 3 4))");
+    h = hover(FileRead(text), at, *f.loaded, f.reference);
+    REQUIRE(h);
+    CHECK(has(h->markdown, "`list of int32`"));
 }

@@ -67,6 +67,30 @@ TEST_CASE("the game's tweaks, made from their descriptions, a game's own types t
     CHECK(tweaks.left_out()[0].starts_with("world.old: "));
 }
 
+TEST_CASE("list tweaks, made from their elements' descriptions (baker.tweaks/1.5)") {
+    baker::Context ctx;
+    Reference reference;
+    std::string error;
+    REQUIRE(load_reference(ctx, kProject + "/reference.json", reference, error));
+    const GameTweaks tweaks(reference.tweaks);
+    CHECK(tweaks.checks("world.path"));    // two vec2 points
+    CHECK(tweaks.checks("world.spawns"));  // any number of int32
+    CHECK(!tweaks.checks("world.old"));    // written before 1.5: no element said
+    CHECK(findings("(world (path (0 0) (4 4)) (spawns 3 4 5))\n").empty());
+    // A point given one number; three points where two are wanted.
+    const std::vector<std::string> point = findings("(world (path (0 0) (4)))\n");
+    REQUIRE(point.size() == 1);
+    CHECK(point[0].starts_with("error path: "));
+    CHECK(findings("(world (path (0 0) (4 4) (8 8)))\n").size() == 1);
+    // Each element held to its type, and to the tweak's range.
+    const std::vector<std::string> spawn = findings("(world (spawns 3 four))\n");
+    REQUIRE(spawn.size() == 1);
+    CHECK(spawn[0].starts_with("error spawns: "));
+    const std::vector<std::string> ranged = findings("(world (spawns 3 40))\n");
+    REQUIRE(ranged.size() == 1);
+    CHECK(ranged[0].find("40") != std::string::npos);
+}
+
 TEST_CASE("Baker holds the data to the game's tweaks: type, range, and a key none reads") {
     CHECK(findings("(world (gravity 9.8))\n").empty());
     CHECK(findings("(world (gravity 30))\n") ==
@@ -76,7 +100,7 @@ TEST_CASE("Baker holds the data to the game's tweaks: type, range, and a key non
           std::vector<std::string>{"error gravity: 'gravity' is symbol, not float"});
     CHECK(findings("(world (gravity 9.8) (gravty 2))\n") ==
           std::vector<std::string>{"warning gravty: 'gravty' in 'world' is read by no tweak; its "
-                                   "tweaks read aim, gravity"});
+                                   "tweaks read aim, gravity, path, spawns"});
     // A tweak Baker could not make (a fixed-size list's values are not described) is no stray.
     CHECK(findings("(world (gravity 9.8) (old 1 2))\n").empty());
     // A tweak of the game's own type, by the values its reference gives.

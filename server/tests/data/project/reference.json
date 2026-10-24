@@ -1,6 +1,6 @@
 {
  "reference": {
-  "schema": "baker.reference/1.2",
+  "schema": "baker.reference/1.5",
   "functions": [
    {
     "name": "game.spawn",
@@ -112,6 +112,40 @@
          "float32",
          "float32"
         ]
+       }
+      ],
+      "result": "value",
+      "min_args": 1,
+      "max_args": 1
+     }
+    ]
+   },
+   {
+    "name": "game.patrol",
+    "tier": "native",
+    "status": "normal",
+    "replacement": "",
+    "doc": "Walks the points in order",
+    "file": "",
+    "line": 0,
+    "overloads": [
+     {
+      "params": [
+       {
+        "type": "list",
+        "kind": "value",
+        "raw": false,
+        "values": null,
+        "count": null,
+        "element": {
+         "type": "vec2",
+         "values": [
+          "float32",
+          "float32"
+         ],
+         "count": "exact"
+        },
+        "length": null
        }
       ],
       "result": "value",
@@ -234,7 +268,7 @@
   ]
  },
  "tweaks": {
-  "schema": "baker.tweaks/1.2",
+  "schema": "baker.tweaks/1.5",
   "tweaks": [
    {
     "path": "world.gravity",
@@ -285,6 +319,62 @@
     "range": null,
     "step": 0.0,
     "desc": "",
+    "kind": "",
+    "group": "world",
+    "dev_only": false,
+    "one_of": [],
+    "source": null
+   },
+   {
+    "path": "world.path",
+    "type": "fixed-size list",
+    "values": null,
+    "count": null,
+    "element": {
+     "type": "vec2",
+     "values": [
+      "float32",
+      "float32"
+     ],
+     "count": "exact"
+    },
+    "length": 2,
+    "default": "((0 0) (1 1))",
+    "value": "((0 0) (1 1))",
+    "bound": false,
+    "range": null,
+    "step": 0.0,
+    "desc": "Two points the world walks",
+    "kind": "",
+    "group": "world",
+    "dev_only": false,
+    "one_of": [],
+    "source": null
+   },
+   {
+    "path": "world.spawns",
+    "type": "list",
+    "values": [
+     "int32"
+    ],
+    "count": "any",
+    "element": {
+     "type": "int32",
+     "values": [
+      "int32"
+     ],
+     "count": "exact"
+    },
+    "length": null,
+    "default": "(3 4)",
+    "value": "(3 4)",
+    "bound": false,
+    "range": [
+     1.0,
+     10.0
+    ],
+    "step": 0.0,
+    "desc": "Units each wave spawns",
     "kind": "",
     "group": "world",
     "dev_only": false,

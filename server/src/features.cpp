@@ -47,6 +47,12 @@ std::string type_name(const baker::shape::Field& f) {
     return name(f.type);
 }
 
+// A tweak's type as hover shows it: a list's with its elements, `fixed-size list of 4 vec2`.
+std::string tweak_type(const TweakInfo& t) {
+    if (t.element.type.empty()) return t.type;
+    return t.type + " of " + (t.length ? std::to_string(t.length) + " " : "") + t.element.type;
+}
+
 std::string number(double v) {
     char b[32];
     std::snprintf(b, sizeof b, "%g", v);
@@ -206,8 +212,8 @@ std::optional<Hover> hover(const FileRead& read, size_t offset, const Loaded& lo
         h.markdown += "\n\n" + m;
     }
     if (const TweakInfo* t = tweak_at(reference, tags)) {
-        std::string m = "the game's tweak `" + t->path + "`: `" + t->type + "`, code default `" +
-                        t->default_text + "`";
+        std::string m = "the game's tweak `" + t->path + "`: `" + tweak_type(*t) +
+                        "`, code default `" + t->default_text + "`";
         if (t->ranged) m += ", " + number(t->min) + " to " + number(t->max);
         if (t->step > 0) m += ", step " + number(t->step);
         if (!t->kind.empty()) m += ", " + t->kind;
@@ -336,7 +342,13 @@ std::string value_for(const Loaded& loaded, const Reference& reference,
         if (!v.empty()) return v;
     }
     const Hints h = hints_at(loaded, reference, tags);
-    if (h.tweak && !h.tweak->default_text.empty()) return h.tweak->default_text;
+    if (h.tweak && !h.tweak->default_text.empty()) {
+        // The reference writes a value of several parts in parentheses, (0 0) for a vec2 and
+        // ((0 0) (1 1)) for a list of them; the data writes its parts, (aim 0 0).
+        const std::string& d = h.tweak->default_text;
+        if (d.size() >= 2 && d.front() == '(' && d.back() == ')') return d.substr(1, d.size() - 2);
+        return d;
+    }
     const bool integer = (field && field->type == baker::shape::Type::Int) ||
                          (h.tweak && h.tweak->type.find("int") != std::string::npos);
     if (h.ranged) {

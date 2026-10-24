@@ -40,10 +40,12 @@ given one number, passes the tool and fails in the game.
 
 ## Today
 
-None of Baker's stacks has such a tweak yet (their two fixed-size lists are of `float32`,
-which note 0019 covers). The editor's server leaves out each tweak it cannot make, checks only
-the range written beside its value, and does not take its key for a stray; the README lists it
-as a limit, and plan E's step E2 waits on this note.
+Met by Baker 0.6.0: a tweak's and a parameter's `element` and `length` (`baker.tweaks/1.5`,
+`baker.reference/1.4`), taken by `TweakDescription` and `ParamDescription`. The editor's server
+makes every list tweak from them, so a point given one number, three points where two are
+wanted, or an element out of the tweak's range is the error the game's `check` gives; a list
+argument written in a call is held to its parameter's element. None of Baker's stacks has
+such a tweak yet; the editor's test project has one of each kind.
 
 ## Not included
 

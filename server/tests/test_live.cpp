@@ -331,7 +331,8 @@ TEST_CASE("try this value: set live, without saving; revert only where the game 
         if (cmd.rfind("{config.set ", 0) == 0) return {{"ok", true}, {"text", "120"}};
         if (cmd == "{config.clear_scratch}") return json{{"ok", true}, {"text", "cleared all"}};
         if (cmd == "{config.clear_scratch baker_editor.no_such_value}")
-            return clears ? json{{"ok", true}, {"text", "0"}} : not_a_function("config.clear_scratch");
+            return clears ? json{{"ok", true}, {"text", "0"}}
+                          : not_a_function("config.clear_scratch");
         if (cmd.rfind("{config.clear_scratch ", 0) == 0) return {{"ok", true}, {"text", "1"}};
         return not_a_function(cmd);
     });
@@ -350,7 +351,8 @@ TEST_CASE("try this value: set live, without saving; revert only where the game 
     Client c(game.port());
     REQUIRE(c.run(c.at(1, 23), "Revert the live edit"));
     CHECK(game.commands().back() == "{config.clear_scratch units/knight/health}");
-    for (const std::string& cmd : game.commands()) CHECK(cmd != "{config.clear_scratch}");  // clears all
+    for (const std::string& cmd : game.commands())
+        CHECK(cmd != "{config.clear_scratch}");  // clears all
     CHECK(!c.told("the game did not revert"));
 }
 

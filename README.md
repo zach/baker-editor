@@ -404,8 +404,10 @@ merged views still check first: they act on the whole project.
 
 - A parameter of a type of the game's own takes any value when the reference does not say
   what its values are (one written before `baker.reference/1.2`).
-- A tweak Baker cannot make from its description (a list, or a fixed-size list of a game's
-  own type) is not checked, beyond its range.
+- A tweak Baker cannot make from its description (one from a reference written before
+  `baker.tweaks/1.5` whose list says nothing of its elements) is not checked, beyond its
+  range. Since Baker 0.6.0 the reference says what a list's elements are, and lists are
+  checked as the game checks them, a list of the game's own type (`vec2`) too.
 - A symbol field with no `(one_of ...)` is completed from use: the first use of a value is not
   offered, and a typo used twice is.
 - A color's components are taken as 0 to 1, as Baker's color rule has them.

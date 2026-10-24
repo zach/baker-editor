@@ -9,10 +9,16 @@ GameTweaks::GameTweaks(const std::vector<TweakInfo>& tweaks) {
         // Views for the call: DescribedTweaks keeps copies.
         std::vector<std::string_view> values(t.values.begin(), t.values.end());
         std::vector<std::string_view> one_of(t.one_of.begin(), t.one_of.end());
+        std::vector<std::string_view> element(t.element.values.begin(), t.element.values.end());
         baker::tools::TweakDescription d;
         d.path = t.path;
         d.type = t.type;
         d.values = values;
+        d.count = value_count(t.count);
+        d.element = {.type = t.element.type,
+                     .values = element,
+                     .count = value_count(t.element.count),
+                     .length = t.length};
         d.default_text = t.default_text;
         if (t.ranged) d.range = {t.min, t.max};
         d.step = t.step;

@@ -53,10 +53,23 @@ struct Described {
                 std::vector<std::string_view>& vs = values.emplace_back();
                 for (const nlohmann::json& v : p.value("values", nlohmann::json::array()))
                     if (v.is_string()) vs.push_back(keep(v.get<std::string>()));
-                ps.push_back({.type = keep(std::move(type)),
-                              .kind = keep(p.value("kind", "value")),
-                              .raw = p.value("raw", false),
-                              .values = std::span<const std::string_view>(vs.data(), vs.size())});
+                // How many, and a list's element (1.3, 1.4): a literal list held to it.
+                std::string count;
+                ElementInfo element;
+                size_t length = 0;
+                read_list(p, count, element, length);
+                std::vector<std::string_view>& es = values.emplace_back();
+                for (std::string& v : element.values) es.push_back(keep(std::move(v)));
+                ps.push_back(
+                    {.type = keep(std::move(type)),
+                     .kind = keep(p.value("kind", "value")),
+                     .raw = p.value("raw", false),
+                     .values = std::span<const std::string_view>(vs.data(), vs.size()),
+                     .count = value_count(count),
+                     .element = {.type = keep(std::move(element.type)),
+                                 .values = std::span<const std::string_view>(es.data(), es.size()),
+                                 .count = value_count(element.count),
+                                 .length = length}});
             }
             overloads.push_back(
                 {.params = std::span<const baker::ParamDescription>(ps.data(), ps.size()),
@@ -142,6 +155,35 @@ void declare_types(baker::Context& ctx, const nlohmann::json& doc, Reference& ou
         out.failed.push_back("type " + t->value("name", "") + ": its bases are not declared");
 }
 
+}  // namespace
+
+baker::ValueCount value_count(const std::string& count) {
+    if (count == "at_least") return baker::ValueCount::AtLeast;
+    if (count == "any") return baker::ValueCount::Any;
+    return baker::ValueCount::Exact;
+}
+
+void read_list(const nlohmann::json& value, std::string& count, ElementInfo& element,
+               size_t& length) {
+    const auto text = [](const nlohmann::json& j, const char* key) {
+        const auto it = j.find(key);
+        return it != j.end() && it->is_string() ? it->get<std::string>() : std::string();
+    };
+    count = text(value, "count");
+    element = {};
+    if (const auto e = value.find("element"); e != value.end() && e->is_object()) {
+        element.type = text(*e, "type");
+        element.count = text(*e, "count");
+        if (const auto v = e->find("values"); v != e->end() && v->is_array())
+            for (const nlohmann::json& x : *v)
+                if (x.is_string()) element.values.push_back(x.get<std::string>());
+    }
+    const auto l = value.find("length");
+    length = l != value.end() && l->is_number_unsigned() ? l->get<size_t>() : 0;
+}
+
+namespace {
+
 void read_tweaks(const nlohmann::json& doc, Reference& out) {
     for (const nlohmann::json& t : doc.value("tweaks", nlohmann::json::array())) {
         if (!t.is_object() || t.value("path", "").empty()) continue;
@@ -172,6 +214,7 @@ void read_tweaks(const nlohmann::json& doc, Reference& out) {
         if (const nlohmann::json v = t.value("values", nlohmann::json()); v.is_array())
             for (const nlohmann::json& x : v)
                 if (x.is_string()) info.values.push_back(x.get<std::string>());
+        read_list(t, info.count, info.element, info.length);
     }
 }
 
