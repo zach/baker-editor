@@ -1,6 +1,7 @@
 #include "server.hpp"
 
 #include "features.hpp"
+#include "format.hpp"
 #include "highlight.hpp"
 #include "hints.hpp"
 #include "merged.hpp"
@@ -289,6 +290,8 @@ void Server::request(const json& message) {
               {"inlayHintProvider", true},
               {"codeLensProvider", {{"resolveProvider", false}}},
               {"colorProvider", true},
+              {"documentFormattingProvider", true},
+              {"documentRangeFormattingProvider", true},
               {"semanticTokensProvider",
                {{"legend",
                  {{"tokenTypes",
@@ -344,6 +347,9 @@ void Server::request(const json& message) {
                method == "textDocument/semanticTokens/range") {
         reply["result"] = semantic_tokens(message.value("params", json::object()),
                                           method == "textDocument/semanticTokens/range");
+    } else if (method == "textDocument/formatting" || method == "textDocument/rangeFormatting") {
+        reply["result"] = format(message.value("params", json::object()),
+                                 method == "textDocument/rangeFormatting");
     } else if (method == "textDocument/codeLens") {
         reply["result"] = code_lenses(message.value("params", json::object()));
     } else if (method == "textDocument/inlayHint") {
@@ -1273,6 +1279,57 @@ json Server::color_presentations(const json& params) {
                         component(color.value("blue", 0.0));
     if (s.tokens.size() == 4) label += " " + component(color.value("alpha", 1.0));
     return json::array({{{"label", label}, {"textEdit", {{"range", range}, {"newText", label}}}}});
+}
+
+json Server::format(const json& params, bool ranged) {
+    const std::string path = document_of(params);
+    std::string text;
+    if (!buffers_.read(path, text)) return nullptr;
+    // The project's layout, (format (indent N) (width N)), read as it is now; else Baker's.
+    baker::WriteOptions layout;
+    const Checked* c = project_of(path);
+    if (c && !c->setup.project.empty()) {
+        const baker::LoadSession::Reader reader = [this](std::string_view p, baker::TextSink sink) {
+            std::string t;
+            if (!buffers_.read(canonical_path(std::string(p)), t)) return false;
+            sink(t);
+            return true;
+        };
+        if (auto p = baker::read_project(c->setup.project, reader)) layout = p->format;
+    }
+    size_t begin = 0, end = std::string::npos;
+    if (ranged) {
+        const json range = params.value("range", json::object());
+        const auto at = [&](const char* which) {
+            const json p = range.value(which, json::object());
+            return offset_of(text, {p.value("line", 0), p.value("character", 0)});
+        };
+        begin = at("start");
+        end = at("end");
+    }
+    std::string error;
+    const std::vector<TextEdit> edits = format_edits(text, layout, error, begin, end);
+    if (!error.empty()) log(kLogInfo, "not formatted, the file does not read: " + error);
+    const LineIndex lines(text);
+    json out = json::array();
+    if (edits.size() > kMaxFormatEdits) {
+        // Many edits make a large reply, slow to build and send (112,020 for the 2 MB file
+        // were 12 MB): one edit of the whole text instead, which an editor narrows itself.
+        std::string laid;
+        laid.reserve(text.size());
+        size_t at = 0;
+        for (const TextEdit& e : edits) {
+            laid.append(text, at, e.begin - at);
+            laid += e.text;
+            at = e.end;
+        }
+        laid.append(text, at);
+        out.push_back({{"range", lsp_range(lines, 0, text.size())}, {"newText", std::move(laid)}});
+        return out;
+    }
+    for (const TextEdit& e : edits)
+        out.push_back({{"range", lsp_range(lines, e.begin, e.end)}, {"newText", e.text}});
+    return out;
 }
 
 json Server::semantic_tokens(const json& params, bool ranged) {

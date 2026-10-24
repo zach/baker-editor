@@ -42,8 +42,11 @@ as a person would have written it.
 
 ## Today
 
-The editor offers no formatting: plan E's step E4 waits on this note, rather than build a
-second set of rules in the editor.
+Met by Baker 0.6.0: `tools::format_text`, with `FormatOptions` for a range and the edits it
+makes, and a project file's `(format (indent N) (width N))` (`Project::format`). The editor's
+server answers Format Document and Format Selection with it, by the file's project's layout;
+on Duel its result is byte for byte what the kit's own `format` writes, and on every stack
+file formatting twice changes nothing and keeps every token and comment.
 
 ## Not included
 

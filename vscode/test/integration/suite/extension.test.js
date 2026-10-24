@@ -163,6 +163,32 @@ suite("Baker in VS Code", function () {
             assert.ok(found.includes(want), `${want} in ${found.join(", ")}`);
     });
 
+    test("Format Document lays the file out as Baker writes it, keeping its comments", async () => {
+        const doc = await baker(defaultUri);
+        const messy = "(units   (knight (health 100) ; tough\n)\n\n\n(archer (health 60)))\n";
+        const restore = await setText(doc, messy);
+        try {
+            const edits = await until("formatting edits", async () => {
+                const e = await vscode.commands.executeCommand(
+                    "vscode.executeFormatDocumentProvider", doc.uri, {tabSize: 4, insertSpaces: true});
+                return e && e.length ? e : undefined;
+            });
+            const apply = new vscode.WorkspaceEdit();
+            apply.set(doc.uri, edits);
+            assert.ok(await vscode.workspace.applyEdit(apply));
+            const out = doc.getText();
+            assert.ok(out.includes("; tough"), out);
+            assert.ok(!out.includes("(units   "), out);
+            assert.ok(!out.includes("\n\n\n"), out);
+            assert.ok(out.includes("\n  (knight"), out);  // Baker's indent, not the editor's 4
+            const again = await vscode.commands.executeCommand(
+                "vscode.executeFormatDocumentProvider", doc.uri, {tabSize: 4, insertSpaces: true});
+            assert.ok(!again || again.length === 0, "formatting twice changes nothing");
+        } finally {
+            await restore();
+        }
+    });
+
     test("a color swatch, and the picker rewrites the numbers", async () => {
         const colors = await vscode.commands.executeCommand(
             "vscode.executeDocumentColorProvider", localUri);

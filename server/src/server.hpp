@@ -39,6 +39,8 @@ public:
     static constexpr size_t kMaxSymbols = 5000;
     // How long an evaluation in the game may take: a person asked for it.
     static constexpr std::chrono::milliseconds kEvaluateTimeout{2000};
+    // The most edits a formatting reply lists; past it, one edit of the whole text.
+    static constexpr size_t kMaxFormatEdits = 1000;
     // The most values one inlay request asks the running game about.
     static constexpr size_t kMaxLiveInlays = 200;
 
@@ -106,6 +108,8 @@ private:
     nlohmann::json execute(const nlohmann::json& params);
     nlohmann::json inlay_hints(const nlohmann::json& params);
     nlohmann::json code_lenses(const nlohmann::json& params);
+    // textDocument/formatting and /rangeFormatting (format.hpp), by the project's layout.
+    nlohmann::json format(const nlohmann::json& params, bool ranged);
     // textDocument/semanticTokens/full and /range (highlight.hpp), from the kept read.
     nlohmann::json semantic_tokens(const nlohmann::json& params, bool ranged);
     // baker/scenarios: the project's scenarios and objectives, and the binary that runs them.

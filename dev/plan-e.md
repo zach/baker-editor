@@ -122,6 +122,13 @@ before and after) and keeps every comment; formatting twice changes nothing the 
 
 **Effort:** about a day here, after the Baker release.
 
+**As built (Baker 0.6.0):** `format.cpp` turns `format_text`'s edits (a gap, newlines and
+spaces) into LSP edits, for the whole file or a range, by the project's `(format ...)`, read
+at each request. On Duel the result is identical to the kit's `format`; the stacks' 39 files
+format to the same tokens and comments, and again to no change (36 of them change the first
+time: they predate the formatter). Past 1,000 edits, one edit of the whole text: 117–143 ms on
+the 2 MB file, against 439 ms for its 112,020 edits.
+
 ## E5. A large file stays responsive while it is checked
 
 **Why:** the server answers one message at a time. On the 2 MB Duel a check takes 55 to 60
@@ -181,5 +188,5 @@ Windows pass (D1) is still the owner's.
 | E1 Hints that follow the text | none | Done (first pass) |
 | E2 Every tweak checked, lists included | note 0025, met by Baker 0.6.0 | Done (first pass) |
 | E3 Highlighting from Baker's own tokens | none | Done (first pass) |
-| E4 Formatting as Baker writes | note 0026: a formatter for text that keeps comments | Planned; note 0026 written |
+| E4 Formatting as Baker writes | note 0026, met by Baker 0.6.0 | Done (first pass) |
 | E5 A large file stays responsive | none | Done (first pass) |

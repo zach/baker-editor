@@ -10,6 +10,7 @@ endif()
 add_library(baker_lsp_core STATIC
   src/diagnose.cpp
   src/features.cpp
+  src/format.cpp
   src/live.cpp
   src/merged.cpp
   src/hints.cpp
@@ -47,6 +48,7 @@ if(BAKER_EDITOR_BUILD_TESTS)
     tests/test_main.cpp
     tests/test_diagnose.cpp
     tests/test_features.cpp
+    tests/test_format.cpp
     tests/test_live.cpp
     tests/test_merged.cpp
     tests/test_hints.cpp

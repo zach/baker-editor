@@ -70,7 +70,8 @@ TEST_CASE("initialize offers incremental text sync") {
     CHECK(reply["id"] == 1);
     CHECK(reply["result"]["capabilities"]["textDocumentSync"]["change"] == 2);
     CHECK(reply["result"]["capabilities"]["hoverProvider"] == true);
-    CHECK(c.request(2, "textDocument/formatting")["error"]["code"] == -32601);
+    CHECK(reply["result"]["capabilities"]["documentFormattingProvider"] == true);
+    CHECK(c.request(2, "textDocument/linkedEditingRange")["error"]["code"] == -32601);
 }
 
 TEST_CASE("an edit is checked after the debounce, and a fix clears its diagnostics") {
@@ -579,4 +580,68 @@ TEST_CASE("queued messages: what a person waits on first, stale and cancelled vi
     REQUIRE(c.sent.size() >= 2);
     CHECK(c.sent.front().value("method", "") == "textDocument/publishDiagnostics");
     CHECK(c.sent.back()["id"] == 15);
+}
+
+TEST_CASE("formatting: edits that lay the file out by its project's layout") {
+    const std::string project = kProject + "/baker-project.dta";
+    std::vector<json> sent;
+    Server server(Setup{}, [&sent](const json& m) { sent.push_back(m); });
+    const Server::Clock::time_point now{};
+    server.handle({{"jsonrpc", "2.0"},
+                   {"id", 1},
+                   {"method", "initialize"},
+                   {"params", {{"rootUri", uri_from_path(kProject)}}}},
+                  now);
+    const auto open = [&](const std::string& path, const std::string& text) {
+        server.handle(
+            {{"jsonrpc", "2.0"},
+             {"method", "textDocument/didOpen"},
+             {"params", {{"textDocument", {{"uri", uri_from_path(path)}, {"text", text}}}}}},
+            now);
+    };
+    const auto format = [&](int id) {
+        sent.clear();
+        server.handle({{"jsonrpc", "2.0"},
+                       {"id", id},
+                       {"method", "textDocument/formatting"},
+                       {"params",
+                        {{"textDocument", {{"uri", uri_from_path(kDefault)}}},
+                         {"options", {{"tabSize", 4}, {"insertSpaces", true}}}}}},
+                      now);
+        for (const json& m : sent)
+            if (m.contains("id") && m["id"] == id) return m["result"];
+        return json();
+    };
+    std::string text;
+    REQUIRE(Buffers().read(project, text));
+    open(project, text);
+    open(kDefault, "(units\n(knight (health 100)) ; strong\n)\n");
+    json edits = format(2);
+    REQUIRE(!edits.empty());
+    CHECK(edits[0]["newText"] == "\n  ");  // Baker's indent of 2, not the editor's 4
+    // The project's (format (indent 3)).
+    const size_t close = text.rfind(')');
+    open(project, text.substr(0, close) + " (format (indent 3)))\n");
+    edits = format(3);
+    REQUIRE(!edits.empty());
+    CHECK(edits[0]["newText"] == "\n   ");
+    // A file that does not read: nothing.
+    open(kDefault, "(units (knight\n");
+    CHECK(format(4).empty());
+}
+
+TEST_CASE("formatting with many edits answers one edit of the whole text") {
+    Client c;
+    c.request(1, "initialize");
+    std::string text, laid;
+    for (size_t i = 0; i <= Server::kMaxFormatEdits; ++i) {
+        text += "(a" + std::to_string(i) + "   1)\n";
+        laid += "(a" + std::to_string(i) + " 1)\n";
+    }
+    c.open(text);
+    const json edits = c.request(2, "textDocument/formatting",
+                                 {{"textDocument", {{"uri", uri_from_path(kDefault)}}}})["result"];
+    REQUIRE(edits.size() == 1);
+    CHECK(edits[0]["range"]["start"] == json{{"line", 0}, {"character", 0}});
+    CHECK(edits[0]["newText"] == laid);
 }

@@ -177,6 +177,21 @@ All four read each file's structure from its text with Baker's own lexer
 as the parser does. An open file's structure is read once per edit and shared by every
 request on that text.
 
+## Formatting
+
+**Format Document** and **Format Selection** lay a file out as Baker writes it
+(`baker::tools::format_text`): a form on one line if it fits the width at its indent, else one
+item a line; every token, comment and directive kept as written; aligned runs kept aligned;
+one blank line where any was written. The layout is the project file's `(format (indent N)
+(width N))` (Baker's stacks: `(indent 3) (width 100)`), else Baker's two spaces and 80
+columns; the editor's own tab size is not used. A file that does not read is left as it is.
+On Duel, the result is byte for byte what the game's own `format` command writes; on every
+stack file, formatting a second time changes nothing and keeps every token and comment.
+
+Formatting the 2 MB Duel takes Baker about 100 ms; past 1,000 edits the server answers one
+edit of the whole text (112,020 edits were a 12 MB reply, 439 ms to build), which VS Code
+narrows to the lines that changed: 117 to 143 ms for the request.
+
 ## Highlighting
 
 The grammar colors Baker text by its shape; the server adds what a name is (semantic tokens,
