@@ -4,6 +4,7 @@
 #include "setup.hpp"
 
 #include <baker/std_interop.hpp>
+#include <baker/tools/layers.hpp>
 
 #include <unordered_map>
 
@@ -140,7 +141,7 @@ View merged_view(const baker::Config& cfg, std::string_view dir) {
 
 std::optional<View> layer_view(const baker::Config& cfg, std::string_view layer,
                                std::string& error) {
-    const auto effect = cfg.layer_effect(layer);
+    const auto effect = baker::tools::layer_effect(cfg, layer);
     if (!effect) {
         error = baker::to_string(effect.error());
         return std::nullopt;

@@ -9,7 +9,7 @@ GameTweaks::GameTweaks(const std::vector<TweakInfo>& tweaks) {
         // Views for the call: DescribedTweaks keeps copies.
         std::vector<std::string_view> values(t.values.begin(), t.values.end());
         std::vector<std::string_view> one_of(t.one_of.begin(), t.one_of.end());
-        baker::TweakDescription d;
+        baker::tools::TweakDescription d;
         d.path = t.path;
         d.type = t.type;
         d.values = values;

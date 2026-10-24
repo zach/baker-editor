@@ -3,6 +3,7 @@
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
+#include <baker/tools/described.hpp>
 #include <deque>
 #include <fstream>
 #include <string_view>
@@ -52,12 +53,14 @@ struct Described {
                 std::vector<std::string_view>& vs = values.emplace_back();
                 for (const nlohmann::json& v : p.value("values", nlohmann::json::array()))
                     if (v.is_string()) vs.push_back(keep(v.get<std::string>()));
-                ps.push_back({keep(std::move(type)), keep(p.value("kind", "value")),
-                              p.value("raw", false),
-                              std::span<const std::string_view>(vs.data(), vs.size())});
+                ps.push_back({.type = keep(std::move(type)),
+                              .kind = keep(p.value("kind", "value")),
+                              .raw = p.value("raw", false),
+                              .values = std::span<const std::string_view>(vs.data(), vs.size())});
             }
-            overloads.push_back({std::span<const baker::ParamDescription>(ps.data(), ps.size()),
-                                 keep(o.value("result", "value"))});
+            overloads.push_back(
+                {.params = std::span<const baker::ParamDescription>(ps.data(), ps.size()),
+                 .result = keep(o.value("result", "value"))});
         }
     }
     std::string_view keep(std::string s) { return text.emplace_back(std::move(s)); }
@@ -111,7 +114,7 @@ void declare_types(baker::Context& ctx, const nlohmann::json& doc, Reference& ou
                 continue;
             }
             std::deque<Described> described;
-            std::vector<baker::MethodDescription> methods;
+            std::vector<baker::tools::MethodDescription> methods;
             for (const nlohmann::json& m : t.value("methods", nlohmann::json::array())) {
                 if (!m.is_object() || m.value("name", "").empty()) continue;
                 Described& d = described.emplace_back(m, false);
@@ -120,13 +123,13 @@ void declare_types(baker::Context& ctx, const nlohmann::json& doc, Reference& ou
                                        d.overloads.data(), d.overloads.size())});
             }
             // A type the Context already has is Baker's own, as fully known as a declared one.
-            if (ctx.has_type(baker::Symbol(name))) {
+            if (baker::tools::has_type(ctx, baker::Symbol(name))) {
                 out.declared_types.push_back(name);
-            } else if (auto r = ctx.declare_type(
-                           baker::Symbol(name),
+            } else if (auto r = baker::tools::declare_type(
+                           ctx, baker::Symbol(name),
                            std::span<const baker::Symbol>(bases.data(), bases.size()),
-                           std::span<const baker::MethodDescription>(methods.data(),
-                                                                     methods.size()))) {
+                           std::span<const baker::tools::MethodDescription>(methods.data(),
+                                                                            methods.size()))) {
                 out.declared_types.push_back(name);
             } else {
                 out.failed.push_back("type " + name + ": " + std::string(r.error().message()));
@@ -283,7 +286,7 @@ bool load_reference(baker::Context& ctx, const std::string& path, Reference& out
         const baker::Symbol object(name);
         // Baker's own (its scheduler), or a function of the game's.
         if (ctx.has_func(object) || ctx.object(object).type() == baker::Type::Object) continue;
-        if (auto r = ctx.declare_object(object, baker::Symbol(type)))
+        if (auto r = baker::tools::declare_object(ctx, object, baker::Symbol(type)))
             ++out.declared_objects;
         else
             out.failed.push_back("object " + name + ": " + std::string(r.error().message()));

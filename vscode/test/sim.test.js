@@ -12,7 +12,7 @@ assert.strictEqual(toolFor(suite(""), "/b/bin/stacks_${project}", join, abs), "/
 assert.strictEqual(toolFor(suite(""), "build/game", join, abs),
                    path.join("/w", "stacks", "duel", "build", "game"));
 assert.strictEqual(toolFor(suite(""), "", join, abs), "");
-assert.deepStrictEqual(simArgs(["a", "b"]), ["sim", "--scenario", "a", "--scenario", "b", "--json"]);
+assert.deepStrictEqual(simArgs(["a", "b"]), ["sim", "--baker-scenario", "a", "--baker-scenario", "b", "--baker-json"]);
 
 const results = {
     schema: "baker.sim/1", status: "failed",

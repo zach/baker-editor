@@ -55,7 +55,7 @@ public:
     // Whether the game binds kClear, which drops one path's live edit (asked once per
     // connection).
     bool can_clear();
-    static constexpr const char* kClear = "config.clear";
+    static constexpr const char* kClear = "config.clear_scratch";
 
     // What the game's stack is now, to compare with the last time: its epoch, where the game
     // binds kEpoch; else the time of its last live edit, from {config.journal since}, which

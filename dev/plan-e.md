@@ -154,6 +154,13 @@ had settled them in 223–288 ms. With every view after every keystroke, 80–99
 completion's time is the file's read (Baker's lexer, whole); reading only what an edit
 changed would take a Baker read that resumes from an edit, not yet asked for.
 
+## Baker 0.6.0
+
+Adopted in steps, as 0.5.0 was: the pin and what breaks (the tools' API in `baker::tools`, the
+kit's `--baker-` flags, `config.clear_scratch`, a project's `$build` tool path, a layer field
+the server had set by position, and the shape kinds `key_of` and `curve` in hover); then E2,
+with note 0025; then E4, with note 0026.
+
 ## Order and status
 
 E1 and E3 need nothing from Baker and can start at once; E5 next, since E3 adds a request on

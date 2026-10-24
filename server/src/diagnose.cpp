@@ -9,6 +9,8 @@
 #include <baker/project.hpp>
 #include <baker/shape.hpp>
 #include <baker/std_interop.hpp>
+#include <baker/tools/layers.hpp>
+#include <baker/tools/reference.hpp>
 
 #include <algorithm>
 #include <chrono>
@@ -87,7 +89,7 @@ void find_hints(const baker::Config& cfg, const baker::Project& project, Loaded&
             bottom = false;
             continue;
         }
-        const auto effect = cfg.layer_effect(layer.name.str());
+        const auto effect = baker::tools::layer_effect(cfg, layer.name.str());
         if (!effect) continue;
         for (const baker::LayerEffectEntry& e : *effect) {
             if (e.source.file.str().empty()) continue;
@@ -169,7 +171,10 @@ baker::Project project_of(const Setup& setup) {
     baker::Project p;
     std::vector<baker::ProjectLayer> layers;
     for (const Layer& l : setup.layers)
-        layers.push_back({baker::Symbol(l.name), baker::Symbol(l.path), l.optional, l.enabled});
+        layers.push_back({.name = baker::Symbol(l.name),
+                          .path = baker::Symbol(l.path),
+                          .optional = l.optional,
+                          .enabled = l.enabled});
     std::vector<baker::ProjectEntry> levels, dirs, defines;
     for (const std::string& s : setup.pack_levels) levels.push_back({baker::Symbol(s)});
     for (const std::string& s : setup.include_dirs) dirs.push_back({baker::Symbol(s)});
@@ -420,7 +425,7 @@ Diagnosis diagnose(const Setup& setup, const baker::Context& ctx, const Buffers&
             loaded->macros.push_back(
                 {std::string(d.name.str()), canonical_path(std::string(d.file.str())), d.line});
     const baker::List<baker::Node> autorun = cfg.autorun();
-    for (const baker::Definition& d : baker::script_functions(autorun.items()))
+    for (const baker::Definition& d : baker::tools::script_functions(autorun.items()))
         loaded->functions.push_back(
             {std::string(d.name.str()), canonical_path(std::string(d.file.str())), d.line});
     find_hints(cfg, project, *loaded, found);

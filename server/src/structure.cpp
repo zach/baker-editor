@@ -1,21 +1,22 @@
 #include "structure.hpp"
 
 #include <baker/parse.hpp>
+#include <baker/tools/structure.hpp>
 
 #include <algorithm>
 
 namespace baker_lsp {
 namespace {
 
-TokenKind kind_of(baker::TextTokenKind k) {
+TokenKind kind_of(baker::tools::TextTokenKind k) {
     switch (k) {
-        case baker::TextTokenKind::QuotedSymbol: return TokenKind::QuotedSymbol;
-        case baker::TextTokenKind::String: return TokenKind::String;
-        case baker::TextTokenKind::Int: return TokenKind::Int;
-        case baker::TextTokenKind::Float: return TokenKind::Float;
-        case baker::TextTokenKind::Variable: return TokenKind::Variable;
-        case baker::TextTokenKind::Directive: return TokenKind::Directive;
-        case baker::TextTokenKind::Macro: return TokenKind::Macro;
+        case baker::tools::TextTokenKind::QuotedSymbol: return TokenKind::QuotedSymbol;
+        case baker::tools::TextTokenKind::String: return TokenKind::String;
+        case baker::tools::TextTokenKind::Int: return TokenKind::Int;
+        case baker::tools::TextTokenKind::Float: return TokenKind::Float;
+        case baker::tools::TextTokenKind::Variable: return TokenKind::Variable;
+        case baker::tools::TextTokenKind::Directive: return TokenKind::Directive;
+        case baker::tools::TextTokenKind::Macro: return TokenKind::Macro;
         default: return TokenKind::Symbol;
     }
 }
@@ -41,24 +42,24 @@ std::vector<std::string> Structure::data_path(int b) const {
 
 Structure read_structure(std::string_view text) {
     Structure s;
-    const baker::TextStructure read = baker::read_structure(text);
+    const baker::tools::TextStructure read = baker::tools::read_structure(text);
     s.brackets.reserve(read.brackets.size());
     s.tokens.reserve(read.tokens.size() - read.brackets.size());  // less the opens
-    for (const baker::TextComment& c : read.comments)
+    for (const baker::tools::TextComment& c : read.comments)
         s.comments.push_back({c.begin, c.end, c.block});
     std::vector<int> open;    // the brackets around the next token, innermost last
     std::vector<int> counts;  // tokens and arrays in each of them so far
     size_t next = 0;          // the next of Baker's brackets, which open in token order
-    for (const baker::TextToken& t : read.tokens) {
+    for (const baker::tools::TextToken& t : read.tokens) {
         // A close Baker read has ended its bracket; an unclosed one ends with the text.
         while (!open.empty() && s.brackets[static_cast<size_t>(open.back())].end <= t.begin) {
             open.pop_back();
             counts.pop_back();
         }
-        if (t.kind == baker::TextTokenKind::Close) continue;
+        if (t.kind == baker::tools::TextTokenKind::Close) continue;
         if (!counts.empty()) ++counts.back();
-        if (t.kind == baker::TextTokenKind::Open) {
-            const baker::TextBracket& b = read.brackets[next++];
+        if (t.kind == baker::tools::TextTokenKind::Open) {
+            const baker::tools::TextBracket& b = read.brackets[next++];
             if (!open.empty()) s.brackets[static_cast<size_t>(open.back())].has_child = true;
             s.brackets.push_back({b.open, open.empty() ? -1 : open.back(), b.begin, b.end, -1,
                                   false, b.closed, counts.empty() ? 0 : counts.back() - 1});
@@ -69,9 +70,9 @@ Structure read_structure(std::string_view text) {
         Token token;
         token.begin = t.begin;
         token.end = t.end;
-        token.quote = t.kind == baker::TextTokenKind::String         ? '"'
-                      : t.kind == baker::TextTokenKind::QuotedSymbol ? '\''
-                                                                     : 0;
+        token.quote = t.kind == baker::tools::TextTokenKind::String         ? '"'
+                      : t.kind == baker::tools::TextTokenKind::QuotedSymbol ? '\''
+                                                                            : 0;
         token.kind = kind_of(t.kind);
         token.text = text.substr(t.begin, t.end - t.begin);
         if (token.quote && token.text.size() >= 2 && token.text.back() == token.quote)

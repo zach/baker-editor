@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// A game binary for the test view's tests: answers `sim [--scenario NAME]... --json` for the
+// A game binary for the test view's tests: answers `sim [--baker-scenario NAME]... --baker-json` for the
 // test project's scenarios with a fixed baker.sim/1, as Baker's host kit writes it. A file
 // named `fail` in the project's directory, or BREAK in data/default.dta on disk, makes
 // units.alive fail in `opening`.
@@ -7,13 +7,13 @@ const fs = require("fs");
 const path = require("path");
 
 const args = process.argv.slice(2);
-if (args[0] !== "sim" || !args.includes("--json")) {
-    process.stderr.write("fake-game: only `sim ... --json`\n");
+if (args[0] !== "sim" || !args.includes("--baker-json")) {
+    process.stderr.write("fake-game: only `sim ... --baker-json`\n");
     process.exit(2);
 }
 const asked = [];
 for (let i = 1; i < args.length; ++i)
-    if (args[i] === "--scenario") asked.push(args[++i]);
+    if (args[i] === "--baker-scenario") asked.push(args[++i]);
 const dir = process.cwd();
 const scenarios = path.join(dir, "scenarios", "basic.dta");
 const objectives = path.join(dir, "metrics", "units.dta");

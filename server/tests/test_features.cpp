@@ -215,3 +215,17 @@ TEST_CASE("a call on one of the game's objects: its type's methods, and its base
         labels(complete(FileRead(other), at5, *f.loaded, f.reference));
     CHECK(std::find(offered.begin(), offered.end(), "delay_task") == offered.end());
 }
+
+TEST_CASE("hover names a key field's table and a curve field") {
+    Fixture f(
+        "(shapes (tower (at towers) (keyed) (aim curve) (target (key_of units))))\n"
+        "(towers (t1 (target knight)))\n");
+    auto [text, at] = cursor("(towers (t1 (tar|get knight)))");
+    auto h = hover(FileRead(text), at, *f.loaded, f.reference);
+    REQUIRE(h);
+    CHECK(has(h->markdown, "(key_of units)"));
+    std::tie(text, at) = cursor("(towers (t1 (ai|m 0 0)))");
+    h = hover(FileRead(text), at, *f.loaded, f.reference);
+    REQUIRE(h);
+    CHECK(has(h->markdown, "curve"));
+}

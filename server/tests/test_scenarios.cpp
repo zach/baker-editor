@@ -91,6 +91,17 @@ TEST_CASE("the scenarios and objectives the project file names, where each is de
     CHECK(open.scenarios[0].name == "renamed");
     CHECK(open.scenarios[1].name == "fresh");
     CHECK(open.objectives.empty());
+
+    // A tool under the game's build directory: the project's (build ...), else build/.
+    buffers.set(kProjectFile,
+                "(project (layers (default \"data/default.dta\")) (build \"../out\")\n"
+                "   (tool \"$build/bin/game\"))\n");
+    REQUIRE(read_suite(kProjectFile, buffers, open, error));
+    CHECK(open.tool == canonical_path(kProject + "/../out/bin/game"));
+    buffers.set(kProjectFile,
+                "(project (layers (default \"data/default.dta\")) (tool \"$build/bin/game\"))\n");
+    REQUIRE(read_suite(kProjectFile, buffers, open, error));
+    CHECK(open.tool == kProject + "/build/bin/game");
 }
 
 TEST_CASE("a failed objective is shown on its declaration and on its scenario") {

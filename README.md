@@ -266,7 +266,9 @@ with `{text, sources}`, for other editors to show the same way.
 Each project's scenarios are tests in VS Code's test view: the project file's `(scenarios
 ...)` and `(objectives ...)` (Baker's host kit), listed by the server (`baker/scenarios`), each
 with a run button on the line that declares it. A run starts the game's own binary, `sim
---scenario NAME... --json`, in the project's directory, and reads its `baker.sim/1`:
+--baker-scenario NAME... --baker-json` (the kit's flags since Baker 0.6.0; a game built on an
+earlier Baker takes `--scenario` and `--json`, and is not run correctly), in the project's
+directory, and reads its `baker.sim/1`:
 
 - a scenario passes when every run and every median it is judged by passed; one that failed
   lists each objective that failed, with its value, linked to where the objective is
@@ -335,10 +337,10 @@ Neither is offered without a game, or with another project's: the server asks th
 once per connection, where one of the project's values comes from. An evaluation may take
 up to 2 s, as a person asked for it; everything else keeps the 50 ms.
 
-**Revert the live edit**, on a value the game has a live edit for: `{config.clear path}`
-drops the edit, and the value is the files' again. Offered when the game binds
-`config.clear` (Baker 0.2.0's development builds do; the server checks, once per connection,
-by clearing a path no game has). On Duel, trying `(health 1200)` then reverting leaves hover
+**Revert the live edit**, on a value the game has a live edit for: `{config.clear_scratch
+path}` drops the edit, and the value is the files' again. Offered when the game binds
+`config.clear_scratch` (Baker 0.6.0's development builds do, and earlier ones named it
+`config.clear`; the server checks, once per connection, by clearing a path no game has). On Duel, trying `(health 1200)` then reverting leaves hover
 on `default 1000` and nothing unsaved in the game.
 
 On Duel with the game running: evaluating `{duel.frame_table}` in a scenario shows the
@@ -512,6 +514,11 @@ bottom layer itself checks in about the same time reloaded as loaded afresh (185
 175–204 ms, three runs each): Baker re-parses the lowest layer that changed and those above
 it, so `reload()` saves nothing there.
 
+Baker 0.6.0 against 0.5.0, the same server code, RelWithDebInfo builds (Clang), on the 2 MB
+Duel after an edit to its one-line `local.dta` (three runs of 20 checks each): a fresh load
+110–111 ms against 110–120 ms, a kept reload 71–86 ms against 73–77 ms. The same within the
+noise.
+
 Baker 0.1's example console sent each reply as its own write, so Nagle's algorithm held each
 one for a delayed acknowledgement: the same 113 values took about 50 ms, the console's whole
 budget, and the server asked Linux for immediate acknowledgements (`TCP_QUICKACK`) to bring
@@ -522,7 +529,8 @@ requests about one frame (6–20 ms).
 
 ## Baker
 
-The server builds against a released Baker, `zach/baker` `v0.5.0`, through its public headers.
+The server builds against a released Baker, `zach/baker` `v0.6.0`, through its public headers
+and `baker::tools`.
 `-DBAKER_EDITOR_BAKER_DIR=PATH` builds against a local checkout instead. The stacks it is
 tried on come from Baker's development repository, `zach/baker-dev` (`stacks/`), which the
 release leaves out.

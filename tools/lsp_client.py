@@ -190,7 +190,7 @@ def main(argv):
             continue
         tool = suite["tool"] or os.path.join(suite["directory"], titles[n])
         names = [s["name"] for s in suite["scenarios"]]
-        args = [tool, "sim"] + [a for name in names for a in ("--scenario", name)] + ["--json"]
+        args = [tool, "sim"] + [a for name in names for a in ("--baker-scenario", name)] + ["--baker-json"]
         started = time.time()
         done = subprocess.run(args, cwd=suite["directory"], capture_output=True, text=True)
         print(f"--- sim: {len(names)} scenarios, exit {done.returncode}, "

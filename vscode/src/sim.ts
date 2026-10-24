@@ -1,5 +1,5 @@
 // A project's scenarios as tests: what the server lists (baker/scenarios), how the game's
-// binary is asked to run them (`sim --json`), and what its results (baker.sim/1) say about
+// binary is asked to run them (`sim --baker-json`), and what its results (baker.sim/1) say about
 // each scenario. No vscode here, so the tests can load it.
 
 export interface Declared {
@@ -41,9 +41,9 @@ export function toolFor(suite: Suite, setting: string, join: (a: string, b: stri
 }
 
 export function simArgs(scenarios: string[]): string[] {
-    const args = ["sim"];
-    for (const s of scenarios) args.push("--scenario", s);
-    args.push("--json");
+    const args = ["sim"];  // the host kit's flags, which begin --baker- (Baker 0.6.0)
+    for (const s of scenarios) args.push("--baker-scenario", s);
+    args.push("--baker-json");
     return args;
 }
 

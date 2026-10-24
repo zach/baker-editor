@@ -120,8 +120,9 @@ bool read_suite(const std::string& project, const Buffers& buffers, Suite& out,
         return false;
     }
     out.project = canonical_path(project);
-    out.tool =
-        read->tool.str().empty() ? std::string() : canonical_path(std::string(read->tool.str()));
+    // `$build` resolved: the project's (build ...), else "build" beside the project file.
+    const baker::Symbol tool = read->tool_path();
+    out.tool = tool.str().empty() ? std::string() : canonical_path(std::string(tool.str()));
     for (const baker::ProjectEntry& e : read->scenarios)
         for (const std::string& f : suite_files(std::string(e.value.str()), buffers))
             read_forms(f, "scenario", buffers, out.scenarios);

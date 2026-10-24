@@ -1,7 +1,7 @@
 #pragma once
 // A whole file's structure, read from its text (which it points into, so the text must
 // outlive it): every bracket with its tag and extent, every token with the bracket it is in,
-// and every comment. Baker's own lexer reads it (baker::read_structure), so it serves text
+// and every comment. Baker's own lexer reads it (baker::tools::read_structure), so it serves text
 // that does not parse (an unclosed bracket runs to the end of the file) and cannot disagree
 // with Baker about what a token is. Outline, folding, references and rename are built on it.
 #include <cstdint>

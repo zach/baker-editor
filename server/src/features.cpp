@@ -4,6 +4,7 @@
 #include "structure.hpp"
 
 #include <baker/std_interop.hpp>
+#include <baker/tools/layers.hpp>
 
 #include <algorithm>
 #include <cstdio>
@@ -32,6 +33,13 @@ std::string type_name(const baker::shape::Field& f) {
             case Type::String: return "string";
             case Type::List: return "list";
             case Type::Shape: return std::string(f.shape.str());
+            case Type::Curve: return "curve";
+            case Type::Key: {  // as the shape writes it: (key_of weapons)
+                std::string table;
+                for (const baker::Symbol part : f.table)
+                    table += (table.empty() ? "" : " ") + std::string(part.str());
+                return "(key_of " + table + ")";
+            }
         }
         return "any";
     };
@@ -66,12 +74,12 @@ std::string describe(const baker::shape::Shape& shape, const baker::shape::Field
     return s;
 }
 
-const char* standing_name(baker::Standing s) {
+const char* standing_name(baker::tools::Standing s) {
     switch (s) {
-        case baker::Standing::Wins: return "wins";
-        case baker::Standing::Shadowed: return "shadowed";
-        case baker::Standing::Removes: return "removes it";
-        case baker::Standing::Disabled: return "disabled layer";
+        case baker::tools::Standing::Wins: return "wins";
+        case baker::tools::Standing::Shadowed: return "shadowed";
+        case baker::tools::Standing::Removes: return "removes it";
+        case baker::tools::Standing::Disabled: return "disabled layer";
     }
     return "";
 }
@@ -211,9 +219,10 @@ std::optional<Hover> hover(const FileRead& read, size_t offset, const Loaded& lo
     }
 
     if (loaded.config)
-        if (auto chain = loaded.config->explain(baker::Path(path)); chain && !chain->empty()) {
+        if (auto chain = baker::tools::explain(*loaded.config, baker::Path(path));
+            chain && !chain->empty()) {
             h.markdown += "\n\n| layer | value | where | |\n|---|---|---|---|";
-            for (const baker::ExplainEntry& e : *chain)
+            for (const baker::tools::ExplainEntry& e : *chain)
                 h.markdown += "\n| " + std::string(e.layer.str()) + " | `" +
                               baker::to_string(e.value) + "` | " +
                               where(e.source.file, e.source.line) + " | " +
@@ -291,8 +300,8 @@ std::vector<Location> definition(const FileRead& read, size_t offset, const std:
     const int line =
         1 + static_cast<int>(std::count(text.begin(),
                                         text.begin() + static_cast<std::ptrdiff_t>(c.begin), '\n'));
-    if (auto chain = loaded.config->explain(baker::Path(path_text(tags))))
-        for (const baker::ExplainEntry& e : *chain) {
+    if (auto chain = baker::tools::explain(*loaded.config, baker::Path(path_text(tags))))
+        for (const baker::tools::ExplainEntry& e : *chain) {
             if (e.source.file.str().empty()) continue;
             const std::string f = canonical_path(std::string(e.source.file.str()));
             if (f == file && e.source.line == line) continue;

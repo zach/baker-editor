@@ -9,6 +9,7 @@
 #include "diagnose.hpp"
 #include "reference.hpp"
 
+#include <baker/tools/described.hpp>
 #include <baker/tweak.hpp>
 
 #include <memory>
@@ -34,7 +35,7 @@ public:
 
 private:
     baker::TweakRegistry registry_;
-    baker::DescribedTweaks described_{registry_};
+    baker::tools::DescribedTweaks described_{registry_};
     std::vector<std::string> checked_, left_out_;
     std::vector<std::string> left_out_paths_;  // sorted: their keys are not strays
 };

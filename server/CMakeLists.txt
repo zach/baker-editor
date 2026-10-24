@@ -26,7 +26,7 @@ add_library(baker_lsp_core STATIC
   src/structure.cpp
   src/reference.cpp)
 target_include_directories(baker_lsp_core PUBLIC src)
-target_link_libraries(baker_lsp_core PUBLIC baker::baker nlohmann_json::nlohmann_json)
+target_link_libraries(baker_lsp_core PUBLIC baker::baker baker::tools nlohmann_json::nlohmann_json)
 if(WIN32)
   target_link_libraries(baker_lsp_core PUBLIC ws2_32)
 endif()
