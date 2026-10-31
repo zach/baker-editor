@@ -1,9 +1,9 @@
-# Baker's next release: what this editor will meet
+# Baker 0.7.0: what this editor meets
 
 Six notes from the Baker session that changed the language (baker-dev D248, D249, D251, D260,
-D261, D262), and two changes without a note (D263, D264). On baker-dev's `main` with CI green
-on 2026-10-30, not yet released. Nothing here is built until a release has it: then the pin,
-the test data's migration and what breaks come first, and the rest seeds plan F.
+D261, D262), and two changes without a note (D263, D264), all released in Baker 0.7.0. The pin,
+the test data's migration and what broke are done (the server reads `@` metadata and `#shape`
+and `#pack` declarations; the grammars' `#` rule; the 3/100 layout); the rest seeds plan F.
 
 Where a later change revised an earlier note, the later one holds:
 
