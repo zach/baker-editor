@@ -77,6 +77,25 @@ struct LayerHint {
     friend bool operator==(const LayerHint&, const LayerHint&) = default;
 };
 
+// A row that composes the list below it, (items #append rope) or (things #drop lamp), from
+// Config::layer_effect: what it changes, and the list it makes.
+struct Composed {
+    std::string path;      // as a Path's text: households/cottage/things
+    std::string layer;     // the layer's name
+    std::string op;        // #append or #drop
+    std::string operands;  // as Baker text
+    std::string file;      // canonical: where the row is written
+    int line = 0;          // 1-based
+    std::string below;     // the list below, as Baker text; empty if the layers below lack it
+    std::string below_file;
+    int below_line = 0;
+    // The list it makes, if no layer above changes it again (the stack's value); else empty.
+    std::string result;
+    bool stale = false;  // its (@was ...) pin is not the list below
+
+    friend bool operator==(const Composed&, const Composed&) = default;
+};
+
 // What a check loaded, kept for hover and completion until the next check.
 struct Loaded {
     std::shared_ptr<baker::Config> config;  // the stack as the game merges it
@@ -89,7 +108,8 @@ struct Loaded {
     // Each overridden or overriding value, from the layers above the bottom one
     // (Config::layer_effect): their entries name the value below and where it is.
     std::vector<LayerHint> hints;
-    std::vector<Problem> shadowed;  // the hints' faded values, as problems (Hint, Unnecessary)
+    std::vector<Problem> shadowed;   // the hints' faded values, as problems (Hint, Unnecessary)
+    std::vector<Composed> composed;  // the layers' #append and #drop rows, bottom layer first
     // Each hinted file's text as this check read it, so that a later check that does not read
     // can carry the hints to where their lines are now (LineMap).
     std::map<std::string, std::string> texts;

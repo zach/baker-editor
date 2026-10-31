@@ -79,6 +79,33 @@ std::string last_dotted(std::string_view path) {
     return std::string(last);
 }
 
+// The stack's value at dotted `path`, as Baker text (a list in parentheses); empty if none.
+std::string merged_at(const baker::Config& cfg, std::string_view path) {
+    const baker::Ref<baker::Array> root = cfg.root();
+    const baker::Path p(path);
+    const baker::Array* a = root ? root.get() : nullptr;
+    for (size_t i = 0; a && p.valid() && i < p.size(); ++i)
+        a = p[i].is_index ? nullptr : a->try_find(p[i].name);
+    if (!a || p.empty()) return {};
+    std::string out;
+    size_t n = 0;
+    for (const baker::Node& v : a->values()) out += (n++ ? " " : "") + baker::to_string(v);
+    return n == 1 ? out : "(" + out + ")";
+}
+
+// Whether `layer` is the top contributor to `path`: no layer above it (nor scratch) changes
+// the value again.
+bool top_contributor(const baker::Config& cfg, std::string_view path, baker::Symbol layer) {
+    const auto chain = baker::tools::explain(cfg, baker::Path(path));
+    if (!chain) return false;
+    bool after = false;
+    for (const baker::tools::ExplainEntry& e : *chain) {
+        if (after && e.standing != baker::tools::Standing::Disabled) return false;
+        after = after || e.layer == layer;
+    }
+    return after;
+}
+
 // The hints of every layer but the bottom one, and of what they override.
 void find_hints(const baker::Config& cfg, const baker::Project& project, Loaded& loaded,
                 Collector& found) {
@@ -93,9 +120,46 @@ void find_hints(const baker::Config& cfg, const baker::Project& project, Loaded&
         if (!effect) continue;
         for (const baker::LayerEffectEntry& e : *effect) {
             if (e.source.file.str().empty()) continue;
+            // A declaration combines with the ones below it: it overrides nothing.
+            if (!e.declares.empty()) continue;
             const std::string file = canonical_path(std::string(e.source.file.str()));
             const std::string value = baker::to_string(e.value);
             const std::string key = last_dotted(e.path.str());
+            if (e.op.str() == "#append" || e.op.str() == "#drop") {
+                // It changes the list below, which stands: not an override, nothing faded.
+                Composed c;
+                c.path = baker::to_string(baker::Path(e.path.str()));
+                c.layer = std::string(layer.name.str());
+                c.op = std::string(e.op.str());
+                c.operands = value;
+                c.file = file;
+                c.line = e.source.line;
+                c.stale = e.stale;
+                std::string label;
+                if (e.below) {
+                    c.below = baker::to_string(*e.below);
+                    if (e.below_source && !e.below_source->file.str().empty()) {
+                        c.below_file = canonical_path(std::string(e.below_source->file.str()));
+                        c.below_line = e.below_source->line;
+                        label = "\u2190 " + short_name(c.below_file) + ":" +
+                                std::to_string(c.below_line) + " ";
+                    }
+                    label += c.below + " ";
+                }
+                if (top_contributor(cfg, e.path.str(), layer.name))
+                    c.result = merged_at(cfg, e.path.str());
+                label += c.op + " " + c.operands + (c.result.empty() ? "" : " \u2192 " + c.result);
+                loaded.hints.push_back(
+                    {file, c.line, std::string(e.path.str()), key, label, false, value});
+                if (!c.below_file.empty())
+                    loaded.hints.push_back(
+                        {c.below_file, c.below_line, std::string(e.path.str()), key,
+                         "composed by " + short_name(file) + ":" + std::to_string(c.line) + " (" +
+                             c.op + " " + c.operands + ")",
+                         false, c.below});
+                loaded.composed.push_back(std::move(c));
+                continue;
+            }
             if (e.below && e.below_source && !e.below_source->file.str().empty()) {
                 const std::string below_file =
                     canonical_path(std::string(e.below_source->file.str()));

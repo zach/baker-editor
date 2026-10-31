@@ -2,6 +2,8 @@
 // The stack as the game sees it, as text: the merged tree with each value's source, and what
 // one layer changes. Both are read-only views the editor shows beside the files; each line
 // that comes from a file says where, so go-to-definition can jump there.
+#include "diagnose.hpp"
+
 #include <baker/config.hpp>
 
 #include <optional>
@@ -23,10 +25,13 @@ struct View {
 };
 
 // Config::root(), one value a line, each followed by "; layer file:line" (`dir` cut from the
-// file names). It reads back through Baker into the same tree.
-View merged_view(const baker::Config& cfg, std::string_view dir);
+// file names), and by each row of `composed` that changes it, "local #append 5 file:line". It
+// reads back through Baker into the same tree.
+View merged_view(const baker::Config& cfg, std::string_view dir,
+                 const std::vector<Composed>& composed = {});
 
-// Config::layer_effect(layer), a line a path, as a game's `diff --layer` prints it; empty, with
+// Config::layer_effect(layer), a line a path, as a game's `diff --layer` prints it: a verb as
+// `-> #append v`, and `stale` where a row's (@was ...) pin is not the value below; empty, with
 // `error` set, when the stack has no such layer.
 std::optional<View> layer_view(const baker::Config& cfg, std::string_view layer,
                                std::string& error);

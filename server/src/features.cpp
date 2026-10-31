@@ -307,15 +307,29 @@ std::optional<Hover> hover(const FileRead& read, size_t offset, const Loaded& lo
         h.markdown += "\n\n" + m;
     }
 
+    // A row that composes the list below it: the list, its verb, and what it makes.
+    for (const Composed& r : loaded.composed) {
+        if (r.path != h.path) continue;
+        h.markdown += "\n\n" + r.layer + " (" + where(baker::Symbol(r.file), r.line) + "): `" +
+                      (r.below.empty() ? "" : r.below + " ") + r.op + " " + r.operands + "`";
+        if (!r.below.empty() && !r.below_file.empty())
+            h.markdown += ", the list from " + where(baker::Symbol(r.below_file), r.below_line);
+        if (!r.result.empty()) h.markdown += " \u2192 `" + r.result + "`";
+        if (r.stale)
+            h.markdown +=
+                "\n\n*its `(@was ...)` pin is not the list below: the layers below "
+                "have moved since it was written*";
+    }
     if (loaded.config)
         if (auto chain = baker::tools::explain(*loaded.config, baker::Path(path));
             chain && !chain->empty()) {
             h.markdown += "\n\n| layer | value | where | |\n|---|---|---|---|";
             for (const baker::tools::ExplainEntry& e : *chain)
-                h.markdown += "\n| " + std::string(e.layer.str()) + " | `" +
-                              baker::to_string(e.value) + "` | " +
-                              where(e.source.file, e.source.line) + " | " +
-                              standing_name(e.standing) + " |";
+                h.markdown +=
+                    "\n| " + std::string(e.layer.str()) + " | `" + baker::to_string(e.value) +
+                    "` | " + where(e.source.file, e.source.line) + " | " +
+                    standing_name(e.standing) +
+                    (e.op.str().empty() ? "" : " `" + std::string(e.op.str()) + "`") + " |";
             h.markdown += "\n\n*from the files*";
         }
     return h;

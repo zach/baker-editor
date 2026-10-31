@@ -1216,8 +1216,8 @@ json Server::view(const std::string& method, const json& params, std::string& er
     }
     std::optional<View> v;
     if (method == "baker/merged") {
-        v = merged_view(cfg,
-                        c->setup.project.empty() ? std::string() : parent_of(c->setup.project));
+        v = merged_view(cfg, c->setup.project.empty() ? std::string() : parent_of(c->setup.project),
+                        c->loaded->composed);
     } else {
         v = layer_view(cfg, params.value("layer", std::string()), error);
         if (!v) return nullptr;

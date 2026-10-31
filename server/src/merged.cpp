@@ -22,7 +22,8 @@ class Printer {
 public:
     static constexpr size_t kWidth = 80;
 
-    Printer(const baker::Config& cfg, std::string_view dir) : cfg_(cfg), dir_(dir) {}
+    Printer(const baker::Config& cfg, std::string_view dir, const std::vector<Composed>& composed)
+        : cfg_(cfg), dir_(dir), composed_(composed) {}
 
     void top(const baker::Array& root) {
         for (const baker::Node& n : root) {
@@ -108,24 +109,36 @@ private:
     }
 
     void source(Line& l) {
-        const auto s = cfg_.source(baker::Path(path_text(tags_)));
+        const std::string path = path_text(tags_);
+        const auto s = cfg_.source(baker::Path(path));
+        // The rows that change the list after it, as written: local #append 5 data/local.dta:2.
+        std::string then;
+        for (const Composed& c : composed_)
+            if (c.path == path)
+                then += ", " + c.layer + " " + c.op + " " + c.operands + " " + shown(c.file) + ":" +
+                        std::to_string(c.line);
         if (!s || s->file.str().empty()) {
-            if (s) l.comment = std::string(s->layer.str());
+            if (s) l.comment = std::string(s->layer.str()) + then;
             return;
         }
         auto [known, added] = canonical_.try_emplace(std::string(s->file.str()));
         if (added) known->second = canonical_path(known->first);
         l.file = known->second;
-        std::string_view shown = l.file;
-        if (shown.starts_with(dir_) && shown.size() > dir_.size() && shown[dir_.size()] == '/')
-            shown.remove_prefix(dir_.size() + 1);
-        l.comment =
-            std::string(s->layer.str()) + " " + std::string(shown) + ":" + std::to_string(s->line);
+        l.comment = std::string(s->layer.str()) + " " + shown(l.file) + ":" +
+                    std::to_string(s->line) + then;
         l.file_line = s->line;
+    }
+
+    // `file` as the view shows it: below the project's directory, from there.
+    std::string shown(std::string_view file) const {
+        if (file.starts_with(dir_) && file.size() > dir_.size() && file[dir_.size()] == '/')
+            file.remove_prefix(dir_.size() + 1);
+        return std::string(file);
     }
 
     const baker::Config& cfg_;
     std::string_view dir_;
+    const std::vector<Composed>& composed_;
     std::vector<std::string> tags_;
     std::vector<Line> lines_;
     std::unordered_map<std::string, std::string> canonical_;  // a file as Baker names it
@@ -133,8 +146,9 @@ private:
 
 }  // namespace
 
-View merged_view(const baker::Config& cfg, std::string_view dir) {
-    Printer p(cfg, dir);
+View merged_view(const baker::Config& cfg, std::string_view dir,
+                 const std::vector<Composed>& composed) {
+    Printer p(cfg, dir, composed);
     if (const baker::Ref<baker::Array> root = cfg.root()) p.top(*root);
     return p.view();
 }
@@ -155,10 +169,12 @@ std::optional<View> layer_view(const baker::Config& cfg, std::string_view layer,
     int line = 1;
     for (const baker::LayerEffectEntry& e : *effect) {
         const std::string file(e.source.file.str());
+        const bool verb = e.op.str() == "#append" || e.op.str() == "#drop";
         out.text += "  " + std::string(e.path.str()) + "  " +
                     (e.below ? baker::to_string(*e.below) : std::string("(new)")) + " -> " +
-                    baker::to_string(e.value) + "  (" + file + ":" + std::to_string(e.source.line) +
-                    ")" + (e.shadowed ? "  shadowed" : "") + "\n";
+                    (verb ? std::string(e.op.str()) + " " : "") + baker::to_string(e.value) +
+                    "  (" + file + ":" + std::to_string(e.source.line) + ")" +
+                    (e.shadowed ? "  shadowed" : "") + (e.stale ? "  stale" : "") + "\n";
         if (!file.empty()) out.sources.push_back({line, canonical_path(file), e.source.line});
         ++line;
     }

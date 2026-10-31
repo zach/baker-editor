@@ -308,6 +308,22 @@ The overridden value is also a hint-level diagnostic, `shadowed`, tagged *unnece
 the editor fades it and a stale default reads as stale. Editing one layer refreshes the
 hints in the other layers' open editors (`workspace/inlayHint/refresh`).
 
+A row that changes the list below it, `#append` or `#drop` (Baker 0.7.0), is no override: its
+hint shows the list below, the verb and what it makes, and the list below is not faded but
+says what composes it:
+
+```
+default.dta    (items rope torch) composed by local.dta:3 (#append lamp)
+local.dta      (items #append lamp) ← default.dta:12 (rope torch) #append lamp → (rope torch lamp)
+```
+
+What it makes is the stack's value when no layer above changes the list again; else the
+hint leaves it out. Hover on the row says the same, and its table names the verb beside
+`composes`; the merged view names each verb row after the value's source, and a layer's view
+writes it as Baker's `diff` does, `(rope torch) -> #append lamp`, with `stale` where a row's
+`(@was ...)` pin is not the value below. A `#shape` in a layer above combines with the one
+below, so it is not shown as an override either.
+
 While a file does not read, which is most of the time a person types in it, the hints and
 faded values are those of the last check in which every layer read, carried to where their
 lines are now by a line diff of the text that check read and the text in the editor. A hint

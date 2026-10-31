@@ -1,4 +1,5 @@
 #include "diagnose.hpp"
+#include "features.hpp"
 #include "merged.hpp"
 #include "positions.hpp"
 #include "server.hpp"
@@ -23,8 +24,14 @@ struct Stack {
     baker::Context ctx;
     Buffers buffers;
     std::shared_ptr<Loaded> loaded;
-    explicit Stack(const std::string& local = {}) {
+    // `below` is added to the end of default.dta, as an editor's text.
+    explicit Stack(const std::string& local = {}, const std::string& below = {}) {
         if (!local.empty()) buffers.set(kLocal, local);
+        if (!below.empty()) {
+            std::string text;
+            REQUIRE(buffers.read(kDefault, text));
+            buffers.set(kDefault, text + below);
+        }
         Setup s;
         s.project = kProjectFile;
         const Diagnosis d = diagnose(s, ctx, buffers, false);
@@ -130,4 +137,55 @@ TEST_CASE("over LSP: the views, and a lens on each layer of the project file") {
     CHECK(request("textDocument/codeLens",
                   {{"textDocument", {{"uri", uri_from_path(kDefault)}}}})["result"]
               .empty());
+}
+
+TEST_CASE("a verb row: its hint shows the list below and what it makes, nothing faded") {
+    Stack stack("; tuned\n(world (spawns #append 5))\n", "(world (spawns 3 4))\n");
+    const Loaded& l = *stack.loaded;
+    REQUIRE(l.composed.size() == 1);
+    const Composed& c = l.composed[0];
+    CHECK(c.path == "world/spawns");
+    CHECK(c.op == "#append");
+    CHECK(c.operands == "5");
+    CHECK(c.below == "(3 4)");
+    CHECK(c.below_file == kDefault);
+    CHECK(c.below_line == 12);
+    CHECK(c.result == "(3 4 5)");
+    std::vector<std::string> labels;
+    for (const LayerHint& h : l.hints) {
+        labels.push_back(h.label);
+        CHECK(!h.shadowed);
+    }
+    CHECK(labels == std::vector<std::string>{"\u2190 default.dta:12 (3 4) #append 5 \u2192 (3 4 5)",
+                                             "composed by local.dta:2 (#append 5)"});
+    CHECK(l.shadowed.empty());  // the list below stands: not faded
+
+    Stack drop("(world (spawns #drop 3))\n", "(world (spawns 3 4))\n");
+    REQUIRE(drop.loaded->composed.size() == 1);
+    CHECK(drop.loaded->composed[0].result == "4");
+}
+
+TEST_CASE("the views name a verb: beside the merged value, and as diff prints it") {
+    Stack stack("(world (spawns #append 5))\n(units (knight (health 50 (@was 30))))\n",
+                "(world (spawns 3 4))\n");
+    const View merged = merged_view(*stack.loaded->config, kProject, stack.loaded->composed);
+    CHECK(merged.text.find("(world (spawns 3 4 5))  ; default data/default.dta:12, local #append 5 "
+                           "data/local.dta:1") != std::string::npos);
+    std::string error;
+    const auto v = layer_view(*stack.loaded->config, "local", error);
+    REQUIRE(v);
+    CHECK(v->text.find("world.spawns  (3 4) -> #append 5  (") != std::string::npos);
+    CHECK(v->text.find("units.knight.health  100 -> 50  (" + kLocal + ":2)  stale") !=
+          std::string::npos);
+}
+
+TEST_CASE("hover on a verb row: the list below, the verb and what it makes") {
+    const std::string local = "(world (spawns #append 5))\n";
+    Stack stack(local, "(world (spawns 3 4))\n");
+    const auto h = hover(FileRead(local), local.find("spawns") + 1, *stack.loaded, Reference{});
+    REQUIRE(h);
+    CHECK(h->markdown.find("local (local.dta:1): `(3 4) #append 5`, the list from default.dta:12 "
+                           "\u2192 `(3 4 5)`") != std::string::npos);
+    CHECK(h->markdown.find("| local | `5` | local.dta:1 | composes `#append` |") !=
+          std::string::npos);
 }
