@@ -49,7 +49,9 @@ fix (after the note) gives the migrator's text.
 acceptance has it. Baker 0.7.0 warns of the old forms only for a candidate layer
 (`check_layer`), so a project's own files show nothing; note 0027 asks for the migrations as
 a call on a file's text that gives each old form, located, with its message and edits, which
-serves the warning and the quick fix both. Until then, the README names the migrators.
+serves the warning and the quick fix both. Until then, the README names the migrators. Baker
+built it as D276 (`tools::migrate_text`, `apply_findings`, and `baker_migrate` in place of
+the two migrators); it waits for the release that has it.
 
 ## F2. Rows keyed by a path
 
@@ -154,7 +156,7 @@ manual Windows pass (D1) is still the owner's.
 
 | Step | Baker | Status |
 |---|---|---|
-| F1 Metadata and declarations | note 0027 for the old forms' warnings and quick fix: migrations as edits (sent) | Done but the old forms, which wait for 0027 |
+| F1 Metadata and declarations | note 0027 for the old forms' warnings and quick fix: migrations as edits (built as D276, not released) | Done but the old forms, which wait for 0027's release |
 | F2 Rows keyed by a path | none | Planned |
 | F3 Layer verbs and pins | none | Planned |
 | F4 Infix braces | none | Planned |

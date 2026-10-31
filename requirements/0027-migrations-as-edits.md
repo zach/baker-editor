@@ -56,6 +56,12 @@ The editor shows nothing for an old form in a project's files: the check warns o
 candidate layer. Its README names the two migrators to run. A quick fix waits for this
 call, so that the editor does not keep a second copy of the migrators' rules.
 
+Built in Baker as D276 (merged to baker-dev's main, not yet in a release):
+`tools::migrate_text` gives each finding with its migration, span, warning and edits, and
+`apply_findings` applies one or any set; `baker_migrate` replaces the two migrators. The
+editor takes it up at the release that has it: each finding a warning in every project file,
+with a quick fix for it and one for the whole file, and the README naming `baker_migrate`.
+
 ## Not included
 
 This note contains no code, identifiers, structure or documentation from any other
