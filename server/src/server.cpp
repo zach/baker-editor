@@ -590,19 +590,21 @@ std::optional<std::pair<size_t, size_t>> command_at(std::string_view text, size_
     return out;
 }
 
-// A value written in the data: a tagged array of values alone, such as (health 1000).
+// A value written in the data: a tagged array of values alone, such as (health 1000), or with
+// metadata after them, (health 1000 (@range 1 9999)).
 struct Leaf {
     std::string path;   // its data path, as a Path's text
-    std::string value;  // the text after its tag
+    std::string value;  // the text after its tag, up to its metadata
     size_t end = 0;     // one past its closing bracket
 };
 
-// The innermost leaf around `offset`.
+// The innermost leaf around `offset`; in a leaf's metadata, that leaf.
 std::optional<Leaf> leaf_at(std::string_view text, size_t offset) {
     const Structure s = read_structure(text);
     int found = -1;
     for (size_t b = 0; b < s.brackets.size() && s.brackets[b].begin <= offset; ++b)
         if (offset < s.brackets[b].end) found = static_cast<int>(b);
+    while (found >= 0 && s.is_metadata(found)) found = s.brackets[found].parent;
     if (found < 0) return std::nullopt;
     const Bracket& b = s.brackets[found];
     if (b.open != '(' || b.has_child || b.tag < 0 || b.end > text.size() || text[b.end - 1] != ')')
@@ -610,7 +612,13 @@ std::optional<Leaf> leaf_at(std::string_view text, size_t offset) {
     const std::vector<std::string> tags = s.data_path(found);
     if (tags.empty()) return std::nullopt;
     const size_t from = s.tokens[b.tag].end + (s.tokens[b.tag].quote ? 1 : 0);
-    std::string_view value = text.substr(from, b.end - 1 - from);
+    size_t to = b.end - 1;  // the first metadata's bracket, if any: its only children
+    for (size_t c = static_cast<size_t>(found) + 1; c < s.brackets.size(); ++c)
+        if (s.brackets[c].parent == found) {
+            to = s.brackets[c].begin;
+            break;
+        }
+    std::string_view value = text.substr(from, to - from);
     while (!value.empty() && std::isspace(static_cast<unsigned char>(value.front())))
         value.remove_prefix(1);
     while (!value.empty() && std::isspace(static_cast<unsigned char>(value.back())))
@@ -658,7 +666,9 @@ bool Server::game_is(Checked& c) {
         if (file == c.setup.project || !buffers_.read(file, text)) continue;
         const Structure s = read_structure(text);
         for (size_t b = 0; b < s.brackets.size(); ++b) {
-            if (s.brackets[b].open != '(' || s.brackets[b].has_child) continue;
+            if (s.brackets[b].open != '(' || s.brackets[b].has_child ||
+                s.is_metadata(static_cast<int>(b)))
+                continue;
             const std::vector<std::string> tags = s.data_path(static_cast<int>(b));
             if (tags.empty()) continue;
             const auto chain = live.explain(path_text(tags));
@@ -1090,7 +1100,8 @@ json Server::inlay_hints(const json& params) {
     std::vector<std::string> paths;
     for (size_t b = 0; b < s.brackets.size() && leaves.size() < kMaxLiveInlays; ++b) {
         const Bracket& br = s.brackets[b];
-        if (br.open != '(' || br.has_child || br.tag < 0) continue;
+        if (br.open != '(' || br.has_child || br.tag < 0 || s.is_metadata(static_cast<int>(b)))
+            continue;
         const int line = lines.position(br.begin).first + 1;
         if (line < first) continue;
         if (line > last) break;

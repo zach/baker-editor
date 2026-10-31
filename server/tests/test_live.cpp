@@ -553,3 +553,27 @@ TEST_CASE("the project file's console port, unless --console names one") {
         if (m.contains("id") && m["id"] == 2) shown = m["result"]["contents"]["value"];
     CHECK(shown.find("127.0.0.1:" + std::to_string(game.port())) != std::string::npos);
 }
+
+TEST_CASE("a value with metadata after it is a value: tried, and its live edit shown") {
+    MockConsole game([](const std::string& cmd) -> json {
+        if (cmd == "{config.explain units/knight/health}") return explained(kDefault, true, 2);
+        if (cmd.rfind("{config.set ", 0) == 0) return {{"ok", true}, {"text", "120"}};
+        return {{"ok", false}, {"error", {{"message", "no such value"}}}};
+    });
+    // (units (knight (health 120 (@range 1 1000) (@note "tuned"))))
+    const std::string text =
+        "#require \"../packs/game/core.dta\"\n"
+        "(units (knight (health 120 (@range 1 1000) (@note \"tuned\"))))\n";
+    Client c(game.port(), true, text);
+    // On the value, and in its metadata: the value alone is set.
+    for (const int character : {23, 32}) {
+        REQUIRE(c.run(c.at(1, character), "Try this value in the game"));
+        CHECK(game.commands().back() == "{config.set units/knight/health 120}");
+    }
+    const json hints = c.inlays();
+    std::vector<std::string> labels;
+    for (const json& h : hints) labels.push_back(h["label"]);
+    CHECK(std::find(labels.begin(), labels.end(), "live 140") != labels.end());
+    for (const std::string& cmd : game.commands())
+        CHECK_MESSAGE(cmd.find("@") == std::string::npos, cmd);  // no metadata asked about
+}

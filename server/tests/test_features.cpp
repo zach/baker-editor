@@ -345,3 +345,12 @@ TEST_CASE("a shape by name: go to its #shape, and hover on it and on what it gov
     REQUIRE(h);
     CHECK(has(h->markdown, "governed by `#shape unit` ([core.dta:4]("));
 }
+
+TEST_CASE("in metadata, the path is the value's it describes") {
+    const auto [text, at] = cursor("(units (knight (health 100 (@range 1| 1000))))");
+    CHECK(data_path_at(FileRead(text), at) == "units/knight/health");
+    Fixture f;
+    const auto h = hover(FileRead(text), at, *f.loaded, f.reference);
+    REQUIRE(h);
+    CHECK(h->path == "units/knight/health");
+}

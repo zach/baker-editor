@@ -13,14 +13,15 @@
 namespace baker_lsp {
 
 struct Bracket {
-    char open = '(';         // '(' an array, '{' a command, '[' a macro or property
-    int parent = -1;         // the enclosing bracket's index, or -1 at the top
-    size_t begin = 0;        // the opening bracket's byte
-    size_t end = 0;          // one past the closing bracket (the text's end if unclosed)
-    int tag = -1;            // its first token's index in Structure::tokens, or -1
-    bool has_child = false;  // holds a bracket of its own
-    bool closed = false;     // false: it runs to the text's end
-    int index = 0;           // its place in its parent, as Token::index
+    char open = '(';   // '(' an array, '{' a command, '[' a macro or property
+    int parent = -1;   // the enclosing bracket's index, or -1 at the top
+    size_t begin = 0;  // the opening bracket's byte
+    size_t end = 0;    // one past the closing bracket (the text's end if unclosed)
+    int tag = -1;      // its first token's index in Structure::tokens, or -1
+    // Holds a bracket of its own other than metadata: (health 100 (@range 1 9)) holds none.
+    bool has_child = false;
+    bool closed = false;  // false: it runs to the text's end
+    int index = 0;        // its place in its parent, as Token::index
     // The #pack, #origin or #shape token in Structure::tokens whose one form it is, at the
     // top level: a declaration, which is not data. -1 for data.
     int declares = -1;
@@ -57,6 +58,9 @@ struct Structure {
     std::vector<Token> tokens;      // in order
     std::vector<Comment> comments;  // in order
 
+    // Whether bracket `b` is metadata: an array tagged @ and more, (@range 0 10). A lone @ is a
+    // symbol.
+    [[nodiscard]] bool is_metadata(int b) const;
     // The directive that declares bracket `b` ("#shape", "#pack", "#origin"), or empty.
     [[nodiscard]] std::string_view declared_by(int b) const;
     // The tag text of bracket `b`, or empty.

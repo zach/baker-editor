@@ -54,6 +54,16 @@ struct Fixture {
 
 }  // namespace
 
+TEST_CASE("a file's structure: metadata is no child of its value") {
+    const Structure s = read_structure("(a (b 1 (@range 0 9) (@note \"x\")) (@ 1))");
+    REQUIRE(s.brackets.size() == 5);
+    CHECK(s.brackets[0].has_child);   // (b ...) and (@ 1): a lone @ is a tag like any
+    CHECK(!s.brackets[1].has_child);  // (b 1 ...) holds metadata alone
+    CHECK(s.is_metadata(2));
+    CHECK(!s.is_metadata(1));
+    CHECK(!s.is_metadata(4));
+}
+
 TEST_CASE("a file's structure: brackets, tags and tokens") {
     const Structure s = read_structure("(a (b 1) {f 'x y'}) ; c\n/* d */ [M 2]");
     REQUIRE(s.brackets.size() == 4);

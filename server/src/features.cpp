@@ -121,6 +121,16 @@ const Definition* defined(const std::vector<Definition>& list, const std::string
     return nullptr;
 }
 
+// The path of the value `tags` names, or the value its metadata describes: up to the first
+// metadata tag, so units/knight/health/@range is units/knight/health.
+std::vector<std::string> value_tags(std::vector<std::string> tags) {
+    const auto meta = std::find_if(tags.begin(), tags.end(), [](const std::string& t) {
+        return t.size() > 1 && t.front() == '@';
+    });
+    tags.erase(meta, tags.end());
+    return tags;
+}
+
 // Whether the cursor is in a #shape's form.
 bool in_shape(const Cursor& c) {
     return !c.stack.empty() && c.stack.front().declared == "#shape";
@@ -255,7 +265,8 @@ std::optional<Hover> hover(const FileRead& read, size_t offset, const Loaded& lo
     }
     if (tags.empty()) return std::nullopt;
     const std::string path = path_text(tags);
-    h.path = path;
+    if (const std::vector<std::string> value = value_tags(tags); !value.empty())
+        h.path = path_text(value);
     h.markdown = "`" + path + "`";
 
     if (tags.size() >= 2) {
@@ -320,6 +331,7 @@ std::string data_path_at(const FileRead& read, size_t offset) {
         if (c.stack.size() > 1 && tags.empty()) return {};
         tags.push_back(c.token);
     }
+    tags = value_tags(std::move(tags));
     return tags.empty() ? std::string() : path_text(tags);
 }
 

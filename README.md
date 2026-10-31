@@ -379,6 +379,11 @@ With the project's game answering, two more code actions:
   Hover then shows `scratch 1200` winning, and **Write the live value here** keeps it.
   Saving the file is still yours to do (**Baker: Try this value in the game** in VS Code).
 
+A value with metadata after it, `(health 1200 (@range 1 9999) (@note "..."))`, is a value to
+all of these, as it is to Baker: **Try** sends `1200` alone, the live inlay shows beside it,
+and the cursor in its metadata stands for the value (its live hover, write-back and revert).
+Before plan F1, metadata made it an array of arrays, and none of them was offered.
+
 Neither is offered without a game, or with another project's: the server asks the game,
 once per connection, where one of the project's values comes from. An evaluation may take
 up to 2 s, as a person asked for it; everything else keeps the 50 ms.
@@ -478,6 +483,9 @@ Plan F1's outline (shapes, metadata left out), RelWithDebInfo build (GCC), at Ba
 Duel grown to 2 MB (1,773 fighters), ten requests a run timed by a client that does not poll:
 52 to 117 ms, against 54 to 103 ms for the outline before it (three runs each); the first
 request of each run is the slowest (101 to 117 ms both ways). No change beyond the noise.
+Telling a value's metadata from its children as the file is read (live values with metadata)
+adds a pass over the brackets; with an edit before each request, so that each reads the 2 MB
+file again: 89 to 155 ms, against 92 to 133 ms before it (three runs each), noise again.
 
 Finding the cursor's place scans the file's text up to the cursor: about 5 ms at the end of
 the 2 MB file, before `explain`.

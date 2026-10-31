@@ -22,10 +22,13 @@ const baker::shape::Shape* governing(const baker::shape::Set& shapes,
 struct Hover {
     std::string markdown;
     size_t begin = 0, end = 0;  // the bytes it is about
-    std::string path;           // the data path it is about, as a Path's text; empty if none
+    // The data path of the value it is about, as a Path's text; empty if none. In metadata,
+    // (health 100 (@range 1 9)), the value's: units/knight/health.
+    std::string path;
 };
 
-// The data path the cursor's value or array name is at, as a Path's text; empty if none.
+// The data path the cursor's value or array name is at, as a Path's text; empty if none. In
+// metadata, the path of the value it describes.
 std::string data_path_at(const FileRead& read, size_t offset);
 
 std::optional<Hover> hover(const FileRead& read, size_t offset, const Loaded& loaded,

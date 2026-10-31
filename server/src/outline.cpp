@@ -45,13 +45,6 @@ bool is_field(const Structure& s, int b, std::string_view field, const std::stri
     return gov && gov->name.str() == shape;
 }
 
-// Whether bracket `b` is metadata: (@range 0 10). A lone @ is a symbol.
-bool is_metadata(const Structure& s, int b) {
-    const std::string_view tag = s.tag(b);
-    return s.brackets[static_cast<size_t>(b)].open == '(' && tag.size() > 1 && tag[0] == '@' &&
-           s.tokens[static_cast<size_t>(s.brackets[static_cast<size_t>(b)].tag)].quote == 0;
-}
-
 // A shape field's type as written, its metadata left out: `int`, `(list symbol)`.
 std::string type_text(const Structure& s, std::string_view text, int b) {
     const Bracket& br = s.brackets[static_cast<size_t>(b)];
@@ -59,7 +52,7 @@ std::string type_text(const Structure& s, std::string_view text, int b) {
     for (size_t c = static_cast<size_t>(b) + 1; c < s.brackets.size(); ++c) {
         const Bracket& child = s.brackets[c];
         if (child.begin >= br.end) break;
-        if (child.parent == b && is_metadata(s, static_cast<int>(c))) {
+        if (child.parent == b && s.is_metadata(static_cast<int>(c))) {
             end = child.begin;
             break;
         }
@@ -86,11 +79,6 @@ std::vector<OutlineSymbol> outline(const Structure& s, std::string_view text, si
     std::vector<int> up(s.brackets.size(), -1);
     // Left out with all inside it: metadata, and a shape field's type and metadata.
     std::vector<char> hidden(s.brackets.size(), 0);
-    // Holds an array other than metadata: (health 100 (@range 1 1000)) is still a leaf.
-    std::vector<char> branch(s.brackets.size(), 0);
-    for (size_t b = 0; b < s.brackets.size(); ++b)
-        if (s.brackets[b].parent >= 0 && !is_metadata(s, static_cast<int>(b)))
-            branch[static_cast<size_t>(s.brackets[b].parent)] = 1;
     for (size_t b = 0; b < s.brackets.size(); ++b) {
         const Bracket& br = s.brackets[b];
         if (br.parent >= 0 && hidden[static_cast<size_t>(br.parent)]) {
@@ -104,7 +92,7 @@ std::vector<OutlineSymbol> outline(const Structure& s, std::string_view text, si
             }
         if (br.tag < 0) continue;
         const Token& tag = s.tokens[static_cast<size_t>(br.tag)];
-        if (is_metadata(s, static_cast<int>(b))) {
+        if (s.is_metadata(static_cast<int>(b))) {
             hidden[b] = 1;
             continue;
         }
@@ -132,7 +120,7 @@ std::vector<OutlineSymbol> outline(const Structure& s, std::string_view text, si
             sym.name_begin = tag.begin;
             sym.name_end = tag.end;
             // A leaf, (health 1000), is a field, with its values as detail.
-            const bool leaf = !branch[b];
+            const bool leaf = !br.has_child;  // (health 100 (@range 1 1000)) too
             if (leaf && !leaves) continue;
             std::string detail;
             for (size_t t = static_cast<size_t>(br.tag) + 1;

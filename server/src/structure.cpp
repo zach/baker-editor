@@ -28,6 +28,14 @@ std::string_view Structure::tag(int b) const {
     return tokens[static_cast<size_t>(brackets[static_cast<size_t>(b)].tag)].text;
 }
 
+bool Structure::is_metadata(int b) const {
+    if (b < 0) return false;
+    const Bracket& br = brackets[static_cast<size_t>(b)];
+    if (br.open != '(' || br.tag < 0) return false;
+    const Token& tag = tokens[static_cast<size_t>(br.tag)];
+    return tag.quote == 0 && tag.text.size() > 1 && tag.text[0] == '@';
+}
+
 std::string_view Structure::declared_by(int b) const {
     if (b < 0 || brackets[static_cast<size_t>(b)].declares < 0) return {};
     return tokens[static_cast<size_t>(brackets[static_cast<size_t>(b)].declares)].text;
@@ -68,7 +76,6 @@ Structure read_structure(std::string_view text) {
         if (!counts.empty()) ++counts.back();
         if (t.kind == baker::tools::TextTokenKind::Open) {
             const baker::tools::TextBracket& b = read.brackets[next++];
-            if (!open.empty()) s.brackets[static_cast<size_t>(open.back())].has_child = true;
             s.brackets.push_back({b.open, open.empty() ? -1 : open.back(), b.begin, b.end, -1,
                                   false, b.closed, counts.empty() ? 0 : counts.back() - 1,
                                   b.declares >= 0 ? ours[static_cast<size_t>(b.declares)] : -1});
@@ -93,6 +100,10 @@ Structure read_structure(std::string_view text) {
         ours[i] = static_cast<int>(s.tokens.size());
         s.tokens.push_back(token);
     }
+    // Each bracket's tag is known now: a child other than metadata makes its parent hold one.
+    for (size_t b = 0; b < s.brackets.size(); ++b)
+        if (const int p = s.brackets[b].parent; p >= 0 && !s.is_metadata(static_cast<int>(b)))
+            s.brackets[static_cast<size_t>(p)].has_child = true;
     return s;
 }
 
