@@ -86,6 +86,7 @@ const char* standing_name(baker::tools::Standing s) {
         case baker::tools::Standing::Shadowed: return "shadowed";
         case baker::tools::Standing::Removes: return "removes it";
         case baker::tools::Standing::Disabled: return "disabled layer";
+        case baker::tools::Standing::Composes: return "composes";  // #append, #drop
     }
     return "";
 }

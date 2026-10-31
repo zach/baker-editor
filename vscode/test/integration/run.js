@@ -23,8 +23,8 @@ async function main() {
     fs.writeFileSync(path.join(project, "data", "local.dta"),
                      "; One developer's tuning, for the integration tests.\n" +
                      "(units (knight (health 50)))\n" +
-                     "(look (tint 0.9 0.5 0.2 (range 0 1)))\n" +
-                     "(shapes (unit (role symbol (one_of tank ranged) (optional))))\n");
+                     "(look (tint 0.9 0.5 0.2 (@range 0 1)))\n" +
+                     "#shape (unit (role symbol (@one_of tank ranged) (@optional)))\n");
     fs.mkdirSync(path.join(work, "other"));
     fs.writeFileSync(path.join(work, "other", "survey.dta"), "another format's data\n");
 

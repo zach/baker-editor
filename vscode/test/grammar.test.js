@@ -50,6 +50,7 @@ function scopeOf(list, token) {
         "[SPEEDY 9]",
         "#autorun {game.spawn 'bacon and eggs' $count -2.5e3}",
         "(units (knight (speed #remove)))",
+        "(paint #00aa00 #1 #x1)",
         "/* a block",
         "   comment */ (mask 0x1F) (say \"a \\q(quoted)\\q\")",
     ].join("\n"));
@@ -68,6 +69,9 @@ function scopeOf(list, token) {
     assert.strictEqual(scopeOf(t, "$count"), "variable.other.baker");
     assert.strictEqual(scopeOf(t, "-2.5e3"), "constant.numeric.baker");
     assert.strictEqual(scopeOf(t, "#remove"), "keyword.control.directive.baker");
+    // # opens a directive only before a letter (Baker 0.7.0).
+    assert.strictEqual(scopeOf(t, "#x1"), "keyword.control.directive.baker");
+    assert.strictEqual(scopeOf(t, "#00aa00 #1"), "meta.array.baker");  // values, as low is
     assert.strictEqual(scopeOf(t, "a block"), "comment.block.baker");
     assert.strictEqual(scopeOf(t, "*/"), "comment.block.baker");
     assert.strictEqual(scopeOf(t, "0x1F"), "constant.numeric.baker");

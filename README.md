@@ -109,8 +109,8 @@ UTF-16 for LSP.
 ## Hover and completion
 
 **Hover** on a value or an array's name shows its path, the shape field that governs it (type,
-range, step, kind, `desc` and `note`, and where the shape is declared), the metadata written
-beside the value in the data (`(buffer 5 (range 1 20) (desc ...))`), the game's tweak at its
+range, step, kind, `@desc` and `@note`, and where its `#shape` is declared), the metadata written
+beside the value in the data (`(buffer 5 (@range 1 20) (@desc ...))`), the game's tweak at its
 path (its type, code default, range, whether the data sets it, and whether it is dev only), and
 every layer that contributes to it from the files, with its value, file and line, and which
 one wins (`Config::explain`). On a command's head it shows the function's signatures and doc
@@ -128,14 +128,14 @@ delay_task ...}`), its signatures and doc, from the reference's `types`.
 - naming a command (after `{`): the game's functions with their signatures, the data's
   script functions, and the objects the game names; after an object (`{scheduler `), its
   type's methods and its bases', with their signatures;
-- a symbol field's value: the symbols its shape field or tweak allows, `(one_of ...)`, in the
+- a symbol field's value: the symbols its shape field or tweak allows, `(@one_of ...)`, in the
   order declared (in Duel, `(button ` offers `light heavy kick special`, and `check` reports
   `(button lite)`); for a field with no list, the values the project's files give it, most
   used first; then the data's macros. In `(requires ...)`, the packs. Choosing a field with
   a list and no value yet offers the list as a choice.
 
-**Colors:** a swatch, and VS Code's color picker, on every value Baker calls a color: `(kind
-color)`, or 3 or 4 numbers ranged 0 to 1 with no kind, such as `(tint 0.9 0.5 0.2 (range 0
+**Colors:** a swatch, and VS Code's color picker, on every value Baker calls a color: `(@kind
+color)`, or 3 or 4 numbers ranged 0 to 1 with no kind, such as `(tint 0.9 0.5 0.2 (@range 0
 1))`. Picking a color rewrites the numbers in place, at most three decimals each.
 
 **The game's tweaks** are checked by Baker, as the game's own `check` checks them
@@ -183,8 +183,8 @@ request on that text.
 (`baker::tools::format_text`): a form on one line if it fits the width at its indent, else one
 item a line; every token, comment and directive kept as written; aligned runs kept aligned;
 one blank line where any was written. The layout is the project file's `(format (indent N)
-(width N))` (Baker's stacks: `(indent 3) (width 100)`), else Baker's two spaces and 80
-columns; the editor's own tab size is not used. A file that does not read is left as it is.
+(width N))`, else Baker's own, three spaces and 100 columns (since Baker 0.7.0; it was two
+and 80); the editor's own tab size is not used. A file that does not read is left as it is.
 On Duel, the result is byte for byte what the game's own `format` command writes; on every
 stack file, formatting a second time changes nothing and keeps every token and comment.
 
@@ -423,7 +423,7 @@ merged views still check first: they act on the whole project.
   `baker.tweaks/1.5` whose list says nothing of its elements) is not checked, beyond its
   range. Since Baker 0.6.0 the reference says what a list's elements are, and lists are
   checked as the game checks them, a list of the game's own type (`vec2`) too.
-- A symbol field with no `(one_of ...)` is completed from use: the first use of a value is not
+- A symbol field with no `(@one_of ...)` is completed from use: the first use of a value is not
   offered, and a typo used twice is.
 - A color's components are taken as 0 to 1, as Baker's color rule has them.
 - Other editors: point an LSP client at the binary, language id `baker`;
@@ -531,6 +531,11 @@ bottom layer itself checks in about the same time reloaded as loaded afresh (185
 175–204 ms, three runs each): Baker re-parses the lowest layer that changed and those above
 it, so `reload()` saves nothing there.
 
+Baker 0.7.0 against 0.6.0, RelWithDebInfo builds (Clang), on the 2 MB Duel after an edit to
+its one-line `local.dta`, the data migrated to 0.7.0's syntax for 0.7.0 (three runs of 20
+checks each): a fresh load 99–103 ms against 103–116 ms, a kept reload 63–73 ms against
+68–74 ms. The same within the noise.
+
 Baker 0.6.0 against 0.5.0, the same server code, RelWithDebInfo builds (Clang), on the 2 MB
 Duel after an edit to its one-line `local.dta` (three runs of 20 checks each): a fresh load
 110–111 ms against 110–120 ms, a kept reload 71–86 ms against 73–77 ms. The same within the
@@ -546,7 +551,7 @@ requests about one frame (6–20 ms).
 
 ## Baker
 
-The server builds against a released Baker, `zach/baker` `v0.6.0`, through its public headers
+The server builds against a released Baker, `zach/baker` `v0.7.0`, through its public headers
 and `baker::tools`.
 `-DBAKER_EDITOR_BAKER_DIR=PATH` builds against a local checkout instead. The stacks it is
 tried on come from Baker's development repository, `zach/baker-dev` (`stacks/`), which the

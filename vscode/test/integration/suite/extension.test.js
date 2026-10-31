@@ -180,7 +180,7 @@ suite("Baker in VS Code", function () {
             assert.ok(out.includes("; tough"), out);
             assert.ok(!out.includes("(units   "), out);
             assert.ok(!out.includes("\n\n\n"), out);
-            assert.ok(out.includes("\n  (knight"), out);  // Baker's indent, not the editor's 4
+            assert.ok(out.includes("\n   (knight"), out);  // Baker's indent of 3, not the editor's 4
             const again = await vscode.commands.executeCommand(
                 "vscode.executeFormatDocumentProvider", doc.uri, {tabSize: 4, insertSpaces: true});
             assert.ok(!again || again.length === 0, "formatting twice changes nothing");

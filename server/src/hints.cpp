@@ -15,10 +15,10 @@ namespace {
 
 // Reads `a`'s metadata arrays into `h`, over what it holds.
 void read_meta(const baker::Array& a, Hints& h) {
-    for (const baker::Node& n : baker::split_metadata(a.values()).metadata) {
-        const baker::Array* m = n.try_array();
-        if (!m) continue;
-        const std::string_view tag = m->tag().str();
+    for (const baker::Array& meta : a.metadata()) {
+        const baker::Array* m = &meta;
+        std::string_view tag = m->tag().str();
+        tag.remove_prefix(1);  // the @ every metadata tag begins with
         h.written = true;
         if (tag == "range" && m->size() == 3 && (*m)[1].try_float() && (*m)[2].try_float()) {
             h.min = *(*m)[1].try_float();
@@ -98,12 +98,11 @@ void walk(const baker::Array& a, std::vector<std::string>& tags, const Loaded& l
 }  // namespace
 
 bool is_meta_tag(std::string_view tag) {
-    return tag == "range" || tag == "step" || tag == "kind" || tag == "desc" || tag == "note" ||
-           tag == "group" || tag == "one_of";
+    return tag.size() > 1 && tag.front() == '@';  // (@range 0 1), Baker's rule
 }
 
 bool has_meta(const baker::Array& a) {
-    return !baker::split_metadata(a.values()).metadata.empty();
+    return a.metadata().begin() != a.metadata().end();
 }
 
 const baker::Array* array_at(const Loaded& loaded, const std::vector<std::string>& tags) {

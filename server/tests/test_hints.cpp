@@ -64,19 +64,21 @@ TEST_CASE("metadata beside a value is told from data that happens to be named ki
         REQUIRE(r);
         return *r;
     };
-    const auto meta = read("(w 2 (range 0 10) (desc \"x\"))");
+    const auto meta = read("(w 2 (@range 0 10) (@desc \"x\"))");
     CHECK(has_meta(*(*meta)[0].try_array()));
     const auto data = read("(ball (kind ball) (pos 1 2))");
     CHECK(!has_meta(*(*data)[0].try_array()));
     const auto mixed = read("(w 2 (range 0 10) (pos 1 2))");
     CHECK(!has_meta(*(*mixed)[0].try_array()));
-    CHECK(has_meta(*(*read("(w (range 0 10))"))[0].try_array()));  // Baker's rule: trailing ones
+    // Baker's rule (0.7.0): a child tagged @word is metadata, and nothing else.
+    CHECK(has_meta(*(*read("(w (@range 0 10))"))[0].try_array()));
+    CHECK(!has_meta(*(*read("(w (range 0 10))"))[0].try_array()));  // a field
 }
 
 TEST_CASE("hints: the data's metadata over the shape's, both over the tweak's code") {
     Stack s(
-        "(units (knight (speed 2.5 (range 0 4) (note \"slow on purpose\"))))\n"
-        "(world (gravity 9.8 (desc \"Down\")))\n");
+        "(units (knight (speed 2.5 (@range 0 4) (@note \"slow on purpose\"))))\n"
+        "(world (gravity 9.8 (@desc \"Down\")))\n");
     const Hints speed = hints_at(*s.loaded, s.reference, {"units", "knight", "speed"});
     CHECK(speed.written);
     CHECK(speed.max == 4);  // the data's, over the shape's 10
@@ -125,7 +127,7 @@ TEST_CASE("a symbol value is offered from the values the project gives the same 
 }
 
 TEST_CASE("a range only the running game enforces is a warning") {
-    Stack s("(world (gravity 30))\n(look (zoom 12 (range 0 10)))\n(units (archer (speed 3)))\n");
+    Stack s("(world (gravity 30))\n(look (zoom 12 (@range 0 10)))\n(units (archer (speed 3)))\n");
     std::vector<std::string> found;
     for (const Problem& p : range_problems(*s.loaded, s.reference)) {
         CHECK(p.severity == Severity::Warning);
@@ -150,8 +152,8 @@ TEST_CASE("a color swatch where Baker calls a value a color, and the picker writ
     };
     request("initialize", {{"rootUri", uri_from_path(kProject)}});
     const std::string text =
-        "(look\n   (tint 0.9 0.5 0.2 (range 0 1))\n   (shade 0.1 0.2 0.3 1 (kind color))\n"
-        "   (pos 0.1 0.2 0.3)\n   (box 0.1 0.2 0.3 (range 0 1) (kind meters)))\n";
+        "(look\n   (tint 0.9 0.5 0.2 (@range 0 1))\n   (shade 0.1 0.2 0.3 1 (@kind color))\n"
+        "   (pos 0.1 0.2 0.3)\n   (box 0.1 0.2 0.3 (@range 0 1) (@kind meters)))\n";
     server.handle(
         {{"jsonrpc", "2.0"},
          {"method", "textDocument/didOpen"},
@@ -179,7 +181,7 @@ TEST_CASE("a color swatch where Baker calls a value a color, and the picker writ
 
 TEST_CASE("a field's allowed symbols: offered in their order, and as the choice it writes") {
     Stack s(
-        "(shapes (unit (role symbol (one_of tank ranged healer) (optional))))\n"
+        "#shape (unit (role symbol (@one_of tank ranged healer) (@optional)))\n"
         "(units (knight (role tank)) (archer (role tank)))\n");
     // The list, in its order, not the values in use.
     CHECK(s.complete_at("(units (rogue (role ", kDefault) ==
@@ -194,7 +196,7 @@ TEST_CASE("a field's allowed symbols: offered in their order, and as the choice 
     CHECK(h.find("optional: one of tank, ranged, healer") != std::string::npos);
     // A value outside it is check's error.
     Stack typo(
-        "(shapes (unit (role symbol (one_of tank ranged healer) (optional))))\n"
+        "#shape (unit (role symbol (@one_of tank ranged healer) (@optional)))\n"
         "(units (knight (role tnak)))\n");
     bool reported = false;
     for (const Problem& p : typo.d.problems)
@@ -204,7 +206,7 @@ TEST_CASE("a field's allowed symbols: offered in their order, and as the choice 
 }
 
 TEST_CASE("one_of beside a value is metadata") {
-    Stack s("(look (mode fast (one_of fast slow) (desc \"How\")))\n");
+    Stack s("(look (mode fast (@one_of fast slow) (@desc \"How\")))\n");
     const Hints h = hints_at(*s.loaded, s.reference, {"look", "mode"});
     CHECK(h.written);
     CHECK(h.one_of == std::vector<std::string>{"fast", "slow"});

@@ -27,13 +27,18 @@ const Token* previous(const Structure& s, size_t t) {
     return prev.bracket == s.tokens[t].bracket ? &prev : nullptr;
 }
 
+// The shape whose #shape (NAME ...) declares bracket `b` as one of its fields, or empty.
+std::string_view declaring_shape(const Structure& s, int b) {
+    const int parent = s.brackets[static_cast<size_t>(b)].parent;
+    return s.declared_by(parent) == "#shape" ? s.tag(parent) : std::string_view();
+}
+
 // Whether bracket `b`, an array tagged `field`, is a field of shape `shape`: governed by it
-// through its parent, or its declaration in (shapes (shape ...)).
+// through its parent, or its declaration in #shape (shape ...).
 bool is_field(const Structure& s, int b, std::string_view field, const std::string& shape,
               const Loaded& loaded) {
     if (s.brackets[static_cast<size_t>(b)].open != '(' || s.tag(b) != field) return false;
-    const std::vector<std::string> path = s.data_path(b);
-    if (path.size() == 3 && path[0] == "shapes" && path[1] == shape) return true;
+    if (declaring_shape(s, b) == shape) return true;
     const int parent = s.brackets[static_cast<size_t>(b)].parent;
     if (parent < 0) return false;
     const baker::shape::Shape* gov = governing(loaded.shapes, s.data_path(parent));
@@ -190,20 +195,19 @@ std::optional<Target> target_at(const Structure& s, size_t offset, const Loaded&
         target.kind = Target::Kind::Macro;
         return target;
     }
-    // A pack: declared by (pack NAME), or required.
-    if (br &&
-        ((s.tag(b) == "pack" && tok.index == 1) || (s.tag(b) == "requires" && tok.index > 0))) {
+    // A pack: declared by #pack (NAME ...), or required.
+    if (br && ((s.declared_by(b) == "#pack" && tok.index == 0) ||
+               (s.tag(b) == "requires" && tok.index > 0))) {
         target.kind = Target::Kind::Pack;
         return target;
     }
     // A field: an array's tag, under a shape that has it, or its declaration.
     if (br && br->open == '(' && tok.index == 0) {
-        const std::vector<std::string> path = s.data_path(b);
-        if (path.size() == 3 && path[0] == "shapes") {
-            if (const baker::shape::Shape* sh = loaded.shapes.find(baker::Symbol(path[1])))
+        if (const std::string_view shape = declaring_shape(s, b); !shape.empty()) {
+            if (const baker::shape::Shape* sh = loaded.shapes.find(baker::Symbol(shape)))
                 if (sh->field(baker::Symbol(tok.text))) {
                     target.kind = Target::Kind::Field;
-                    target.shape = path[1];
+                    target.shape = std::string(shape);
                     return target;
                 }
         }
@@ -239,7 +243,7 @@ std::vector<Occurrence> occurrences(
                           (tok.index == 0 || (tok.index == 1 && s.tag(b) == "func"));
                     break;
                 case Target::Kind::Pack:
-                    hit = br && ((s.tag(b) == "pack" && tok.index == 1) ||
+                    hit = br && ((s.declared_by(b) == "#pack" && tok.index == 0) ||
                                  (s.tag(b) == "requires" && tok.index > 0));
                     break;
                 case Target::Kind::Field:

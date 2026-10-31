@@ -33,7 +33,8 @@ module.exports = grammar({
     string: _ => token(seq('"', /[^"]*/, '"')),
     quoted_symbol: _ => token(seq("'", /[^']*/, "'")),
     variable: _ => token(seq('$', /[^\s(){}\[\];"']+/)),
-    directive: _ => token(prec(1, /#[A-Za-z_][A-Za-z0-9_]*/)),
+    // # opens a directive only before a letter (Baker 0.7.0): #1 and #00aa00 are symbols.
+    directive: _ => token(prec(1, /#[A-Za-z][A-Za-z0-9_]*/)),
     symbol: _ => token(/[^\s(){}\[\];"'$]+/),
 
     comment: _ => token(seq(';', /.*/)),

@@ -48,7 +48,7 @@
     },
     "directive": {
       "name": "keyword.control.directive.baker",
-      "match": "#[A-Za-z_]+\\b"
+      "match": "#[A-Za-z][A-Za-z0-9_]*"
     },
     "string": {
       "name": "string.quoted.double.baker",

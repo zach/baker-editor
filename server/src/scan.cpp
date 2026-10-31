@@ -12,7 +12,7 @@ std::vector<std::string> tags_of(const std::vector<Frame>& stack, size_t count) 
     std::vector<std::string> tags;
     for (size_t i = 0; i < count; ++i) {
         const Frame& f = stack[i];
-        if (f.open != '(' || f.tag.empty()) return {};
+        if (f.open != '(' || f.tag.empty() || f.declared) return {};
         tags.push_back(f.tag);
     }
     return tags;
@@ -75,7 +75,10 @@ Cursor scan(const Structure& s, std::string_view text, size_t offset) {
     if (last >= 0 && last != inner) count = std::max(count, place_in(last, 0));
     for (size_t k = chain.size(); k-- > 0;) {
         const Bracket& b = brackets[static_cast<size_t>(chain[k])];
-        Frame f{b.open, {}, k == 0 ? count : brackets[static_cast<size_t>(chain[k - 1])].index + 1};
+        Frame f{b.open,
+                {},
+                k == 0 ? count : brackets[static_cast<size_t>(chain[k - 1])].index + 1,
+                b.declares >= 0};
         if (b.tag >= 0 && tokens[static_cast<size_t>(b.tag)].end < offset)
             f.tag = std::string(tokens[static_cast<size_t>(b.tag)].text);
         c.stack.push_back(std::move(f));

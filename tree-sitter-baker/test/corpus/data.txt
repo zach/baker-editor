@@ -36,6 +36,7 @@ Directives, macros and script
 #endif
 #autorun {func game.twice ($n) {game.wait $n} {+ $n 1}}
 (units (knight (speed #remove)))
+(paint #00aa00 #1 #x1)
 
 ---
 
@@ -54,4 +55,5 @@ Directives, macros and script
     (array (variable))
     (command (symbol) (variable))
     (command (symbol) (variable) (number)))
-  (array (symbol) (array (symbol) (array (symbol) (directive)))))
+  (array (symbol) (array (symbol) (array (symbol) (directive))))
+  (array (symbol) (symbol) (symbol) (directive)))

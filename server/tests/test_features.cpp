@@ -119,7 +119,7 @@ TEST_CASE("completion offers functions in a command, macros as values, packs in 
     std::tie(text, at) = cursor("(units (archer (speed S|");
     CHECK(labels(complete(FileRead(text), at, *f.loaded, f.reference)) ==
           std::vector<std::string>{"SPEEDY"});
-    std::tie(text, at) = cursor("(pack extra (level task) (requires |");
+    std::tie(text, at) = cursor("#pack (extra (level task) (requires |");
     CHECK(labels(complete(FileRead(text), at, *f.loaded, f.reference)) ==
           std::vector<std::string>{"core"});
     std::tie(text, at) = cursor("; (units (archer (|");
@@ -164,7 +164,7 @@ TEST_CASE("definition: macros, script functions, packs, and files") {
     REQUIRE(defs.size() == 1);
     CHECK(defs[0].line == 11);
 
-    std::tie(text, at) = cursor("(pack extra (level task) (requires co|re))");
+    std::tie(text, at) = cursor("#pack (extra (level task) (requires co|re))");
     defs = definition(FileRead(text), at, kLocal, *f.loaded, f.reference, on_disk);
     REQUIRE(defs.size() == 1);
     CHECK(defs[0].file == kProject + "/packs/game/core.dta");
@@ -218,7 +218,7 @@ TEST_CASE("a call on one of the game's objects: its type's methods, and its base
 
 TEST_CASE("hover names a key field's table and a curve field") {
     Fixture f(
-        "(shapes (tower (at towers) (keyed) (aim curve) (target (key_of units))))\n"
+        "#shape (tower (@at towers) (@keyed) (aim curve) (target (key_of units)))\n"
         "(towers (t1 (target knight)))\n");
     auto [text, at] = cursor("(towers (t1 (tar|get knight)))");
     auto h = hover(FileRead(text), at, *f.loaded, f.reference);

@@ -21,6 +21,9 @@ struct Bracket {
     bool has_child = false;  // holds a bracket of its own
     bool closed = false;     // false: it runs to the text's end
     int index = 0;           // its place in its parent, as Token::index
+    // The #pack, #origin or #shape token in Structure::tokens whose one form it is, at the
+    // top level: a declaration, which is not data. -1 for data.
+    int declares = -1;
 };
 
 // What a token is, as Baker's lexer reads it.
@@ -54,6 +57,8 @@ struct Structure {
     std::vector<Token> tokens;      // in order
     std::vector<Comment> comments;  // in order
 
+    // The directive that declares bracket `b` ("#shape", "#pack", "#origin"), or empty.
+    [[nodiscard]] std::string_view declared_by(int b) const;
     // The tag text of bracket `b`, or empty.
     [[nodiscard]] std::string_view tag(int b) const;
     // The tags of `b` and its enclosing arrays from the top, if all are tagged arrays; else

@@ -396,7 +396,7 @@ Diagnosis diagnose(const Setup& setup, const baker::Context& ctx, const Buffers&
 
         baker::shape::Set& shapes = loaded->shapes;
         baker::shape::Report shaped;
-        shapes.add(*cfg.root(), shaped, &cfg.read_session());
+        shapes.add(cfg.read_session(), shaped);  // every layer's #shape declarations
         baker::shape::check(*cfg.root(), shapes, shaped);
         found.add(shaped.errors, Severity::Error);
         // A field no shape declares: reported, never a failure.
@@ -405,11 +405,11 @@ Diagnosis diagnose(const Setup& setup, const baker::Context& ctx, const Buffers&
     for (const Problem& p : stack_read->warnings) found.problems.push_back(p);
     stack_read->warnings.resize(merge_warnings);
     for (const baker::Pack& p : cfg.read_session().packs()) {
-        // A pack is declared by its file's first form: the line of its (pack.
+        // A pack is declared by its file's #pack (NAME ...): the line of the directive.
         Definition d{std::string(p.name.str()), canonical_path(std::string(p.file.str())), 1};
         std::string text;
         if (buffers.read(d.file, text))
-            if (const size_t at = text.find("(pack"); at != std::string::npos)
+            if (const size_t at = text.find("#pack"); at != std::string::npos)
                 d.line =
                     1 + static_cast<int>(std::count(
                             text.begin(), text.begin() + static_cast<std::ptrdiff_t>(at), '\n'));

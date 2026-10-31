@@ -618,13 +618,13 @@ TEST_CASE("formatting: edits that lay the file out by its project's layout") {
     open(kDefault, "(units\n(knight (health 100)) ; strong\n)\n");
     json edits = format(2);
     REQUIRE(!edits.empty());
-    CHECK(edits[0]["newText"] == "\n  ");  // Baker's indent of 2, not the editor's 4
-    // The project's (format (indent 3)).
+    CHECK(edits[0]["newText"] == "\n   ");  // Baker's indent of 3, not the editor's 4
+    // The project's (format (indent 2)).
     const size_t close = text.rfind(')');
-    open(project, text.substr(0, close) + " (format (indent 3)))\n");
+    open(project, text.substr(0, close) + " (format (indent 2)))\n");
     edits = format(3);
     REQUIRE(!edits.empty());
-    CHECK(edits[0]["newText"] == "\n   ");
+    CHECK(edits[0]["newText"] == "\n  ");
     // A file that does not read: nothing.
     open(kDefault, "(units (knight\n");
     CHECK(format(4).empty());

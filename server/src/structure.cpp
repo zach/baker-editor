@@ -28,11 +28,17 @@ std::string_view Structure::tag(int b) const {
     return tokens[static_cast<size_t>(brackets[static_cast<size_t>(b)].tag)].text;
 }
 
+std::string_view Structure::declared_by(int b) const {
+    if (b < 0 || brackets[static_cast<size_t>(b)].declares < 0) return {};
+    return tokens[static_cast<size_t>(brackets[static_cast<size_t>(b)].declares)].text;
+}
+
 std::vector<std::string> Structure::data_path(int b) const {
     std::vector<std::string> tags;
     for (; b >= 0; b = brackets[static_cast<size_t>(b)].parent) {
         const Bracket& br = brackets[static_cast<size_t>(b)];
-        if (br.open != '(' || br.tag < 0 || tokens[static_cast<size_t>(br.tag)].quote == '"')
+        if (br.open != '(' || br.tag < 0 || tokens[static_cast<size_t>(br.tag)].quote == '"' ||
+            br.declares >= 0)  // a declaration's form is not in the tree
             return {};
         tags.emplace_back(tokens[static_cast<size_t>(br.tag)].text);  // a copy
     }
@@ -50,7 +56,9 @@ Structure read_structure(std::string_view text) {
     std::vector<int> open;    // the brackets around the next token, innermost last
     std::vector<int> counts;  // tokens and arrays in each of them so far
     size_t next = 0;          // the next of Baker's brackets, which open in token order
-    for (const baker::tools::TextToken& t : read.tokens) {
+    std::vector<int> ours(read.tokens.size(), -1);  // Baker's token index -> this one's
+    for (size_t i = 0; i < read.tokens.size(); ++i) {
+        const baker::tools::TextToken& t = read.tokens[i];
         // A close Baker read has ended its bracket; an unclosed one ends with the text.
         while (!open.empty() && s.brackets[static_cast<size_t>(open.back())].end <= t.begin) {
             open.pop_back();
@@ -62,7 +70,8 @@ Structure read_structure(std::string_view text) {
             const baker::tools::TextBracket& b = read.brackets[next++];
             if (!open.empty()) s.brackets[static_cast<size_t>(open.back())].has_child = true;
             s.brackets.push_back({b.open, open.empty() ? -1 : open.back(), b.begin, b.end, -1,
-                                  false, b.closed, counts.empty() ? 0 : counts.back() - 1});
+                                  false, b.closed, counts.empty() ? 0 : counts.back() - 1,
+                                  b.declares >= 0 ? ours[static_cast<size_t>(b.declares)] : -1});
             open.push_back(static_cast<int>(s.brackets.size() - 1));
             counts.push_back(0);
             continue;
@@ -81,6 +90,7 @@ Structure read_structure(std::string_view text) {
         token.index = counts.empty() ? 0 : counts.back() - 1;
         if (token.bracket >= 0 && token.index == 0)
             s.brackets[static_cast<size_t>(token.bracket)].tag = static_cast<int>(s.tokens.size());
+        ours[i] = static_cast<int>(s.tokens.size());
         s.tokens.push_back(token);
     }
     return s;

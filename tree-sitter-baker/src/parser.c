@@ -409,7 +409,6 @@ static bool ts_lex(TSLexer *lexer, TSStateId state) {
     case 32:
       ACCEPT_TOKEN(sym_symbol);
       if (('A' <= lookahead && lookahead <= 'Z') ||
-          lookahead == '_' ||
           ('a' <= lookahead && lookahead <= 'z')) ADVANCE(23);
       if ((!eof && set_contains(sym_symbol_character_set_1, 11, lookahead))) ADVANCE(33);
       END_STATE();

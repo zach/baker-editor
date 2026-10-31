@@ -34,9 +34,10 @@ TEST_CASE("formatting lays text out as Baker writes it, keeping its comments") {
     CHECK(once.find("(units   ") == std::string::npos);
     // Formatting its own output changes nothing.
     std::string error;
-    CHECK(format_edits(once, {}, error).empty());
-    // The project's indent.
-    CHECK(laid_out("(a\n(b 1) ; x\n)\n", 3).find("\n   (b 1)") != std::string::npos);
+    CHECK(format_edits(once, {.indent = 2}, error).empty());
+    // Baker's own layout (0.7.0): 3 spaces, 100 columns.
+    CHECK(edited("(a\n(b 1) ; x\n)\n", format_edits("(a\n(b 1) ; x\n)\n", {}, error))
+              .find("\n   (b 1)") != std::string::npos);
 }
 
 TEST_CASE("text that does not read is left as it is") {
