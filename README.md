@@ -102,6 +102,16 @@ The files of the project's `(scenarios ...)` and `(objectives ...)`, open or not
 other open `.dta` file of the project that its layers do not read, are read on their own and
 checked beside them, as a game's `check` command checks its scenarios.
 
+**The forms before Baker 0.7.0** are not flagged in a project's own files: Baker warns of
+`(shapes ...)`, `(pack ...)`, `(origin "...")` and a metadata word without its `@` beside a
+value only when it checks a candidate layer. Such a file reads, but its old forms are data
+now (`(range 0 10)` beside a value is a field, so a shape may call the value the wrong type).
+Run Baker's migrators over the project: `baker_migrate_declarations --write` for the
+declarations and `#define`, and `baker_migrate_metadata --write` for the `@` (both in Baker's
+`tools/`, with `--report` to see what they would change). Note 0027 asks Baker for the
+migrations as a call on a file's text, giving each old form, located, with its rewrite; the
+editor will then show each as a warning with a quick fix.
+
 Problems Baker locates by line alone (shape and call errors) underline the array the error's
 path or message names on that line, else the line's first token. Columns are converted to
 UTF-16 for LSP.

@@ -45,6 +45,12 @@ fix (after the note) gives the migrator's text.
 
 **Effort:** about two days, the quick fix a half day more after the release.
 
+**Done:** highlighting, completion and hover of the words, and shapes by name, each as the
+acceptance has it. Baker 0.7.0 warns of the old forms only for a candidate layer
+(`check_layer`), so a project's own files show nothing; note 0027 asks for the migrations as
+a call on a file's text that gives each old form, located, with its message and edits, which
+serves the warning and the quick fix both. Until then, the README names the migrators.
+
 ## F2. Rows keyed by a path
 
 **Why:** `(/fighters.kestrel.health 1100)` is a whole nested path in one form, the form an
@@ -148,7 +154,7 @@ manual Windows pass (D1) is still the owner's.
 
 | Step | Baker | Status |
 |---|---|---|
-| F1 Metadata and declarations | note 0027 for the quick fix: migrations as edits | Planned |
+| F1 Metadata and declarations | note 0027 for the old forms' warnings and quick fix: migrations as edits (sent) | Done but the old forms, which wait for 0027 |
 | F2 Rows keyed by a path | none | Planned |
 | F3 Layer verbs and pins | none | Planned |
 | F4 Infix braces | none | Planned |
