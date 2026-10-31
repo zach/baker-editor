@@ -330,3 +330,15 @@ TEST_CASE("rename over LSP in a row's key: quoted when it must be, refused with 
     const json refused = rename("top speed");
     CHECK(refused.contains("error"));
 }
+
+TEST_CASE("the outline: a row by its whole key") {
+    const std::string text = "(/units.knight.health 50)\n(/units.archer (speed 3))\n";
+    const auto symbols = outline(read_structure(text), text);
+    REQUIRE(symbols.size() == 2);
+    CHECK(symbols[0].name == "/units.knight.health");
+    CHECK(symbols[0].kind == SymbolKind::Field);
+    CHECK(symbols[0].detail == "50");
+    CHECK(symbols[1].name == "/units.archer");
+    REQUIRE(symbols[1].children.size() == 1);
+    CHECK(symbols[1].children[0].name == "speed");
+}

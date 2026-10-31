@@ -16,3 +16,8 @@
 ;^^^^^ tag
 (@ 1)
 ;^ tag
+(/fighters.kestrel.health 1100)
+;^^^^^^^^^ tag
+;         ^ punctuation.delimiter
+;          ^^^^^^^ tag
+;                         ^^^^ number

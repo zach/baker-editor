@@ -57,3 +57,21 @@ Directives, macros and script
     (command (symbol) (variable) (number)))
   (array (symbol) (array (symbol) (array (symbol) (directive))))
   (array (symbol) (symbol) (symbol) (directive)))
+
+==================
+Rows keyed by a path
+==================
+
+(/fighters.kestrel/'max_hp' 1100 (@note "x"))
+(/ 1 2)
+{/ $a 2}
+
+---
+
+(source_file
+  (array
+    (row_key (key_segment) (key_separator) (key_segment) (key_separator) (key_segment))
+    (number)
+    (array (symbol) (string)))
+  (array (symbol) (number) (number))
+  (command (symbol) (variable) (number)))

@@ -267,6 +267,13 @@ governs them: in Duel, `(/fighters.kestrel.moves.` offers `heavy jab low_kick pa
 side_kick`. A key that needs quoting is written quoted. `/` and `.` are completion triggers,
 so the list opens as the key is typed.
 
+**Highlighting:** a key's segments are colored as tags and its separators apart, in the
+TextMate grammar (`punctuation.separator.key.baker`) and tree-sitter's (a `row_key` of
+`key_segment`s and `key_separator`s); a segment the game reads as a tweak, or one a higher
+layer overrides, gets the `tweak` or `shadowed` token as the nested tag would. The
+**outline** names a row by its whole key, `/fighters.kestrel.health`, with its value as
+detail; go-to-definition on a segment goes where that key is set in the other layers.
+
 ## Which layer wins, in the text
 
 Where one layer overrides another's value, both lines say so, as inlay hints at the end of

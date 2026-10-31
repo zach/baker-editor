@@ -157,7 +157,7 @@ manual Windows pass (D1) is still the owner's.
 | Step | Baker | Status |
 |---|---|---|
 | F1 Metadata and declarations | note 0027 for the old forms' warnings and quick fix: migrations as edits (built as D276, not released) | Done but the old forms, which wait for 0027's release |
-| F2 Rows keyed by a path | none | In progress: hover, hints, colors, live values, references, rename and completion done |
+| F2 Rows keyed by a path | none | In progress: all but the two code actions done |
 | F3 Layer verbs and pins | none | Planned |
 | F4 Infix braces | none | Planned |
 | F5 List counts and conditional layers | none | Planned |

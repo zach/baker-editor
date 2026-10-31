@@ -20,8 +20,17 @@ module.exports = grammar({
       $.number, $.string, $.quoted_symbol, $.variable, $.directive, $.symbol,
     ),
 
-    // (tag values...): data. Its tag is its first node, when that is a symbol.
-    array: $ => seq('(', repeat($._node), ')'),
+    // (tag values...): data. Its tag is its first node, when that is a symbol. A row,
+    // (/fighters.kestrel.health 1100), is keyed by a path instead (Baker 0.7.0).
+    array: $ => seq('(', optional($.row_key), repeat($._node), ')'),
+    // A row's key: segments, each a bare or 'quoted' key, after / and between . or /.
+    row_key: $ => seq(
+      alias(token(prec(3, seq('/', choice(/[^\s(){}\[\];"'.\/$]+/, /'[^']*'/)))), $.key_segment),
+      repeat(seq(
+        alias(token.immediate(prec(3, /[.\/]/)), $.key_separator),
+        alias(token.immediate(prec(3, choice(/[^\s(){}\[\];"'.\/$]+/, /'[^']*'/))), $.key_segment),
+      )),
+    ),
     // {function args...}: script, run when its value is read.
     command: $ => seq('{', repeat($._node), '}'),
     // [NAME nodes...] at the top of a file defines a macro; [name] in a method is a

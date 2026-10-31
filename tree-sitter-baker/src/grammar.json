@@ -59,6 +59,18 @@
           "value": "("
         },
         {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SYMBOL",
+              "name": "row_key"
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
+        },
+        {
           "type": "REPEAT",
           "content": {
             "type": "SYMBOL",
@@ -68,6 +80,94 @@
         {
           "type": "STRING",
           "value": ")"
+        }
+      ]
+    },
+    "row_key": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "ALIAS",
+          "content": {
+            "type": "TOKEN",
+            "content": {
+              "type": "PREC",
+              "value": 3,
+              "content": {
+                "type": "SEQ",
+                "members": [
+                  {
+                    "type": "STRING",
+                    "value": "/"
+                  },
+                  {
+                    "type": "CHOICE",
+                    "members": [
+                      {
+                        "type": "PATTERN",
+                        "value": "[^\\s(){}\\[\\];\"'.\\/$]+"
+                      },
+                      {
+                        "type": "PATTERN",
+                        "value": "'[^']*'"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "named": true,
+          "value": "key_segment"
+        },
+        {
+          "type": "REPEAT",
+          "content": {
+            "type": "SEQ",
+            "members": [
+              {
+                "type": "ALIAS",
+                "content": {
+                  "type": "IMMEDIATE_TOKEN",
+                  "content": {
+                    "type": "PREC",
+                    "value": 3,
+                    "content": {
+                      "type": "PATTERN",
+                      "value": "[.\\/]"
+                    }
+                  }
+                },
+                "named": true,
+                "value": "key_separator"
+              },
+              {
+                "type": "ALIAS",
+                "content": {
+                  "type": "IMMEDIATE_TOKEN",
+                  "content": {
+                    "type": "PREC",
+                    "value": 3,
+                    "content": {
+                      "type": "CHOICE",
+                      "members": [
+                        {
+                          "type": "PATTERN",
+                          "value": "[^\\s(){}\\[\\];\"'.\\/$]+"
+                        },
+                        {
+                          "type": "PATTERN",
+                          "value": "'[^']*'"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "named": true,
+                "value": "key_segment"
+              }
+            ]
+          }
         }
       ]
     },

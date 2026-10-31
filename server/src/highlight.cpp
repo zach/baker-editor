@@ -30,6 +30,23 @@ std::vector<SemanticToken> semantic_tokens(
             case TokenKind::Directive: add(t, TokenType::Keyword); continue;
             case TokenKind::Variable: add(t, TokenType::Variable); continue;
             case TokenKind::Macro: add(t, TokenType::Macro); continue;
+            case TokenKind::PathKey: {  // a row's key: each segment as the array it names
+                const std::span<const Segment> key = s.key(t.bracket);
+                std::vector<std::string> path;
+                for (size_t i = 0; i < key.size(); ++i) {
+                    path.emplace_back(key[i].name);
+                    uint32_t modifiers = 0;
+                    if (tweak_names.count(key[i].name) && tweak_at(reference, path))
+                        modifiers |= kTweak;
+                    if (i + 1 == key.size() && !faded.empty() &&
+                        faded.count(
+                            {read.lines.position(t.begin).first + 1, std::string(key[i].name)}))
+                        modifiers |= kShadowed;
+                    if (modifiers)
+                        out.push_back({key[i].begin, key[i].end, TokenType::Property, modifiers});
+                }
+                continue;
+            }
             case TokenKind::Symbol: break;
             default: continue;
         }

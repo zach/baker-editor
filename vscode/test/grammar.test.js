@@ -52,6 +52,8 @@ function scopeOf(list, token) {
         "(units (knight (speed #remove)))",
         "(paint #00aa00 #1 #x1)",
         "(speed 4.5 (@range 0 10) (@desc \"Run speed\")) (mail @)",
+        "(/fighters.kestrel/'max_hp' 1100 (@note \"x\"))",
+        "(/ 1 2)",
         "/* a block",
         "   comment */ (mask 0x1F) (say \"a \\q(quoted)\\q\")",
     ].join("\n"));
@@ -79,6 +81,15 @@ function scopeOf(list, token) {
     assert.strictEqual(scopeOf(t, "Run speed"), "string.quoted.double.baker");
     assert.strictEqual(scopeOf(t, "speed"), "entity.name.tag.baker");
     assert.strictEqual(scopeOf(t, "@"), "meta.array.baker");
+    // A row's key: its segments as tags, its separators apart (Baker 0.7.0).
+    const row = t.filter(([, s]) => s.endsWith(".baker")).map(([x, s]) => x + " " + s);
+    for (const want of ["fighters entity.name.tag.baker", "kestrel entity.name.tag.baker",
+                        "'max_hp' entity.name.tag.baker", ". punctuation.separator.key.baker"])
+        assert.ok(row.includes(want), `${want} in ${JSON.stringify(row)}`);
+    assert.strictEqual(scopeOf(t, "1100"), "constant.numeric.baker");
+    assert.ok(row.includes("/ entity.name.tag.baker"), "a lone / is a tag");
+    assert.ok(row.includes("/ punctuation.separator.key.baker"), "a key's / is a separator");
+    assert.strictEqual(scopeOf(t, "@note"), "storage.type.annotation.baker");  // in a row
     assert.strictEqual(scopeOf(t, "a block"), "comment.block.baker");
     assert.strictEqual(scopeOf(t, "*/"), "comment.block.baker");
     assert.strictEqual(scopeOf(t, "0x1F"), "constant.numeric.baker");

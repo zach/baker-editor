@@ -407,3 +407,13 @@ TEST_CASE("completion of a row's key: the merged tree's keys, segment by segment
     CHECK(labels(offered("(/units.knight.health.|")).empty());
     CHECK(labels(offered("(x (/un|")).empty());  // a row is a top-level form
 }
+
+TEST_CASE("definition from a row's segment: where that key is set in the stack") {
+    Fixture f("(/units.knight.health 50)\n");
+    const auto [text, at] = cursor("(/units.knight.hea|lth 50)");
+    const std::vector<Location> to =
+        definition(FileRead(text), at, kLocal, *f.loaded, f.reference, on_disk);
+    REQUIRE(to.size() == 1);
+    CHECK(to[0].file == kDefault);
+    CHECK(to[0].line == 5);
+}

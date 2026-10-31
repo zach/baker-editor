@@ -29,6 +29,9 @@
           "include": "#command"
         },
         {
+          "include": "#row"
+        },
+        {
           "include": "#metadata"
         },
         {
@@ -96,6 +99,48 @@
       "patterns": [
         {
           "include": "#form"
+        }
+      ]
+    },
+    "row": {
+      "begin": "(\\()\\s*(?=/(?:'|[^\\s(){}\\[\\];\"'./]+))",
+      "beginCaptures": {
+        "1": {
+          "name": "punctuation.section.parens.begin.baker"
+        }
+      },
+      "end": "\\)",
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.section.parens.end.baker"
+        }
+      },
+      "name": "meta.array.row.baker",
+      "patterns": [
+        {
+          "include": "#row-key"
+        },
+        {
+          "include": "#form"
+        }
+      ]
+    },
+    "row-key": {
+      "begin": "\\G(?=/)",
+      "end": "(?=[\\s(){}\\[\\];\"])",
+      "name": "meta.key.baker",
+      "patterns": [
+        {
+          "name": "punctuation.separator.key.baker",
+          "match": "[./]"
+        },
+        {
+          "name": "entity.name.tag.baker",
+          "match": "'[^']*'"
+        },
+        {
+          "name": "entity.name.tag.baker",
+          "match": "[^\\s(){}\\[\\];\"'./]+"
         }
       ]
     },

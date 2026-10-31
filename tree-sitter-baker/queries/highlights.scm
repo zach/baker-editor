@@ -18,4 +18,8 @@
 ; patterns capture, the CLI's highlighter takes the later one, so this comes after the tag's.
 (array . (symbol) @attribute (#match? @attribute "^@."))
 
+; A row's key, (/fighters.kestrel.health 1100): its segments as tags, the first with its /.
+(key_segment) @tag
+(key_separator) @punctuation.delimiter
+
 ["(" ")" "{" "}" "[" "]"] @punctuation.bracket

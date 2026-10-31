@@ -436,7 +436,7 @@ TEST_CASE("semantic tokens: what each name is, from Baker's lexer and the last c
         "#require \"../packs/game/core.dta\"\n"
         "[SPEEDY 9]\n"
         "(units (knight (health 100 (@note \"tuned\")) (speed SPEEDY)))\n"
-        "(world (gravity 9))\n"
+        "(/world.gravity 9)\n"
         "#autorun {func game.twice ($n) {game.wait $n} {game.wait $n}}\n"
         "#autorun {game.twice 2} {clock thread_task 1 {game.wait 1}}\n";
     c.open(text);
@@ -470,7 +470,7 @@ TEST_CASE("semantic tokens: what each name is, from Baker's lexer and the last c
     CHECK(has("#require keyword"));
     CHECK(has("SPEEDY macro declaration"));
     CHECK(has("SPEEDY macro"));
-    CHECK(has("gravity property tweak"));
+    CHECK(has("gravity property tweak"));  // a row's segment, as a nested tag
     CHECK(has("game.twice function declaration"));
     CHECK(has("game.twice function"));
     CHECK(has("game.wait function defaultLibrary"));
