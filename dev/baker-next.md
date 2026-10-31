@@ -11,8 +11,8 @@ Where a later change revised an earlier note, the later one holds:
   file's top level, and `(shapes ...)` is ordinary data. So D248's shape words are offered
   inside `#shape`, D251's "a verb inside `(shapes ...)` is an error" applies to a `#shape`, and
   D260's refused received shapes are a `#shape`. The binary cache is format 8, not 7.
-- D262 moved the metadata boundary: metadata past child 8,191 of an array is refused (it was
-  16,383).
+- No limit on where metadata sits: D262 had refused metadata past child 8,191 of an array, and
+  D266, in the 0.7.0 release, removed the limit (a marker scan finds metadata at any position).
 
 ## D263: the house layout
 
