@@ -226,6 +226,8 @@ std::string key_of(const baker::Project& project, const Setup& setup) {
         key += l.optional ? 'o' : '-';
         key += l.enabled ? 'e' : '-';
         key += l.dev_only ? 'd' : '-';
+        key += l.dir ? 'D' : '-';  // a directory of layers
+        add(l.when.str());         // (when COND): which defines the layer waits on
     }
     for (const auto* entries : {&project.pack_levels, &project.include_dirs, &project.defines}) {
         key += '|';

@@ -413,4 +413,20 @@ TEST_CASE("a kept stack is reloaded, and checks as a fresh load does") {
     CHECK(kept.config.get() != first);
     f.setup.skip = {"local"};
     same_as_fresh(f, kept);
+    f.setup.skip.clear();
+
+    // A layer's condition (Baker 0.7.0): a change to it alone opens the stack again, so the
+    // layer it now skips is skipped, as a fresh load skips it.
+    const auto conditioned = [](const std::string& when) {
+        return "(project (pack_levels engine game task) (include_dirs \"data\") (defines "
+               "HANDHELD) (layers (default \"data/default.dta\") (local \"data/local.dta\" "
+               "optional (when " +
+               when + "))))\n";
+    };
+    f.buffers.set(kProjectPath, conditioned("HANDHELD"));
+    same_as_fresh(f, kept);
+    const baker::Config* held = kept.config.get();
+    f.buffers.set(kProjectPath, conditioned("(not HANDHELD)"));
+    same_as_fresh(f, kept);
+    CHECK(kept.config.get() != held);
 }
