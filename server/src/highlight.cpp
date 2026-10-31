@@ -62,6 +62,10 @@ std::vector<SemanticToken> semantic_tokens(
             add(t, TokenType::Macro);
             continue;
         }
+        if (br && br->open == '(' && t.index == 0 && t.text.size() > 1 && t.text[0] == '@') {
+            add(t, TokenType::Decorator);  // metadata, (@range 0 10); a lone @ is a symbol
+            continue;
+        }
         if (br && br->open == '(' && t.index == 0) {
             uint32_t modifiers = 0;
             if (tweak_names.count(t.text)) {

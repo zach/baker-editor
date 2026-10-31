@@ -11,3 +11,8 @@
 ;        ^^^^^^^^^^ string
 [SPEEDY 9]
 ;^^^^^^ constant.macro
+(speed 4.5 (@range 0 10))
+;           ^^^^^^ attribute
+;^^^^^ tag
+(@ 1)
+;^ tag

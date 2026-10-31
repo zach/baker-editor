@@ -60,6 +60,9 @@
           ],
           "property.shadowed": [
             "comment.shadowed.baker"
+          ],
+          "decorator": [
+            "storage.type.annotation.baker"
           ]
         }
       }

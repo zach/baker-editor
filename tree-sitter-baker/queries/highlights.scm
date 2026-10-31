@@ -14,4 +14,8 @@
 (command . (symbol) @function.call)
 (bracket . (symbol) @constant.macro)
 
+; Metadata: an array tagged @ and at least one more character, (@range 0 10). For a node two
+; patterns capture, the CLI's highlighter takes the later one, so this comes after the tag's.
+(array . (symbol) @attribute (#match? @attribute "^@."))
+
 ["(" ")" "{" "}" "[" "]"] @punctuation.bracket

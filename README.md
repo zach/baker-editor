@@ -207,12 +207,14 @@ full and by range, from the open file's kept read):
 | a named object and its method, `{clock thread_task ...}` | variable, method | defaultLibrary |
 | an array the game reads as a tweak, `(buffer 5)` | property | tweak |
 | an array a higher layer overrides | property | shadowed |
+| metadata's tag, `(@range 0 10)` | decorator | |
 
 Strings, numbers and plain symbols are left to the grammar, which colors them the same: on
 a large file they are nearly all its tokens. The extension maps `tweak` and `shadowed` to
 scopes (`variable.other.property.tweak.baker`, `comment.shadowed.baker`) that a theme can
-color. Other editors get the same tokens from the server; tree-sitter still colors them
-where no server runs. On the 2 MB Duel, the tokens answer in 25 to 28 ms after an edit, the
+color, and `decorator` to the grammar's own scope for an `@` tag
+(`storage.type.annotation.baker`; tree-sitter's `@attribute`). Other editors get the same
+tokens from the server; tree-sitter still colors them where no server runs. On the 2 MB Duel, the tokens answer in 25 to 28 ms after an edit, the
 file's read included (the same read the outline, folds and colors use).
 
 ## Which layer wins, in the text

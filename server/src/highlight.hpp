@@ -3,8 +3,9 @@
 // (structure.hpp) and what the last check knows: a macro the data defines, a directive, a
 // variable; a call's name as one of the data's {func}s, the game's functions, a named object
 // and its methods; an array's name that is a game's tweak, and a value a higher layer
-// shadows. Strings, numbers and plain symbols are left to the editor's grammar: on a large
-// file they are most of its tokens, and the grammar colors them the same.
+// shadows; metadata's tag, (@range 0 10), as a decorator. Strings, numbers and plain symbols
+// are left to the editor's grammar: on a large file they are most of its tokens, and the
+// grammar colors them the same.
 #include "diagnose.hpp"
 #include "reference.hpp"
 #include "structure.hpp"
@@ -17,9 +18,9 @@
 namespace baker_lsp {
 
 // LSP's token types and modifiers as the server names them, in the legend's order.
-enum class TokenType : uint8_t { Macro, Keyword, Variable, Function, Method, Property };
-inline constexpr const char* kTokenTypes[] = {"macro",    "keyword", "variable",
-                                              "function", "method",  "property"};
+enum class TokenType : uint8_t { Macro, Keyword, Variable, Function, Method, Property, Decorator };
+inline constexpr const char* kTokenTypes[] = {"macro",  "keyword",  "variable", "function",
+                                              "method", "property", "decorator"};
 enum TokenModifier : uint32_t {
     kDeclaration = 1u << 0,     // where a macro or a {func} is defined
     kDefaultLibrary = 1u << 1,  // the game's own: its functions and named objects

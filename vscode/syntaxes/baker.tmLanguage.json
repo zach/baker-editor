@@ -29,6 +29,9 @@
           "include": "#command"
         },
         {
+          "include": "#metadata"
+        },
+        {
           "include": "#array"
         },
         {
@@ -90,6 +93,29 @@
         }
       },
       "name": "meta.command.baker",
+      "patterns": [
+        {
+          "include": "#form"
+        }
+      ]
+    },
+    "metadata": {
+      "begin": "(\\()\\s*(@[^\\s(){}\\[\\];\"']+)",
+      "beginCaptures": {
+        "1": {
+          "name": "punctuation.section.parens.begin.baker"
+        },
+        "2": {
+          "name": "storage.type.annotation.baker"
+        }
+      },
+      "end": "\\)",
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.section.parens.end.baker"
+        }
+      },
+      "name": "meta.metadata.baker",
       "patterns": [
         {
           "include": "#form"

@@ -435,7 +435,7 @@ TEST_CASE("semantic tokens: what each name is, from Baker's lexer and the last c
     const std::string text =
         "#require \"../packs/game/core.dta\"\n"
         "[SPEEDY 9]\n"
-        "(units (knight (health 100) (speed SPEEDY)))\n"
+        "(units (knight (health 100 (@note \"tuned\")) (speed SPEEDY)))\n"
         "(world (gravity 9))\n"
         "#autorun {func game.twice ($n) {game.wait $n} {game.wait $n}}\n"
         "#autorun {game.twice 2} {clock thread_task 1 {game.wait 1}}\n";
@@ -478,6 +478,7 @@ TEST_CASE("semantic tokens: what each name is, from Baker's lexer and the last c
     CHECK(has("clock variable defaultLibrary"));
     CHECK(has("thread_task method defaultLibrary"));
     CHECK(!has("health property"));  // a field, not a tweak: the grammar's color
+    CHECK(has("@note decorator"));   // metadata
     // A range: only its lines.
     const json range = {
         {"textDocument", {{"uri", uri_from_path(kDefault)}}},
