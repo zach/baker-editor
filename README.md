@@ -109,7 +109,8 @@ UTF-16 for LSP.
 ## Hover and completion
 
 **Hover** on a value or an array's name shows its path, the shape field that governs it (type,
-range, step, kind, `@desc` and `@note`, and where its `#shape` is declared), the metadata written
+range, step, kind, `@desc` and `@note`, and a link to its `#shape`), the `#shape` that governs
+the array itself, as a link (`governed by #shape fighter (duel_core.dta:8)`), the metadata written
 beside the value in the data (`(buffer 5 (@range 1 20) (@desc ...))`), the game's tweak at its
 path (its type, code default, range, whether the data sets it, and whether it is dev only), and
 every layer that contributes to it from the files, with its value, file and line, and which
@@ -119,7 +120,8 @@ object the game names, its type and methods, and on a method of a call on it (`{
 delay_task ...}`), its signatures and doc, from the reference's `types`. On a metadata or shape
 word (`@range`, `@keyed`, ...) it shows what the word takes and does, and that a word Baker
 does not know (`@rnage`) is one `check` warns of; in a `#shape`, on a type (`int`, `list`,
-`key_of`), what it holds.
+`key_of`), what it holds; on a shape's name (a field's type, a table in `(key_of ...)`,
+`#shape.NAME`), the shape: where it is declared, what it governs, and its fields.
 
 **Completion** offers, where the cursor is:
 
@@ -167,13 +169,18 @@ running game refuses it. A shape's range is `check`'s error.
 - a value or an array's name to every other layer that sets it: from `local.dta`'s override
   to the `default.dta` line it shadows, and back;
 - a macro, a script function or a pack (in `(requires ...)`) to where it is defined;
+- a shape's name to its `#shape`: a field's type or a list's element type (`(twin unit)`,
+  `(list unit)`), a table in `(key_of units)` (to the keyed shape at `units`), or
+  `explain`'s `#shape.unit.health`;
 - a file `#include`, `#require` or `#merge` names, or a path in the project file (a layer's
   file, the reference), to that file.
 
 ## Outline, folding, references and rename
 
 - **Outline:** the file's tagged arrays as a tree, named by tag (`fighters > kestrel > moves >
-  jab`), with leaves as fields showing their values, and macros and script functions. Past
+  jab`), with leaves as fields showing their values, and macros and script functions; each
+  `#shape` with its fields and their types (`fighter > health int`), and the `#pack`.
+  Metadata, `(@range 0 10)`, is not listed, and a value with metadata is still a leaf. Past
   5,000 symbols, the outline leaves out leaf fields, then stops (as VS Code's YAML server
   caps its outline).
 - **Folding:** every bracket and block comment over more than one line.
@@ -456,6 +463,11 @@ The outline of the 2 MB file: 26 to 31 ms to build (52 ms the first time), 7 to 
 folds; the request, capped at 5,000 symbols, answers in 82 to 120 ms as the shell client times
 it (which polls every 20 ms). Built uncapped, its 112,025 symbols took 1.5 s to send. The
 stacks' files, about 10 KB, take under a millisecond.
+
+Plan F1's outline (shapes, metadata left out), RelWithDebInfo build (GCC), at Baker 0.7.0, on
+Duel grown to 2 MB (1,773 fighters), ten requests a run timed by a client that does not poll:
+52 to 117 ms, against 54 to 103 ms for the outline before it (three runs each); the first
+request of each run is the slowest (101 to 117 ms both ways). No change beyond the noise.
 
 Finding the cursor's place scans the file's text up to the cursor: about 5 ms at the end of
 the 2 MB file, before `explain`.

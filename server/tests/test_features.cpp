@@ -313,3 +313,35 @@ TEST_CASE("hover on a metadata word says what it does and takes") {
     REQUIRE(h);
     CHECK(has(h->markdown, "`(list T N)` holds exactly N"));
 }
+
+TEST_CASE("a shape by name: go to its #shape, and hover on it and on what it governs") {
+    Fixture f(
+        "#shape (tower (@at towers) (@keyed) (target (key_of units)) (twin unit)\n"
+        "   (twins (list unit)))\n(towers (t1 (target knight)))\n");
+    const std::string core = canonical_path(kProject + "/packs/game/core.dta");
+    const auto goes = [&](const std::string& with_bar) {
+        const auto [text, at] = cursor(with_bar);
+        return definition(FileRead(text), at, kLocal, *f.loaded, f.reference, on_disk);
+    };
+    for (const char* at : {"#shape (tower (target (key_of un|its)))", "#shape (tower (twin un|it))",
+                           "#shape (tower (twins (list un|it)))", "(explain #shape.un|it.health)",
+                           "#shape (un|it (speed float))"}) {
+        const std::vector<Location> to = goes(at);
+        REQUIRE(to.size() == 1);
+        CHECK(to[0].file == core);
+        CHECK(to[0].line == 4);
+    }
+    CHECK(goes("#shape (tower (target (key_of wea|pons)))").empty());
+
+    auto [text, at] = cursor("#shape (tower (target (key_of un|its)))");
+    auto h = hover(FileRead(text), at, *f.loaded, f.reference);
+    REQUIRE(h);
+    CHECK(has(h->markdown, "`#shape unit` ([core.dta:4](file://"));
+    CHECK(has(h->markdown, "core.dta#L4)"));
+    CHECK(has(h->markdown, "every child of `units`"));
+    CHECK(has(h->markdown, "fields `health`, `speed`"));
+    std::tie(text, at) = cursor("(units (kni|ght (health 100)))");
+    h = hover(FileRead(text), at, *f.loaded, f.reference);
+    REQUIRE(h);
+    CHECK(has(h->markdown, "governed by `#shape unit` ([core.dta:4]("));
+}

@@ -207,3 +207,35 @@ TEST_CASE("rename over LSP: every file's edits; the game's functions are not ren
     CHECK(symbols[0]["name"] == "units");
     CHECK(symbols[0]["children"][0]["children"][0]["detail"] == "100");
 }
+
+TEST_CASE("the outline: a #shape with its fields and their types, a #pack, no metadata") {
+    Fixture f;
+    const std::string core = f.text(kCore);
+    const auto symbols = outline(read_structure(core), core);
+    REQUIRE(symbols.size() == 2);
+    CHECK(symbols[0].name == "core");
+    CHECK(symbols[0].kind == SymbolKind::Package);
+    CHECK(symbols[0].detail == "#pack");
+    const OutlineSymbol& unit = symbols[1];
+    CHECK(unit.name == "unit");
+    CHECK(unit.kind == SymbolKind::Struct);
+    CHECK(unit.detail == "#shape");
+    REQUIRE(unit.children.size() == 2);  // not (@at units) nor (@keyed)
+    CHECK(unit.children[0].name == "health");
+    CHECK(unit.children[0].kind == SymbolKind::Field);
+    CHECK(unit.children[0].detail == "int");
+    CHECK(unit.children[0].children.empty());
+    const std::string text =
+        "#shape (tower (aims (list (key_of units))\n  (@optional)))\n"
+        "(towers (t1 (aims knight (@note \"one\")) (w 2 (@range 0 9))))";
+    const auto towers = outline(read_structure(text), text);
+    REQUIRE(towers.size() == 2);
+    REQUIRE(towers[0].children.size() == 1);
+    CHECK(towers[0].children[0].detail == "(list (key_of units))");
+    REQUIRE(towers[1].children.size() == 1);
+    const OutlineSymbol& t1 = towers[1].children[0];
+    REQUIRE(t1.children.size() == 2);
+    CHECK(t1.children[0].kind == SymbolKind::Field);  // a value with metadata is a leaf
+    CHECK(t1.children[0].detail == "knight");
+    CHECK(t1.children[1].detail == "2");
+}

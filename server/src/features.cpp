@@ -1,6 +1,7 @@
 #include "features.hpp"
 
 #include "hints.hpp"
+#include "positions.hpp"
 #include "structure.hpp"
 #include "words.hpp"
 
@@ -66,6 +67,13 @@ std::string where(baker::Symbol file, int line) {
     return line > 0 ? f + ":" + std::to_string(line) : f;
 }
 
+// A markdown link to `file`'s `line`, named as where() names it.
+std::string link(baker::Symbol file, int line) {
+    if (file.str().empty()) return where(file, line);
+    return "[" + where(file, line) + "](" + uri_from_path(canonical_path(std::string(file.str()))) +
+           (line > 0 ? "#L" + std::to_string(line) : "") + ")";
+}
+
 // The field's type and metadata, as markdown lines.
 std::string describe(const baker::shape::Shape& shape, const baker::shape::Field& f) {
     std::string s = "`" + type_name(f) + "`";
@@ -75,7 +83,7 @@ std::string describe(const baker::shape::Shape& shape, const baker::shape::Field
     if (f.optional) s += ", optional";
     for (size_t i = 0; i < f.one_of.size(); ++i)
         s += (i ? ", " : ": one of ") + std::string(f.one_of[i].str());
-    s += "; shape `" + std::string(shape.name.str()) + "` (" + where(shape.file, shape.line) + ")";
+    s += "; shape `" + std::string(shape.name.str()) + "` (" + link(shape.file, shape.line) + ")";
     if (!f.desc.empty()) s += "\n\n" + std::string(f.desc);
     if (!f.note.empty()) s += "\n\n*" + std::string(f.note) + "*";
     return s;
@@ -118,6 +126,42 @@ bool in_shape(const Cursor& c) {
     return !c.stack.empty() && c.stack.front().declared == "#shape";
 }
 
+// The shape the cursor's token names: in a #shape, its own name, a field's type or a list's
+// element type, or (key_of TABLE)'s table, by the keyed shape at it; or explain's #shape.NAME.
+const baker::shape::Shape* shape_named(const Cursor& c, const Loaded& loaded) {
+    std::string_view t = c.token;
+    if (t.substr(0, 7) == "#shape.") {
+        t.remove_prefix(7);
+        return loaded.shapes.find(baker::Symbol(t.substr(0, t.find('.'))));
+    }
+    if (!in_shape(c) || c.stack.back().open != '(' || t.empty()) return nullptr;
+    const Frame& top = c.stack.back();
+    if (top.tag == "key_of" && c.index == 1) {
+        const std::string_view table = t.substr(t.rfind('.') + 1);  // items.weapons: weapons
+        for (const baker::shape::Shape& s : loaded.shapes.shapes())
+            if (s.keyed && !s.at.empty() && s.at.begin()[s.at.size() - 1].str() == table) return &s;
+        return nullptr;
+    }
+    const bool named = c.stack.size() == 1 && c.index == 0;
+    const bool type = (c.stack.size() == 2 && c.index == 1) || (top.tag == "list" && c.index == 1);
+    return named || type ? loaded.shapes.find(baker::Symbol(t)) : nullptr;
+}
+
+// Hover's markdown for shape `s`: where it is declared, what it governs, its fields.
+std::string shape_markdown(const baker::shape::Shape& s) {
+    std::string m = "`#shape " + std::string(s.name.str()) + "` (" + link(s.file, s.line) + ")";
+    std::string at;
+    for (const baker::Symbol part : s.at) at += (at.empty() ? "" : " ") + std::string(part.str());
+    if (s.keyed)
+        m += ": every child of `" + at + "`";
+    else
+        m += ": every array tagged `" + std::string(s.name.str()) + "`" +
+             (at.empty() ? "" : " under `" + at + "`");
+    for (size_t i = 0; i < s.fields.size(); ++i)
+        m += (i ? ", `" : "\n\nfields `") + std::string(s.fields[i].name.str()) + "`";
+    return m;
+}
+
 }  // namespace
 
 const baker::shape::Shape* governing(const baker::shape::Set& shapes,
@@ -146,6 +190,11 @@ std::optional<Hover> hover(const FileRead& read, size_t offset, const Loaded& lo
         const Word* w = word_named(c.token);
         h.markdown = w ? word_markdown(*w)
                        : "`" + c.token + "` is not a word Baker reads: `check` warns of it";
+        return h;
+    }
+    // A shape, by name: (key_of units), a field's type, #shape.fighter.
+    if (const baker::shape::Shape* s = shape_named(c, loaded)) {
+        h.markdown = shape_markdown(*s);
         return h;
     }
     // A type in a #shape's field: (health int), (list float 3), (key_of units).
@@ -216,8 +265,8 @@ std::optional<Hover> hover(const FileRead& read, size_t offset, const Loaded& lo
                 h.markdown += "\n\n" + describe(*s, *f);
     }
     if (const baker::shape::Shape* s = governing(loaded.shapes, tags))
-        h.markdown +=
-            "\n\nshape `" + std::string(s->name.str()) + "` (" + where(s->file, s->line) + ")";
+        h.markdown += "\n\ngoverned by `#shape " + std::string(s->name.str()) + "` (" +
+                      link(s->file, s->line) + ")";
 
     // The metadata written beside the value, and the game's tweak at its path.
     const Hints written = written_at(loaded, tags);
@@ -300,6 +349,11 @@ std::vector<Location> definition(const FileRead& read, size_t offset, const std:
         return out;
     }
     if (c.quiet) return out;
+    if (const baker::shape::Shape* s = shape_named(c, loaded)) {  // its #shape
+        if (!s->file.str().empty())
+            out.push_back({canonical_path(std::string(s->file.str())), s->line});
+        return out;
+    }
 
     const auto at = [&out](const Definition& d) { out.push_back({d.file, d.line}); };
     if (!c.stack.empty() && c.stack.back().open == '{' && c.index == 0) {

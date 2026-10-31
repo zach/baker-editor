@@ -14,7 +14,15 @@
 namespace baker_lsp {
 
 // LSP's SymbolKind values for what the outline shows.
-enum class SymbolKind { Namespace = 3, Field = 8, Function = 12, Constant = 14, Object = 19 };
+enum class SymbolKind {
+    Namespace = 3,
+    Package = 4,  // a #pack
+    Field = 8,
+    Function = 12,
+    Constant = 14,
+    Object = 19,
+    Struct = 23,  // a #shape
+};
 
 struct OutlineSymbol {
     std::string name;
@@ -25,8 +33,10 @@ struct OutlineSymbol {
     std::vector<OutlineSymbol> children;
 };
 
-// The file's tagged arrays as a tree, with its macros and {func}s. With more than `limit`
-// arrays, leaf fields are left out from the start (cap_outline cuts the rest).
+// The file's tagged arrays as a tree, with its macros and {func}s, its #shape declarations with
+// their fields (each with its type as detail), and its #pack. Metadata, (@range 0 10), is left
+// out. With more than `limit` arrays, leaf fields are left out from the start (cap_outline cuts
+// the rest).
 std::vector<OutlineSymbol> outline(const Structure& s, std::string_view text,
                                    size_t limit = SIZE_MAX);
 
