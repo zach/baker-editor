@@ -8,10 +8,12 @@
 #include "diagnose.hpp"
 #include "live.hpp"
 #include "reference.hpp"
+#include "rewrite.hpp"
 #include "setup.hpp"
 #include "structure.hpp"
 #include "tweaks.hpp"
 
+#include <baker/project.hpp>
 #include <baker/script.hpp>
 
 #include <nlohmann/json.hpp>
@@ -99,6 +101,15 @@ private:
     nlohmann::json complete(const nlohmann::json& params);
     nlohmann::json definition(const nlohmann::json& params);
     nlohmann::json code_actions(const nlohmann::json& params);
+    // codeAction/resolve: a rewrite's edit (rewrite.hpp), made when it is chosen, if Baker
+    // reads the file to the same tree after it; else the action alone, and a message why.
+    nlohmann::json resolve_action(const nlohmann::json& action);
+    // The layout of `path`'s project, (format (indent N) (width N)), as it is now; else Baker's.
+    baker::WriteOptions layout_of(const std::string& path);
+    // How `path` is read on its own, by its project as it is now (rewrite.hpp).
+    ReadSetup read_setup_of(const std::string& path);
+    // `path`'s project file, read as it is now through the buffers; empty without one.
+    std::optional<baker::Project> project_now(const std::string& path);
     nlohmann::json document_symbols(const nlohmann::json& params);
     nlohmann::json folding_ranges(const nlohmann::json& params);
     nlohmann::json references(const nlohmann::json& params);

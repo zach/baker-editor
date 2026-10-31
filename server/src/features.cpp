@@ -586,17 +586,6 @@ void complete_shape(const Cursor& c, const std::string& typed, const Loaded& loa
     }
 }
 
-// Whether `name` is written bare in a row's key: a symbol with no separator, not all digits.
-bool bare_segment(std::string_view name) {
-    if (name.empty() || name.find_first_not_of("0123456789") == std::string_view::npos)
-        return false;
-    for (const char ch : name)
-        if (ch == '.' || ch == '/' || ch == '\'' || ch == ' ' || ch == '(' || ch == ')' ||
-            ch == '{' || ch == '}' || ch == '[' || ch == ']' || ch == ';' || ch == '"')
-            return false;
-    return true;
-}
-
 // Completion of a row's key being typed, (/fighters.kes|: the segment after the last
 // separator, from the keys the merged tree has at the segments before it and the fields of
 // the shape that governs them. False if the cursor is on no row's key.

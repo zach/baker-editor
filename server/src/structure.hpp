@@ -91,6 +91,10 @@ struct Structure {
 
 Structure read_structure(std::string_view text);
 
+// Whether `name` is written bare in a row's key: a symbol with no separator, not all digits.
+// Else it is quoted, '...'.
+bool bare_segment(std::string_view name);
+
 // Byte offsets to LSP positions, for many at once: the line starts, found once.
 class LineIndex {
 public:

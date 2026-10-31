@@ -274,6 +274,26 @@ layer overrides, gets the `tweak` or `shadowed` token as the nested tag would. T
 **outline** names a row by its whole key, `/fighters.kestrel.health`, with its value as
 detail; go-to-definition on a segment goes where that key is set in the other layers.
 
+**Code actions:** "Write as a row" on a value below the top level (with its metadata) takes it
+out of its arrays and writes it as a row after the top-level form that held it; "Write
+nested" on a row writes it into the form the file already has for the longest prefix of its
+key, as that form's last child, as Baker folds it, or in its place when there is none. A new
+top-level form is laid out by the project's `(format ...)`; a form a person laid out is only
+cut or added to. Neither is offered for what cannot be written (a key segment with a space,
+a comment in the value, a key the file writes already). Each edit is made when it is chosen
+(`codeAction/resolve`), and only if Baker reads the file to the same tree after it, read as
+the project reads it (its pack levels, include directories and defines): the same values at
+the same paths, though a key may move among its siblings, as a merge by tag does not see. If
+not, nothing changes and a message says why. A layer that uses a macro another layer defines
+does not read on its own, so it is not rewritten. On Duel, `kestrel`'s `health` goes to a row
+and back, the stack checking clean after each.
+
+Measured on Duel grown to 2 MB, RelWithDebInfo build (GCC), at Baker 0.7.0, three runs of a
+client that does not poll: choosing an action (resolving it: the rewrite, the layout and two
+reads of the file by Baker) takes 159 to 240 ms. Offering them on a cursor move takes 1.2 to
+2.6 ms, against 0.6 to 2.1 ms before (ten requests a run), except the first after an edit,
+30 to 41 ms, which reads the file as the outline and highlighting read it, once for them all.
+
 ## Which layer wins, in the text
 
 Where one layer overrides another's value, both lines say so, as inlay hints at the end of

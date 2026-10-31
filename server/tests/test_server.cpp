@@ -694,3 +694,61 @@ TEST_CASE("a layer of rows: its hint at the row, and a problem on the row's key"
     CHECK(hints[0]["label"] == "over default.dta:5 (100)");
     CHECK(hints[0]["position"] == json{{"line", 0}, {"character", 25}});  // after the row
 }
+
+TEST_CASE(
+    "write as a row and nested: offered, made when chosen, refused if the file does not read") {
+    Client c;
+    c.request(1, "initialize", {{"capabilities", json::object()}});
+    std::string text =
+        "#require \"../packs/game/core.dta\"\n[SPEEDY 9]\n"
+        "(units\n   (knight (health 100) (speed SPEEDY))\n   (archer (health 60)))\n";
+    c.open(text);
+    const auto at = [&](const std::string& part) {
+        const Position p = position_of(text, text.find(part));
+        const json pos = {{"line", p.line}, {"character", p.character}};
+        return json{{"textDocument", {{"uri", uri_from_path(kDefault)}}},
+                    {"range", {{"start", pos}, {"end", pos}}},
+                    {"context", {{"diagnostics", json::array()}}}};
+    };
+    // The action, resolved, applied to the text.
+    const auto choose = [&](const std::string& part, const std::string& title) {
+        json action;
+        const json actions = c.request(2, "textDocument/codeAction", at(part))["result"];
+        for (const json& a : actions)
+            if (a["title"] == title) action = a;
+        REQUIRE(action.is_object());
+        CHECK(!action.contains("edit"));  // made when chosen
+        const json resolved = c.request(3, "codeAction/resolve", action)["result"];
+        if (!resolved.contains("edit")) return false;
+        json edits = resolved["edit"]["changes"][uri_from_path(kDefault)];
+        for (size_t i = edits.size(); i-- > 0;) {  // from the end, so offsets stay put
+            const json& r = edits[i]["range"];
+            const size_t a = offset_of(text, {r["start"]["line"], r["start"]["character"]});
+            const size_t b = offset_of(text, {r["end"]["line"], r["end"]["character"]});
+            text.replace(a, b - a, edits[i]["newText"].get<std::string>());
+        }
+        c.notify("textDocument/didChange",
+                 {{"textDocument", {{"uri", uri_from_path(kDefault)}, {"version", 2}}},
+                  {"contentChanges", json::array({{{"text", text}}})}});
+        return true;
+    };
+    REQUIRE(choose("100", "Write as a row"));
+    CHECK(text.find("\n(/units.knight.health 100)\n") != std::string::npos);
+    CHECK(text.find("(knight (speed SPEEDY))") != std::string::npos);
+    REQUIRE(choose("health 100", "Write nested"));
+    CHECK(text.find("(knight (speed SPEEDY) (health 100))") != std::string::npos);
+    CHECK(text.find("(/") == std::string::npos);
+
+    // A file that does not read is not rewritten: the action says why.
+    text += "(broken\n";
+    c.notify("textDocument/didChange",
+             {{"textDocument", {{"uri", uri_from_path(kDefault)}, {"version", 3}}},
+              {"contentChanges", json::array({{{"text", text}}})}});
+    CHECK(!choose("60", "Write as a row"));
+    bool told = false;
+    for (const json& m : c.sent)
+        told = told || (m.value("method", "") == "window/showMessage" &&
+                        m["params"]["message"].get<std::string>().find(
+                            "Write as a row: not done, the file does not read") == 0);
+    CHECK(told);
+}

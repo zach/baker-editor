@@ -131,6 +131,31 @@ suite("Baker in VS Code", function () {
         assert.ok(changes.every((e) => e.newText === "QUICK"));
     });
 
+    test("a value written as a row and nested again, each edit resolved when chosen", async () => {
+        const doc = await baker(localUri);
+        const restore = await setText(doc, "(units (knight (health 50)))\n");
+        try {
+            // The action at `part` titled `title`, resolved by VS Code as when chosen, applied.
+            const choose = async (part, title) => {
+                const at = doc.positionAt(doc.getText().indexOf(part));
+                const actions = await until(title, async () => {
+                    const all = await vscode.commands.executeCommand(
+                        "vscode.executeCodeActionProvider", localUri, new vscode.Range(at, at),
+                        undefined, 10);
+                    return all.find((a) => a.title === title && a.edit) && all;
+                });
+                assert.ok(await vscode.workspace.applyEdit(
+                    actions.find((a) => a.title === title).edit));
+            };
+            await choose("50", "Write as a row");
+            assert.strictEqual(doc.getText(), "(units (knight))\n(/units.knight.health 50)\n");
+            await choose("health 50", "Write nested");
+            assert.strictEqual(doc.getText(), "(units (knight (health 50)))\n");
+        } finally {
+            await restore();
+        }
+    });
+
     test("an override has an inlay hint, and the value it shadows is faded", async () => {
         const hints = await vscode.commands.executeCommand(
             "vscode.executeInlayHintProvider", defaultUri, new vscode.Range(0, 0, 20, 0));

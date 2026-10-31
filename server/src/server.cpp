@@ -8,6 +8,7 @@
 #include "outline.hpp"
 #include "positions.hpp"
 #include "reference.hpp"
+#include "rewrite.hpp"
 #include "scan.hpp"
 #include "scenarios.hpp"
 #include "structure.hpp"
@@ -286,7 +287,7 @@ void Server::request(const json& message) {
               {"foldingRangeProvider", true},
               {"referencesProvider", true},
               {"renameProvider", {{"prepareProvider", true}}},
-              {"codeActionProvider", true},
+              {"codeActionProvider", {{"resolveProvider", true}}},
               {"inlayHintProvider", true},
               {"codeLensProvider", {{"resolveProvider", false}}},
               {"colorProvider", true},
@@ -357,6 +358,8 @@ void Server::request(const json& message) {
         reply["result"] = inlay_hints(message.value("params", json::object()));
     } else if (method == "textDocument/codeAction") {
         reply["result"] = code_actions(message.value("params", json::object()));
+    } else if (method == "codeAction/resolve") {
+        reply["result"] = resolve_action(message.value("params", json::object()));
     } else if (method == "workspace/executeCommand") {
         reply["result"] = execute(message.value("params", json::object()));
     } else if (method == "textDocument/completion") {
@@ -693,6 +696,15 @@ json Server::code_actions(const json& params) {
     json at = params;
     at["position"] = params.value("range", json::object()).value("start", json::object());
     if (!place(at, buffers_, path, text, offset)) return out;
+    // Between a row and the nested form, with or without a game; made when chosen.
+    const Structure& s = read_of(path)->structure;
+    const auto rewrite = [&](const char* title, const char* which) {
+        out.push_back({{"title", title},
+                       {"kind", "refactor.rewrite"},
+                       {"data", {{"uri", uri_for(path)}, {"offset", offset}, {"rewrite", which}}}});
+    };
+    if (as_row(s, text, offset)) rewrite("Write as a row", "row");
+    if (as_nested(s, text, offset)) rewrite("Write nested", "nested");
     Checked* c = project_of(path);
     if (!c || !game_is(*c)) return out;  // no game, or another project's: nothing to offer
     const json where = json::array({uri_for(path), at["position"]});
@@ -1302,22 +1314,81 @@ json Server::color_presentations(const json& params) {
     return json::array({{{"label", label}, {"textEdit", {{"range", range}, {"newText", label}}}}});
 }
 
+std::optional<baker::Project> Server::project_now(const std::string& path) {
+    const Checked* c = project_of(path);
+    if (!c || c->setup.project.empty()) return std::nullopt;
+    const baker::LoadSession::Reader reader = [this](std::string_view p, baker::TextSink sink) {
+        std::string t;
+        if (!buffers_.read(canonical_path(std::string(p)), t)) return false;
+        sink(t);
+        return true;
+    };
+    auto p = baker::read_project(c->setup.project, reader);
+    if (!p) return std::nullopt;
+    return std::move(*p);
+}
+
+baker::WriteOptions Server::layout_of(const std::string& path) {
+    const auto p = project_now(path);
+    return p ? p->format : baker::WriteOptions{};
+}
+
+ReadSetup Server::read_setup_of(const std::string& path) {
+    ReadSetup setup;
+    setup.reader = [this](std::string_view p, baker::TextSink sink) {
+        std::string t;
+        if (!buffers_.read(canonical_path(std::string(p)), t)) return false;
+        sink(t);
+        return true;
+    };
+    if (const auto p = project_now(path)) {
+        for (const baker::ProjectEntry& e : p->pack_levels)
+            setup.pack_levels.emplace_back(e.value.str());
+        for (const baker::ProjectEntry& e : p->include_dirs)
+            setup.include_dirs.emplace_back(e.value.str());
+        for (const baker::ProjectEntry& e : p->defines) setup.defines.emplace_back(e.value.str());
+    } else if (const Checked* c = project_of(path)) {
+        setup.pack_levels = c->setup.pack_levels;
+        setup.include_dirs = c->setup.include_dirs;
+        setup.defines = c->setup.defines;
+    }
+    return setup;
+}
+
+json Server::resolve_action(const json& action) {
+    json out = action;
+    const json data = action.value("data", json::object());
+    const std::string path = path_from_uri(data.value("uri", ""));
+    const size_t offset = data.value("offset", size_t{0});
+    std::string text;
+    if (path.empty() || !buffers_.read(path, text) || offset > text.size()) return out;
+    const Structure s = read_structure(text);
+    const std::string which = data.value("rewrite", "");
+    auto r = which == "row" ? as_row(s, text, offset) : as_nested(s, text, offset);
+    if (!r) return out;  // the text has moved on since it was offered
+    const std::string after = apply(text, *r, layout_of(path));
+    std::string why;
+    if (!same_tree(text, after, path, read_setup_of(path), why)) {
+        send_({{"jsonrpc", "2.0"},
+               {"method", "window/showMessage"},
+               {"params",
+                {{"type", kLogWarning},
+                 {"message", action.value("title", std::string()) + ": not done, " + why}}}});
+        return out;
+    }
+    const LineIndex lines(text);
+    json edits = json::array();
+    for (const TextEdit& e : r->edits)
+        edits.push_back({{"range", lsp_range(lines, e.begin, e.end)}, {"newText", e.text}});
+    out["edit"] = {{"changes", {{uri_for(path), std::move(edits)}}}};
+    return out;
+}
+
 json Server::format(const json& params, bool ranged) {
     const std::string path = document_of(params);
     std::string text;
     if (!buffers_.read(path, text)) return nullptr;
-    // The project's layout, (format (indent N) (width N)), read as it is now; else Baker's.
-    baker::WriteOptions layout;
-    const Checked* c = project_of(path);
-    if (c && !c->setup.project.empty()) {
-        const baker::LoadSession::Reader reader = [this](std::string_view p, baker::TextSink sink) {
-            std::string t;
-            if (!buffers_.read(canonical_path(std::string(p)), t)) return false;
-            sink(t);
-            return true;
-        };
-        if (auto p = baker::read_project(c->setup.project, reader)) layout = p->format;
-    }
+    const baker::WriteOptions layout = layout_of(path);  // the project's, else Baker's
     size_t begin = 0, end = std::string::npos;
     if (ranged) {
         const json range = params.value("range", json::object());

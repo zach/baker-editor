@@ -79,6 +79,12 @@ unchanged in Baker's tree.
 
 **Effort:** about two days.
 
+**Done:** each part as the acceptance has it, in five commits. "Write nested" puts a row into
+the form the file already writes for its key's prefix (writing it in place would make a
+second form, which a file without rows reads first-wins); both actions are made when chosen
+and only if Baker reads the file to the same tree after it, a key's place among its siblings
+aside.
+
 ## F3. Layer verbs and pins
 
 **Why:** a layer may now add to or remove from a list below it, `(items #append rope)`, and
@@ -157,7 +163,7 @@ manual Windows pass (D1) is still the owner's.
 | Step | Baker | Status |
 |---|---|---|
 | F1 Metadata and declarations | note 0027 for the old forms' warnings and quick fix: migrations as edits (built as D276, not released) | Done but the old forms, which wait for 0027's release |
-| F2 Rows keyed by a path | none | In progress: all but the two code actions done |
+| F2 Rows keyed by a path | none | Done |
 | F3 Layer verbs and pins | none | Planned |
 | F4 Infix braces | none | Planned |
 | F5 List counts and conditional layers | none | Planned |

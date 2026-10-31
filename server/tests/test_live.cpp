@@ -90,9 +90,12 @@ json not_a_function(std::string name) {
             {"error", {{"code", "not found"}, {"message", "'" + name + "' is not a function"}}}};
 }
 
+// The titles of the game's actions among `actions` (not the rewrites between a row and the
+// nested form, which do not need a game).
 std::vector<std::string> titles(const json& actions) {
     std::vector<std::string> out;
-    for (const json& a : actions) out.push_back(a["title"]);
+    for (const json& a : actions)
+        if (a.value("kind", "") != "refactor.rewrite") out.push_back(a["title"]);
     return out;
 }
 
@@ -235,7 +238,9 @@ TEST_CASE("write the live value: offered for a live edit when the game can write
     const json actions = c.request(3, "textDocument/codeAction", c.at_health());
     REQUIRE(titles(actions) ==
             std::vector<std::string>{"Try this value in the game", "Write the live value here"});
-    const json command = actions[1]["command"];
+    json command;
+    for (const json& a : actions)
+        if (a["title"] == "Write the live value here") command = a["command"];
     const json result =
         c.request(4, "workspace/executeCommand",
                   {{"command", command["command"]}, {"arguments", command["arguments"]}});
@@ -366,12 +371,12 @@ TEST_CASE("no game, or another project's: nothing to evaluate or try") {
     {
         Client c(closed, false, text);
         CHECK(c.request(3, "textDocument/codeAction", c.at(2, 3)).empty());
-        CHECK(c.request(3, "textDocument/codeAction", c.at_health()).empty());
+        CHECK(titles(c.request(3, "textDocument/codeAction", c.at_health())).empty());
     }
     MockConsole game([](const std::string&) { return explained("/elsewhere/default.dta", false); });
     Client c(game.port(), false, text);
     CHECK(c.request(3, "textDocument/codeAction", c.at(2, 3)).empty());
-    CHECK(c.request(3, "textDocument/codeAction", c.at_health()).empty());
+    CHECK(titles(c.request(3, "textDocument/codeAction", c.at_health())).empty());
 }
 
 namespace {

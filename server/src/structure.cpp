@@ -167,6 +167,16 @@ Structure read_structure(std::string_view text) {
     return s;
 }
 
+bool bare_segment(std::string_view name) {
+    if (name.empty() || name.find_first_not_of("0123456789") == std::string_view::npos)
+        return false;
+    for (const char ch : name)
+        if (ch == '.' || ch == '/' || ch == '\'' || ch == ' ' || ch == '(' || ch == ')' ||
+            ch == '{' || ch == '}' || ch == '[' || ch == ']' || ch == ';' || ch == '"')
+            return false;
+    return true;
+}
+
 LineIndex::LineIndex(std::string_view text) : text_(text) {
     starts_.push_back(0);
     for (size_t i = 0; i < text.size(); ++i)
