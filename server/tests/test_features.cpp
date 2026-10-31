@@ -379,3 +379,31 @@ TEST_CASE("a layer written as rows: hover on a segment shows its layers, as the 
     CHECK(to[0].file == kDefault);
     CHECK(to[0].line == 5);
 }
+
+TEST_CASE("completion of a row's key: the merged tree's keys, segment by segment") {
+    Fixture f("(towers (t1 (aim 0 0)))\n");
+    const auto offered = [&f](const std::string& with_bar) {
+        const auto [text, at] = cursor(with_bar);
+        return complete(FileRead(text), at, *f.loaded, f.reference);
+    };
+    std::vector<std::string> top = labels(offered("(/|"));
+    CHECK(std::find(top.begin(), top.end(), "units") != top.end());
+    CHECK(std::find(top.begin(), top.end(), "towers") != top.end());
+    CHECK(labels(offered("(/un|")) == std::vector<std::string>{"units"});
+    CHECK(labels(offered("(/units.|")) == std::vector<std::string>{"knight", "archer"});
+    Completions c = offered("(/units.knight.|");
+    CHECK(labels(c) == std::vector<std::string>{"health", "speed"});
+    CHECK(c.items[0].detail == "100");  // the value the stack has
+    c = offered("(/units/knight/he| 5)");
+    REQUIRE(labels(c) == std::vector<std::string>{"health"});
+    CHECK(c.begin == std::string("(/units/knight/").size());  // replaces "he"
+    // A shape's field the stack lacks; a key that is no record's offers nothing.
+    Fixture g(
+        "#shape (tower (@at towers) (@keyed) (aim (list float)) (range float))\n"
+        "(towers (t1 (aim 0 0)))\n");
+    const auto [text, at] = cursor("(/towers.t1.|");
+    CHECK(labels(complete(FileRead(text), at, *g.loaded, g.reference)) ==
+          std::vector<std::string>{"aim", "range"});
+    CHECK(labels(offered("(/units.knight.health.|")).empty());
+    CHECK(labels(offered("(x (/un|")).empty());  // a row is a top-level form
+}

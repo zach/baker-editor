@@ -261,6 +261,12 @@ key, a new name with `.` or `/` in it is quoted (`'top.speed'`), and one with a 
 refused, since a key holds none. A key that does not read (an empty segment, an element's)
 names no path.
 
+**Completion** of a key, after `(/` and after each `.` or `/`, offers the keys the merged stack
+has at the segments written so far, each with its value, and the fields of the shape that
+governs them: in Duel, `(/fighters.kestrel.moves.` offers `heavy jab low_kick palm
+side_kick`. A key that needs quoting is written quoted. `/` and `.` are completion triggers,
+so the list opens as the key is typed.
+
 ## Which layer wins, in the text
 
 Where one layer overrides another's value, both lines say so, as inlay hints at the end of

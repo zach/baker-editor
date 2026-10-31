@@ -586,6 +586,80 @@ void complete_shape(const Cursor& c, const std::string& typed, const Loaded& loa
     }
 }
 
+// Whether `name` is written bare in a row's key: a symbol with no separator, not all digits.
+bool bare_segment(std::string_view name) {
+    if (name.empty() || name.find_first_not_of("0123456789") == std::string_view::npos)
+        return false;
+    for (const char ch : name)
+        if (ch == '.' || ch == '/' || ch == '\'' || ch == ' ' || ch == '(' || ch == ')' ||
+            ch == '{' || ch == '}' || ch == '[' || ch == ']' || ch == ';' || ch == '"')
+            return false;
+    return true;
+}
+
+// Completion of a row's key being typed, (/fighters.kes|: the segment after the last
+// separator, from the keys the merged tree has at the segments before it and the fields of
+// the shape that governs them. False if the cursor is on no row's key.
+bool complete_key(const Structure& s, std::string_view text, size_t offset, const Loaded& loaded,
+                  Completions& out) {
+    // The token the cursor ends or is in, found as scan() finds it.
+    const auto at = std::lower_bound(s.tokens.begin(), s.tokens.end(), offset,
+                                     [](const Token& t, size_t o) { return t.end < o; });
+    if (at == s.tokens.end() || at->begin >= offset || at->index != 0 || at->bracket < 0 ||
+        at->quote || s.brackets[static_cast<size_t>(at->bracket)].parent >= 0 ||
+        s.brackets[static_cast<size_t>(at->bracket)].open != '(' || text[at->begin] != '/')
+        return false;
+    // The segments written before the cursor's, as Baker splits them.
+    const std::string_view typed = text.substr(at->begin + 1, offset - at->begin - 1);
+    std::vector<std::string> before;
+    size_t from = 0;
+    bool quoted = false;
+    for (size_t i = 0; i < typed.size(); ++i) {
+        if (typed[i] == '\'')
+            quoted = !quoted;
+        else if (!quoted && (typed[i] == '.' || typed[i] == '/')) {
+            std::string_view seg = typed.substr(from, i - from);
+            if (seg.size() >= 2 && seg.front() == '\'' && seg.back() == '\'')
+                seg = seg.substr(1, seg.size() - 2);
+            if (seg.empty()) return true;  // an empty segment: nothing names a key here
+            before.emplace_back(seg);
+            from = i + 1;
+        }
+    }
+    out.begin = at->begin + 1 + from;
+    out.end = offset;
+    std::string_view partial = typed.substr(from);
+    if (!partial.empty() && partial.front() == '\'') partial.remove_prefix(1);
+    std::vector<std::string> seen;
+    const auto offer = [&](std::string name, std::string detail, std::string doc) {
+        if (name.compare(0, partial.size(), partial) != 0 ||
+            std::find(seen.begin(), seen.end(), name) != seen.end())
+            return;
+        seen.push_back(name);
+        std::string written = bare_segment(name) ? name : "'" + name + "'";
+        out.items.push_back(
+            {name, Kind::Field, std::move(detail), std::move(doc), snippet_text(written), {}});
+    };
+    // The keys the stack has there: a record's are followed by more, a value's end the key.
+    const baker::Ref<baker::Array> root = loaded.config ? loaded.config->root() : nullptr;
+    const baker::Array* here = before.empty() ? root.get() : array_at(loaded, before);
+    if (here)
+        for (const baker::Node& n : *here) {
+            const baker::Array* child = n.try_array();
+            if (!child || child->tag().str().empty() || child->tag().str().front() == '@') continue;
+            std::string value;
+            for (const baker::Node& v : child->values())
+                value += (value.empty() ? "" : " ") + baker::to_string(v);
+            offer(std::string(child->tag().str()),
+                  value.size() > 40 ? value.substr(0, 40) + "…" : value, {});
+        }
+    if (!before.empty())
+        if (const baker::shape::Shape* sh = governing(loaded.shapes, before))
+            for (const baker::shape::Field& f : sh->fields)
+                offer(std::string(f.name.str()), type_name(f), describe(*sh, f));
+    return true;
+}
+
 }  // namespace
 
 Completions complete(const FileRead& here, size_t offset, const Loaded& loaded,
@@ -594,6 +668,7 @@ Completions complete(const FileRead& here, size_t offset, const Loaded& loaded,
     const Cursor c = scan(here.structure, text, offset);
     Completions out;
     if (c.quiet) return out;
+    if (complete_key(here.structure, text, offset, loaded, out)) return out;
     out.begin = c.begin;
     out.end = offset;  // replace what is typed up to the cursor
     const std::string typed(text.substr(c.begin, offset - c.begin));

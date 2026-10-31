@@ -303,7 +303,8 @@ void Server::request(const json& message) {
               {"executeCommandProvider",
                {{"commands",
                  json::array({"baker.writeBack", "baker.evaluate", "baker.try", "baker.revert"})}}},
-              {"completionProvider", {{"triggerCharacters", json::array({"(", "{", " "})}}}}},
+              {"completionProvider",
+               {{"triggerCharacters", json::array({"(", "{", " ", "/", "."})}}}}},
             {"serverInfo", {{"name", "baker-lsp"}, {"version", "0.1.0"}}}};
     } else if (method == "textDocument/hover") {
         reply["result"] = hover(message.value("params", json::object()));
