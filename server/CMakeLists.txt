@@ -17,6 +17,7 @@ add_library(baker_lsp_core STATIC
   src/highlight.cpp
   src/scenarios.cpp
   src/tweaks.cpp
+  src/verbs.cpp
   src/outline.cpp
   src/net.cpp
   src/positions.cpp

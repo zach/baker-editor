@@ -25,10 +25,10 @@ struct View {
 };
 
 // Config::root(), one value a line, each followed by "; layer file:line" (`dir` cut from the
-// file names), and by each row of `composed` that changes it, "local #append 5 file:line". It
+// file names), and by each row of `rows` that composes it, "local #append 5 file:line". It
 // reads back through Baker into the same tree.
 View merged_view(const baker::Config& cfg, std::string_view dir,
-                 const std::vector<Composed>& composed = {});
+                 const std::vector<LayerRow>& rows = {});
 
 // Config::layer_effect(layer), a line a path, as a game's `diff --layer` prints it: a verb as
 // `-> #append v`, and `stale` where a row's (@was ...) pin is not the value below; empty, with

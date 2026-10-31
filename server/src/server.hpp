@@ -102,8 +102,14 @@ private:
     nlohmann::json definition(const nlohmann::json& params);
     nlohmann::json code_actions(const nlohmann::json& params);
     // codeAction/resolve: a rewrite's edit (rewrite.hpp), made when it is chosen, if Baker
-    // reads the file to the same tree after it; else the action alone, and a message why.
+    // reads the file to the same tree after it; a row's (verbs.hpp), if the project checks with
+    // it as cleanly as now and merges to the same stack, pins aside. Else the action alone,
+    // and a message why.
     nlohmann::json resolve_action(const nlohmann::json& action);
+    // Whether the project checks with `text` as `path`'s as cleanly as it does now, and merges
+    // to the same values; else why not.
+    bool checks_the_same(Checked& c, const std::string& path, const std::string& text,
+                         std::string& why);
     // The layout of `path`'s project, (format (indent N) (width N)), as it is now; else Baker's.
     baker::WriteOptions layout_of(const std::string& path);
     // How `path` is read on its own, by its project as it is now (rewrite.hpp).

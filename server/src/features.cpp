@@ -308,8 +308,8 @@ std::optional<Hover> hover(const FileRead& read, size_t offset, const Loaded& lo
     }
 
     // A row that composes the list below it: the list, its verb, and what it makes.
-    for (const Composed& r : loaded.composed) {
-        if (r.path != h.path) continue;
+    for (const LayerRow& r : loaded.rows) {
+        if (r.path != h.path || !r.composes()) continue;
         h.markdown += "\n\n" + r.layer + " (" + where(baker::Symbol(r.file), r.line) + "): `" +
                       (r.below.empty() ? "" : r.below + " ") + r.op + " " + r.operands + "`";
         if (!r.below.empty() && !r.below_file.empty())

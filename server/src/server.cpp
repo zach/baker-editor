@@ -12,6 +12,7 @@
 #include "scan.hpp"
 #include "scenarios.hpp"
 #include "structure.hpp"
+#include "verbs.hpp"
 
 #include <baker/project.hpp>
 
@@ -705,6 +706,13 @@ json Server::code_actions(const json& params) {
     };
     if (as_row(s, text, offset)) rewrite("Write as a row", "row");
     if (as_nested(s, text, offset)) rewrite("Write nested", "nested");
+    // A layer's row, by what the last check says of it: a verb's, a pin's.
+    if (Checked* l = loaded_for(path); l && l->loaded)
+        for (const RowEdit& e : row_edits(s, text, offset, path, l->loaded->rows))
+            out.push_back(
+                {{"title", e.title},
+                 {"kind", e.kind},
+                 {"data", {{"uri", uri_for(path)}, {"offset", offset}, {"rewrite", e.id}}}});
     Checked* c = project_of(path);
     if (!c || !game_is(*c)) return out;  // no game, or another project's: nothing to offer
     const json where = json::array({uri_for(path), at["position"]});
@@ -1217,7 +1225,7 @@ json Server::view(const std::string& method, const json& params, std::string& er
     std::optional<View> v;
     if (method == "baker/merged") {
         v = merged_view(cfg, c->setup.project.empty() ? std::string() : parent_of(c->setup.project),
-                        c->loaded->composed);
+                        c->loaded->rows);
     } else {
         v = layer_view(cfg, params.value("layer", std::string()), error);
         if (!v) return nullptr;
@@ -1328,6 +1336,40 @@ std::optional<baker::Project> Server::project_now(const std::string& path) {
     return std::move(*p);
 }
 
+bool Server::checks_the_same(Checked& c, const std::string& path, const std::string& text,
+                             std::string& why) {
+    const Diagnosis before = diagnose(c.setup, *c.ctx, buffers_, c.have_reference);
+    Buffers with = buffers_;
+    with.set(path, text);
+    const Diagnosis after = diagnose(c.setup, *c.ctx, with, c.have_reference);
+    if (!after.loaded || !after.loaded->config || !after.every_layer_read) {
+        why = "the project would not read with it";
+        return false;
+    }
+    // Each error and warning it would have, the check has now.
+    std::multiset<std::string> now;
+    for (const Problem& p : before.problems)
+        if (p.severity <= Severity::Warning) now.insert(p.message);
+    for (const Problem& p : after.problems) {
+        if (p.severity > Severity::Warning) continue;
+        if (const auto it = now.find(p.message); it != now.end()) {
+            now.erase(it);
+            continue;
+        }
+        why = "the project would have a new problem: " + p.message;
+        return false;
+    }
+    const baker::Ref<baker::Array> a = before.loaded && before.loaded->config
+                                           ? before.loaded->config->root()
+                                           : baker::Ref<baker::Array>();
+    const baker::Ref<baker::Array> b = after.loaded->config->root();
+    if (!a || !b || !same_values(*a, *b)) {
+        why = "the stack would merge to other values";
+        return false;
+    }
+    return true;
+}
+
 baker::WriteOptions Server::layout_of(const std::string& path) {
     const auto p = project_now(path);
     return p ? p->format : baker::WriteOptions{};
@@ -1364,18 +1406,38 @@ json Server::resolve_action(const json& action) {
     if (path.empty() || !buffers_.read(path, text) || offset > text.size()) return out;
     const Structure s = read_structure(text);
     const std::string which = data.value("rewrite", "");
-    auto r = which == "row" ? as_row(s, text, offset) : as_nested(s, text, offset);
-    if (!r) return out;  // the text has moved on since it was offered
-    const std::string after = apply(text, *r, layout_of(path));
-    std::string why;
-    if (!same_tree(text, after, path, read_setup_of(path), why)) {
+    const auto refuse = [&](const std::string& why) {
         send_({{"jsonrpc", "2.0"},
                {"method", "window/showMessage"},
                {"params",
                 {{"type", kLogWarning},
                  {"message", action.value("title", std::string()) + ": not done, " + why}}}});
         return out;
+    };
+    if (which != "row" && which != "nested") {  // a layer's row
+        Checked* c = loaded_for(path);
+        if (!c || !c->loaded) return out;
+        for (RowEdit& e : row_edits(s, text, offset, path, c->loaded->rows)) {
+            if (e.id != which) continue;
+            if (e.id == "restate") lay_out(s, text, e.edit, layout_of(path));
+            std::string after = text;
+            after.replace(e.edit.begin, e.edit.end - e.edit.begin, e.edit.text);
+            std::string why;
+            if (!checks_the_same(*c, path, after, why)) return refuse(why);
+            const LineIndex lines(text);
+            out["edit"] = {{"changes",
+                            {{uri_for(path),
+                              json::array({{{"range", lsp_range(lines, e.edit.begin, e.edit.end)},
+                                            {"newText", e.edit.text}}})}}}};
+            return out;
+        }
+        return out;  // the text, or the stack, has moved on since it was offered
     }
+    auto r = which == "row" ? as_row(s, text, offset) : as_nested(s, text, offset);
+    if (!r) return out;  // the text has moved on since it was offered
+    const std::string after = apply(text, *r, layout_of(path));
+    std::string why;
+    if (!same_tree(text, after, path, read_setup_of(path), why)) return refuse(why);
     const LineIndex lines(text);
     json edits = json::array();
     for (const TextEdit& e : r->edits)

@@ -3,6 +3,7 @@
 
 #include <doctest.h>
 
+#include <map>
 #include <set>
 #include <vector>
 
@@ -751,4 +752,123 @@ TEST_CASE(
                         m["params"]["message"].get<std::string>().find(
                             "Write as a row: not done, the file does not read") == 0);
     CHECK(told);
+}
+
+namespace {
+
+// A server on the test project, with default.dta and local.dta open as given.
+struct Project {
+    std::vector<json> sent;
+    Server server;
+    std::map<std::string, std::string> text;  // by path
+    int version = 1;
+
+    Project(const std::string& below, const std::string& local)
+        : server(setup(), [this](const json& m) { sent.push_back(m); }) {
+        request(1, "initialize", {{"capabilities", json::object()}});
+        std::string disk;
+        REQUIRE(Buffers().read(kDefault, disk));
+        open(kDefault, disk + below);
+        open(kProject + "/data/local.dta", local);
+        server.check_now();
+    }
+    static Setup setup() {
+        Setup s;
+        s.project = kProject + "/baker-project.dta";
+        s.reference = kProject + "/reference.json";
+        return s;
+    }
+    json request(int id, const std::string& method, json params) {
+        sent.clear();
+        server.handle({{"jsonrpc", "2.0"}, {"id", id}, {"method", method}, {"params", params}}, {});
+        for (const json& m : sent)
+            if (m.contains("id") && m["id"] == id) return m["result"];
+        return nullptr;
+    }
+    void open(const std::string& path, const std::string& t) {
+        text[path] = t;
+        server.handle({{"jsonrpc", "2.0"},
+                       {"method", "textDocument/didOpen"},
+                       {"params", {{"textDocument", {{"uri", uri_from_path(path)}, {"text", t}}}}}},
+                      {});
+    }
+    // The titles of the actions at `part` of `path`.
+    std::vector<std::string> titles(const std::string& path, const std::string& part) {
+        std::vector<std::string> out;
+        for (const json& a : actions(path, part)) out.push_back(a["title"]);
+        return out;
+    }
+    json actions(const std::string& path, const std::string& part) {
+        const std::string& t = text[path];
+        REQUIRE(t.find(part) != std::string::npos);
+        const Position p = position_of(t, t.find(part));
+        const json pos = {{"line", p.line}, {"character", p.character}};
+        return request(2, "textDocument/codeAction",
+                       {{"textDocument", {{"uri", uri_from_path(path)}}},
+                        {"range", {{"start", pos}, {"end", pos}}},
+                        {"context", {{"diagnostics", json::array()}}}});
+    }
+    // Chooses the action titled `title` at `part`: resolved, its edit applied, checked again.
+    // False if it is refused.
+    bool choose(const std::string& path, const std::string& part, const std::string& title) {
+        json action;
+        for (const json& a : actions(path, part))
+            if (a["title"] == title) action = a;
+        REQUIRE(action.is_object());
+        const json resolved = request(3, "codeAction/resolve", action);
+        if (!resolved.contains("edit")) return false;
+        std::string& t = text[path];
+        const json edits = resolved["edit"]["changes"][uri_from_path(path)];
+        for (size_t i = edits.size(); i-- > 0;) {
+            const json& r = edits[i]["range"];
+            const size_t a = offset_of(t, {r["start"]["line"], r["start"]["character"]});
+            const size_t b = offset_of(t, {r["end"]["line"], r["end"]["character"]});
+            t.replace(a, b - a, edits[i]["newText"].get<std::string>());
+        }
+        server.handle({{"jsonrpc", "2.0"},
+                       {"method", "textDocument/didChange"},
+                       {"params",
+                        {{"textDocument", {{"uri", uri_from_path(path)}, {"version", ++version}}},
+                         {"contentChanges", json::array({{{"text", t}}})}}}},
+                      {});
+        server.check_now();
+        return true;
+    }
+    bool told(const std::string& start) const {
+        for (const json& m : sent)
+            if (m.value("method", "") == "window/showMessage" &&
+                m["params"]["message"].get<std::string>().rfind(start, 0) == 0)
+                return true;
+        return false;
+    }
+};
+
+}  // namespace
+
+TEST_CASE("a layer's rows: restate a verb, update a stale pin, pin a value, write #append") {
+    const std::string local = kProject + "/data/local.dta";
+    Project p(
+        "(world (spawns 3 4))\n",
+        "(world (spawns #append 5))\n(units (knight (health 50 (@was 30))) (archer (speed 4)))\n");
+    // Each where it applies, and only there, beside F2's "Write as a row".
+    using Titles = std::vector<std::string>;
+    CHECK(p.titles(local, "#append") == Titles{"Write as a row", "Restate as a list"});
+    CHECK(p.titles(local, "30") == Titles{"Write as a row", "Update the pin to the value below"});
+    CHECK(p.titles(local, "speed") == Titles{"Write as a row", "Pin to the value below"});
+    CHECK(p.titles(kDefault, "spawns 3") == Titles{"Write as a row"});  // the bottom layer's
+
+    REQUIRE(p.choose(local, "#append", "Restate as a list"));
+    CHECK(p.text[local].find("(world (spawns 3 4 5))") != std::string::npos);
+    REQUIRE(p.choose(local, "30", "Update the pin to the value below"));
+    CHECK(p.text[local].find("(health 50 (@was 100))") != std::string::npos);
+    REQUIRE(p.choose(local, "speed", "Pin to the value below"));
+    CHECK(p.text[local].find("(archer (speed 4 (@was 3)))") != std::string::npos);
+    CHECK(p.titles(local, "health 50") == Titles{"Write as a row"});  // no stale pin left
+
+    Project q("(world (spawns 3 4))\n", "(world (spawns 3 4 6))\n");
+    CHECK(q.titles(local, "6") ==
+          Titles{"Write as a row", "Write as #append", "Pin to the value below"});
+    REQUIRE(q.choose(local, "6", "Write as #append"));
+    CHECK(q.text[local] == "(world (spawns #append 6))\n");
+    CHECK(q.titles(local, "#append") == Titles{"Write as a row", "Restate as a list"});
 }

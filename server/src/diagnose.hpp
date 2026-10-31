@@ -77,23 +77,31 @@ struct LayerHint {
     friend bool operator==(const LayerHint&, const LayerHint&) = default;
 };
 
-// A row that composes the list below it, (items #append rope) or (things #drop lamp), from
-// Config::layer_effect: what it changes, and the list it makes.
-struct Composed {
-    std::string path;      // as a Path's text: households/cottage/things
-    std::string layer;     // the layer's name
-    std::string op;        // #append or #drop
-    std::string operands;  // as Baker text
-    std::string file;      // canonical: where the row is written
-    int line = 0;          // 1-based
-    std::string below;     // the list below, as Baker text; empty if the layers below lack it
+// A value a layer above the bottom one sets, or a row that composes the list below it, (items
+// #append rope) or (things #drop lamp), from Config::layer_effect: what it changes, and what
+// it makes.
+struct LayerRow {
+    std::string path;   // as a Path's text: households/cottage/things
+    std::string layer;  // the layer's name
+    std::string op;     // #append, #drop or #remove; empty for a value
+    // The value, or a verb's operands, as shown: as Baker text, a record by its key, (jab2 ...)
+    // as jab2, so that a list of records reads as its keys.
+    std::string operands;
+    // The same and the list below, a value each, as Baker text: (3 4) is 3 and 4.
+    std::vector<std::string> values, below_values;
+    std::string file;   // canonical: where the row is written
+    int line = 0;       // 1-based
+    std::string below;  // the list below, as shown; empty if the layers below lack it
     std::string below_file;
     int below_line = 0;
-    // The list it makes, if no layer above changes it again (the stack's value); else empty.
+    // The list a verb makes, if no layer above changes it again (the stack's value); else
+    // empty. Empty for a value too. As shown, and a value each as Baker text.
     std::string result;
-    bool stale = false;  // its (@was ...) pin is not the list below
+    std::vector<std::string> result_values;
+    bool stale = false;  // its (@was ...) pin is not the value below
 
-    friend bool operator==(const Composed&, const Composed&) = default;
+    [[nodiscard]] bool composes() const { return op == "#append" || op == "#drop"; }
+    friend bool operator==(const LayerRow&, const LayerRow&) = default;
 };
 
 // What a check loaded, kept for hover and completion until the next check.
@@ -108,8 +116,8 @@ struct Loaded {
     // Each overridden or overriding value, from the layers above the bottom one
     // (Config::layer_effect): their entries name the value below and where it is.
     std::vector<LayerHint> hints;
-    std::vector<Problem> shadowed;   // the hints' faded values, as problems (Hint, Unnecessary)
-    std::vector<Composed> composed;  // the layers' #append and #drop rows, bottom layer first
+    std::vector<Problem> shadowed;  // the hints' faded values, as problems (Hint, Unnecessary)
+    std::vector<LayerRow> rows;     // the values and verbs of the layers above the bottom one
     // Each hinted file's text as this check read it, so that a later check that does not read
     // can carry the hints to where their lines are now (LineMap).
     std::map<std::string, std::string> texts;

@@ -22,8 +22,8 @@ class Printer {
 public:
     static constexpr size_t kWidth = 80;
 
-    Printer(const baker::Config& cfg, std::string_view dir, const std::vector<Composed>& composed)
-        : cfg_(cfg), dir_(dir), composed_(composed) {}
+    Printer(const baker::Config& cfg, std::string_view dir, const std::vector<LayerRow>& rows)
+        : cfg_(cfg), dir_(dir), rows_(rows) {}
 
     void top(const baker::Array& root) {
         for (const baker::Node& n : root) {
@@ -113,8 +113,8 @@ private:
         const auto s = cfg_.source(baker::Path(path));
         // The rows that change the list after it, as written: local #append 5 data/local.dta:2.
         std::string then;
-        for (const Composed& c : composed_)
-            if (c.path == path)
+        for (const LayerRow& c : rows_)
+            if (c.path == path && c.composes())
                 then += ", " + c.layer + " " + c.op + " " + c.operands + " " + shown(c.file) + ":" +
                         std::to_string(c.line);
         if (!s || s->file.str().empty()) {
@@ -138,7 +138,7 @@ private:
 
     const baker::Config& cfg_;
     std::string_view dir_;
-    const std::vector<Composed>& composed_;
+    const std::vector<LayerRow>& rows_;
     std::vector<std::string> tags_;
     std::vector<Line> lines_;
     std::unordered_map<std::string, std::string> canonical_;  // a file as Baker names it
@@ -147,8 +147,8 @@ private:
 }  // namespace
 
 View merged_view(const baker::Config& cfg, std::string_view dir,
-                 const std::vector<Composed>& composed) {
-    Printer p(cfg, dir, composed);
+                 const std::vector<LayerRow>& rows) {
+    Printer p(cfg, dir, rows);
     if (const baker::Ref<baker::Array> root = cfg.root()) p.top(*root);
     return p.view();
 }

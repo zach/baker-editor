@@ -56,4 +56,8 @@ struct ReadSetup {
 bool same_tree(std::string_view before, std::string_view after, const std::string& name,
                const ReadSetup& setup, std::string& why);
 
+// Whether trees `a` and `b` hold the same values at the same paths, as same_tree() compares
+// them, their (@was ...) pins aside: a merged stack before and after a pin is written.
+bool same_values(const baker::Array& a, const baker::Array& b);
+
 }  // namespace baker_lsp

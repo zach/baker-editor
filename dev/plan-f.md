@@ -111,6 +111,12 @@ leave a file that checks clean and merges to the same tree.
 
 **Effort:** about two days.
 
+**Done:** as the acceptance has it, on Duel's `(moves #append (jab2 ...))`. Baker gives a list of
+records below an `#append` as no values, and packs several values as one array, which a single
+array value looks like; the editor reads a row's values from its layer's own tree and derives
+the list below from what the row makes. Each code action is checked by a check of the project
+with the edit in place before it is made.
+
 ## F4. Infix braces
 
 **Why:** `{0.3 <= $value <= 0.7}` calls `<=`, not `0.3`. The server takes a brace's first token
@@ -164,6 +170,6 @@ manual Windows pass (D1) is still the owner's.
 |---|---|---|
 | F1 Metadata and declarations | note 0027 for the old forms' warnings and quick fix: migrations as edits (built as D276, not released) | Done but the old forms, which wait for 0027's release |
 | F2 Rows keyed by a path | none | Done |
-| F3 Layer verbs and pins | none | In progress: hints, hover and views done |
+| F3 Layer verbs and pins | none | Done |
 | F4 Infix braces | none | Planned |
 | F5 List counts and conditional layers | none | Planned |

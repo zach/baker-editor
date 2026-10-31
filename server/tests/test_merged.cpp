@@ -142,11 +142,12 @@ TEST_CASE("over LSP: the views, and a lens on each layer of the project file") {
 TEST_CASE("a verb row: its hint shows the list below and what it makes, nothing faded") {
     Stack stack("; tuned\n(world (spawns #append 5))\n", "(world (spawns 3 4))\n");
     const Loaded& l = *stack.loaded;
-    REQUIRE(l.composed.size() == 1);
-    const Composed& c = l.composed[0];
+    REQUIRE(l.rows.size() == 1);
+    const LayerRow& c = l.rows[0];
     CHECK(c.path == "world/spawns");
     CHECK(c.op == "#append");
     CHECK(c.operands == "5");
+    CHECK(c.below_values == std::vector<std::string>{"3", "4"});
     CHECK(c.below == "(3 4)");
     CHECK(c.below_file == kDefault);
     CHECK(c.below_line == 12);
@@ -161,14 +162,14 @@ TEST_CASE("a verb row: its hint shows the list below and what it makes, nothing 
     CHECK(l.shadowed.empty());  // the list below stands: not faded
 
     Stack drop("(world (spawns #drop 3))\n", "(world (spawns 3 4))\n");
-    REQUIRE(drop.loaded->composed.size() == 1);
-    CHECK(drop.loaded->composed[0].result == "4");
+    REQUIRE(drop.loaded->rows.size() == 1);
+    CHECK(drop.loaded->rows[0].result == "4");
 }
 
 TEST_CASE("the views name a verb: beside the merged value, and as diff prints it") {
     Stack stack("(world (spawns #append 5))\n(units (knight (health 50 (@was 30))))\n",
                 "(world (spawns 3 4))\n");
-    const View merged = merged_view(*stack.loaded->config, kProject, stack.loaded->composed);
+    const View merged = merged_view(*stack.loaded->config, kProject, stack.loaded->rows);
     CHECK(merged.text.find("(world (spawns 3 4 5))  ; default data/default.dta:12, local #append 5 "
                            "data/local.dta:1") != std::string::npos);
     std::string error;
@@ -188,4 +189,20 @@ TEST_CASE("hover on a verb row: the list below, the verb and what it makes") {
                            "\u2192 `(3 4 5)`") != std::string::npos);
     CHECK(h->markdown.find("| local | `5` | local.dta:1 | composes `#append` |") !=
           std::string::npos);
+}
+
+TEST_CASE("a verb row on a list of records: by their keys, the one operand read as one") {
+    Stack stack("(world (crowd #append (c (x 3) (y 4))))\n",
+                "(world (crowd (a (x 1)) (b (x 2))))\n");
+    REQUIRE(stack.loaded->rows.size() == 1);
+    const LayerRow& r = stack.loaded->rows[0];
+    CHECK(r.values == std::vector<std::string>{"(c (x 3) (y 4))"});  // one operand, not three
+    CHECK(r.operands == "c");
+    CHECK(r.below == "(a b)");
+    CHECK(r.result == "(a b c)");
+    CHECK(r.result_values.size() == 3);
+    bool hinted = false;
+    for (const LayerHint& h : stack.loaded->hints)
+        hinted = hinted || h.label == "(a b) #append c → (a b c)";
+    CHECK(hinted);
 }

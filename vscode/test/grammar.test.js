@@ -50,6 +50,7 @@ function scopeOf(list, token) {
         "[SPEEDY 9]",
         "#autorun {game.spawn 'bacon and eggs' $count -2.5e3}",
         "(units (knight (speed #remove)))",
+        "(items #append rope) (things #drop (lamp -2 4 0))",
         "(paint #00aa00 #1 #x1)",
         "(speed 4.5 (@range 0 10) (@desc \"Run speed\")) (mail @)",
         "(/fighters.kestrel/'max_hp' 1100 (@note \"x\"))",
@@ -72,6 +73,9 @@ function scopeOf(list, token) {
     assert.strictEqual(scopeOf(t, "$count"), "variable.other.baker");
     assert.strictEqual(scopeOf(t, "-2.5e3"), "constant.numeric.baker");
     assert.strictEqual(scopeOf(t, "#remove"), "keyword.control.directive.baker");
+    // The layer verbs (Baker 0.7.0), in their slot.
+    assert.strictEqual(scopeOf(t, "#append"), "keyword.control.directive.baker");
+    assert.strictEqual(scopeOf(t, "#drop"), "keyword.control.directive.baker");
     // # opens a directive only before a letter (Baker 0.7.0).
     assert.strictEqual(scopeOf(t, "#x1"), "keyword.control.directive.baker");
     assert.strictEqual(scopeOf(t, "#00aa00 #1"), "meta.array.baker");  // values, as low is

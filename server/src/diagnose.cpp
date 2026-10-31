@@ -18,6 +18,7 @@
 #include <set>
 #include <sstream>
 #include <tuple>
+#include <utility>
 
 namespace baker_lsp {
 
@@ -79,18 +80,51 @@ std::string last_dotted(std::string_view path) {
     return std::string(last);
 }
 
-// The stack's value at dotted `path`, as Baker text (a list in parentheses); empty if none.
-std::string merged_at(const baker::Config& cfg, std::string_view path) {
-    const baker::Ref<baker::Array> root = cfg.root();
+// The array at dotted `path` of `root`, or null.
+const baker::Array* array_in(const baker::Array* root, std::string_view path) {
     const baker::Path p(path);
-    const baker::Array* a = root ? root.get() : nullptr;
+    const baker::Array* a = root;
     for (size_t i = 0; a && p.valid() && i < p.size(); ++i)
         a = p[i].is_index ? nullptr : a->try_find(p[i].name);
-    if (!a || p.empty()) return {};
+    return p.empty() ? nullptr : a;
+}
+
+// A value as a hint shows it: a record, a tagged array holding arrays, by its key.
+std::string brief(const baker::Node& v) {
+    const baker::Array* a = v.try_array();
+    if (a && !a->tag().empty())
+        for (const baker::Node& n : a->values())
+            if (n.try_array()) return std::string(a->tag().str());
+    return baker::to_string(v);
+}
+
+// `s`, cut to about `n` bytes with an ellipsis, for a hint's line.
+std::string capped(std::string s, size_t n = 60) {
+    if (s.size() <= n) return s;
+    while (n > 0 && (static_cast<unsigned char>(s[n]) & 0xC0) == 0x80) --n;
+    return s.substr(0, n) + "\u2026";
+}
+
+// Values as Baker text: one is itself, several a list in parentheses.
+std::string packed(const std::vector<std::string>& values) {
     std::string out;
-    size_t n = 0;
-    for (const baker::Node& v : a->values()) out += (n++ ? " " : "") + baker::to_string(v);
-    return n == 1 ? out : "(" + out + ")";
+    for (const std::string& v : values) out += (out.empty() ? "" : " ") + v;
+    return values.size() == 1 ? out : "(" + out + ")";
+}
+
+// A packed value as its values, each as Baker text (or as `show` shows it): several are an
+// array, one is itself.
+std::vector<std::string> unpacked(const baker::Node& value,
+                                  std::string (*show)(const baker::Node&) = nullptr) {
+    std::vector<std::string> out;
+    const auto add = [&](const baker::Node& n) {
+        out.push_back(show ? show(n) : baker::to_string(n));
+    };
+    if (const baker::Array* a = value.try_array())
+        for (const baker::Node& n : *a) add(n);
+    else
+        add(value);
+    return out;
 }
 
 // Whether `layer` is the top contributor to `path`: no layer above it (nor scratch) changes
@@ -118,6 +152,9 @@ void find_hints(const baker::Config& cfg, const baker::Project& project, Loaded&
         }
         const auto effect = baker::tools::layer_effect(cfg, layer.name.str());
         if (!effect) continue;
+        // The layer's own tree: a row as written, its verb and each operand, which the effect's
+        // packed value does not tell from one array (several values pack as one array).
+        const baker::Ref<baker::Array> own = cfg.layer_root(layer.name.str());
         for (const baker::LayerEffectEntry& e : *effect) {
             if (e.source.file.str().empty()) continue;
             // A declaration combines with the ones below it: it overrides nothing.
@@ -125,41 +162,74 @@ void find_hints(const baker::Config& cfg, const baker::Project& project, Loaded&
             const std::string file = canonical_path(std::string(e.source.file.str()));
             const std::string value = baker::to_string(e.value);
             const std::string key = last_dotted(e.path.str());
-            if (e.op.str() == "#append" || e.op.str() == "#drop") {
-                // It changes the list below, which stands: not an override, nothing faded.
-                Composed c;
-                c.path = baker::to_string(baker::Path(e.path.str()));
-                c.layer = std::string(layer.name.str());
-                c.op = std::string(e.op.str());
-                c.operands = value;
-                c.file = file;
-                c.line = e.source.line;
-                c.stale = e.stale;
-                std::string label;
-                if (e.below) {
-                    c.below = baker::to_string(*e.below);
-                    if (e.below_source && !e.below_source->file.str().empty()) {
-                        c.below_file = canonical_path(std::string(e.below_source->file.str()));
-                        c.below_line = e.below_source->line;
-                        label = "\u2190 " + short_name(c.below_file) + ":" +
-                                std::to_string(c.below_line) + " ";
-                    }
-                    label += c.below + " ";
+            LayerRow row;
+            row.path = baker::to_string(baker::Path(e.path.str()));
+            row.layer = std::string(layer.name.str());
+            row.op = std::string(e.op.str());
+            if (const baker::Array* written = array_in(own.get(), e.path.str())) {
+                std::vector<std::string> shown;
+                bool verb = !e.op.empty();  // the first value, written before the operands
+                for (const baker::Node& v : written->values()) {
+                    if (std::exchange(verb, false)) continue;
+                    row.values.push_back(baker::to_string(v));
+                    shown.push_back(brief(v));
                 }
-                if (top_contributor(cfg, e.path.str(), layer.name))
-                    c.result = merged_at(cfg, e.path.str());
-                label += c.op + " " + c.operands + (c.result.empty() ? "" : " \u2192 " + c.result);
+                row.operands = packed(shown);
+            } else {
+                row.values = unpacked(e.value);
+                row.operands = packed(unpacked(e.value, brief));
+            }
+            row.file = file;
+            row.line = e.source.line;
+            row.stale = e.stale;
+            if (e.below) {
+                row.below = packed(unpacked(*e.below, brief));
+                row.below_values = unpacked(*e.below);
+                if (e.below_source && !e.below_source->file.str().empty()) {
+                    row.below_file = canonical_path(std::string(e.below_source->file.str()));
+                    row.below_line = e.below_source->line;
+                }
+            }
+            if (row.composes()) {
+                // It changes the list below, which stands: not an override, nothing faded.
+                const baker::Ref<baker::Array> root = cfg.root();
+                const baker::Array* now = top_contributor(cfg, e.path.str(), layer.name)
+                                              ? array_in(root.get(), e.path.str())
+                                              : nullptr;
+                if (now && !now->values().empty()) {
+                    std::vector<std::string> shown;
+                    for (const baker::Node& v : now->values()) {
+                        row.result_values.push_back(baker::to_string(v));
+                        shown.push_back(brief(v));
+                    }
+                    row.result = packed(shown);
+                    // A list of records below is keys, not values, to Baker's effect: the list
+                    // an #append adds after, then, is what it makes without what it adds.
+                    const size_t added = row.values.size();
+                    if (row.op == "#append" && row.below_values.empty() && shown.size() > added)
+                        row.below = packed({shown.begin(), shown.end() - static_cast<long>(added)});
+                }
+                std::string label;
+                if (!row.below.empty()) {
+                    if (!row.below_file.empty())
+                        label = "\u2190 " + short_name(row.below_file) + ":" +
+                                std::to_string(row.below_line) + " ";
+                    label += capped(row.below) + " ";
+                }
+                label += row.op + " " + capped(row.operands) +
+                         (row.result.empty() ? "" : " \u2192 " + capped(row.result));
                 loaded.hints.push_back(
-                    {file, c.line, std::string(e.path.str()), key, label, false, value});
-                if (!c.below_file.empty())
+                    {file, row.line, std::string(e.path.str()), key, label, false, value});
+                if (!row.below_file.empty())
                     loaded.hints.push_back(
-                        {c.below_file, c.below_line, std::string(e.path.str()), key,
-                         "composed by " + short_name(file) + ":" + std::to_string(c.line) + " (" +
-                             c.op + " " + c.operands + ")",
-                         false, c.below});
-                loaded.composed.push_back(std::move(c));
+                        {row.below_file, row.below_line, std::string(e.path.str()), key,
+                         "composed by " + short_name(file) + ":" + std::to_string(row.line) + " (" +
+                             row.op + " " + row.operands + ")",
+                         false, row.below});
+                loaded.rows.push_back(std::move(row));
                 continue;
             }
+            loaded.rows.push_back(std::move(row));
             if (e.below && e.below_source && !e.below_source->file.str().empty()) {
                 const std::string below_file =
                     canonical_path(std::string(e.below_source->file.str()));

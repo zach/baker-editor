@@ -35,15 +35,19 @@ bool after_comment(const Structure& s, size_t at) {
 }
 
 // `a` as text that tells its values from its keyed children, and its children apart in any
-// order: (tag values... | children sorted by tag).
-std::string canonical(const baker::Array& a) {
+// order: (tag values... | children sorted by tag). Without its (@was ...) pins if `pins` is
+// false.
+std::string canonical(const baker::Array& a, bool pins = true) {
+    static const baker::Symbol was("@was");
     std::string values;
     std::vector<std::pair<std::string, std::string>> children;  // by tag, then as written
     for (const baker::Node& n : a) {
-        if (const baker::Array* child = n.try_array())
-            children.emplace_back(std::string(child->tag().str()), canonical(*child));
-        else
+        if (const baker::Array* child = n.try_array()) {
+            if (!pins && child->tag() == was) continue;
+            children.emplace_back(std::string(child->tag().str()), canonical(*child, pins));
+        } else {
             values += baker::to_string(n) + " ";
+        }
     }
     std::stable_sort(children.begin(), children.end(),
                      [](const auto& x, const auto& y) { return x.first < y.first; });
@@ -53,6 +57,10 @@ std::string canonical(const baker::Array& a) {
 }
 
 }  // namespace
+
+bool same_values(const baker::Array& a, const baker::Array& b) {
+    return canonical(a, false) == canonical(b, false);
+}
 
 std::optional<Rewrite> as_row(const Structure& s, std::string_view text, size_t offset) {
     int b = around(s, offset);

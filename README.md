@@ -324,6 +324,30 @@ writes it as Baker's `diff` does, `(rope torch) -> #append lamp`, with `stale` w
 `(@was ...)` pin is not the value below. A `#shape` in a layer above combines with the one
 below, so it is not shown as an override either.
 
+A list of records shows by its keys: on Duel, `(fighters (kestrel (moves #append (jab2 ...))))`
+in `local.dta` shows `(jab low_kick side_kick heavy palm) #append jab2 → (jab low_kick
+side_kick heavy palm jab2)`. Baker's effect holds a list of records below as no values (its
+records are keys), so for an `#append` the list below is what it makes without what it adds;
+and it packs several values as one array, which it does not tell from one array value, so a
+row's values are read from its layer's own tree (`Config::layer_root`).
+
+**Code actions on a layer's rows,** from what the last check says of each:
+
+- a stale pin, which Baker warns of at the row, has a quick fix: **Update the pin to the value
+  below**, `(reaction 26 (@was 28))` to `(@was 30)`;
+- **Restate as a list** on a verb row writes the list it makes in its place, the row's
+  top-level form laid out by the project's format;
+- **Write as #append** on a value whose list extends the one below, `(spawns 3 4 6)` over `(3
+  4)`, writes `(spawns #append 6)`;
+- **Pin to the value below** on an override with no pin adds `(@was ...)` with the value below.
+
+Each is made when chosen, and only if the project, checked with the edit in place, has no
+error or warning it does not have now and merges to the same values, pins aside; else nothing
+changes and a message says why. On Duel, the pin's quick fix and "Restate as a list" on the
+row above each leave the project checking clean. Choosing one runs two checks of the project:
+on Duel grown to 2 MB, RelWithDebInfo build (GCC), 310 to 391 ms (six choices); on Duel, 5 ms.
+The three verbs are highlighted as directives in their slot, as `#remove` is.
+
 While a file does not read, which is most of the time a person types in it, the hints and
 faded values are those of the last check in which every layer read, carried to where their
 lines are now by a line diff of the text that check read and the text in the editor. A hint
