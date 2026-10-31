@@ -54,6 +54,24 @@ struct Fixture {
 
 }  // namespace
 
+TEST_CASE("a file's structure: a row's key, segment by segment") {
+    const std::string text = "(/units.knight/'max_hp' 9)\n(/a..b 1)\n(x (/y 1))";
+    const Structure s = read_structure(text);
+    REQUIRE(s.brackets.size() == 4);
+    CHECK(s.is_row(0));
+    const auto key = s.key(0);
+    REQUIRE(key.size() == 3);
+    CHECK(key[2].name == "max_hp");
+    CHECK(text.substr(key[2].begin, key[2].end - key[2].begin) == "'max_hp'");
+    CHECK(text.substr(key[1].begin, key[1].end - key[1].begin) == "knight");
+    CHECK(s.name(0) == "max_hp");
+    CHECK(s.tag(0) == "/units.knight/'max_hp'");
+    CHECK(s.data_path(0) == std::vector<std::string>{"units", "knight", "max_hp"});
+    CHECK(!s.is_row(1));  // an empty segment
+    CHECK(s.data_path(1).empty());
+    CHECK(!s.is_row(3));  // below the top level, a symbol
+}
+
 TEST_CASE("a file's structure: metadata is no child of its value") {
     const Structure s = read_structure("(a (b 1 (@range 0 9) (@note \"x\")) (@ 1))");
     REQUIRE(s.brackets.size() == 5);

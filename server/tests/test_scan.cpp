@@ -88,3 +88,21 @@ TEST_CASE("the cursor is found as a read of the whole text finds it") {
     c = at("#define |X\n");
     CHECK(c.token == "X");
 }
+
+TEST_CASE("a row's key is the path it names, segment by segment") {
+    Cursor c = at("(/units.knight.health 1|00)");
+    CHECK(c.data_path() == std::vector<std::string>{"units", "knight", "health"});
+    c = at("(/units.kni|ght.health 100)");
+    CHECK(c.token == "knight");
+    CHECK(c.index == 0);
+    CHECK(c.key_before == std::vector<std::string>{"units"});
+    CHECK(c.named_path() == std::vector<std::string>{"units", "knight"});
+    c = at("(/menu/'bacon_eggs'.pr|ice 3)");
+    CHECK(c.named_path() == std::vector<std::string>{"menu", "bacon_eggs", "price"});
+    c = at("(/units.knight (health 1|00))");  // a row of a whole record
+    CHECK(c.data_path() == std::vector<std::string>{"units", "knight", "health"});
+    c = at("(/units..health 1|00)");  // a key that does not read names nothing
+    CHECK(c.data_path().empty());
+    c = at("(/units.0.health 1|00)");
+    CHECK(c.data_path().empty());
+}

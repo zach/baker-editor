@@ -354,3 +354,28 @@ TEST_CASE("in metadata, the path is the value's it describes") {
     REQUIRE(h);
     CHECK(h->path == "units/knight/health");
 }
+
+TEST_CASE("a layer written as rows: hover on a segment shows its layers, as the nested form") {
+    Fixture f("(/units.knight.health 50)\n");
+    auto [text, at] = cursor("(/units.knight.hea|lth 50)");
+    auto h = hover(FileRead(text), at, *f.loaded, f.reference);
+    REQUIRE(h);
+    CHECK(h->path == "units/knight/health");
+    CHECK(has(h->markdown, "`int`, 1 to 1000"));
+    CHECK(has(h->markdown, "| default | `100` | default.dta:5 | shadowed |"));
+    CHECK(has(h->markdown, "| local | `50` | local.dta:1 | wins |"));
+    CHECK(text.substr(h->begin, h->end - h->begin) == "health");
+    std::tie(text, at) = cursor("(/units.kni|ght.health 50)");
+    h = hover(FileRead(text), at, *f.loaded, f.reference);
+    REQUIRE(h);
+    CHECK(h->path == "units/knight");
+    CHECK(has(h->markdown, "governed by `#shape unit`"));
+    // The value, and definition from the row to the line it shadows.
+    std::tie(text, at) = cursor("(/units.knight.health 5|0)");
+    CHECK(data_path_at(FileRead(text), at) == "units/knight/health");
+    const std::vector<Location> to =
+        definition(FileRead(text), at, kLocal, *f.loaded, f.reference, on_disk);
+    REQUIRE(to.size() == 1);
+    CHECK(to[0].file == kDefault);
+    CHECK(to[0].line == 5);
+}

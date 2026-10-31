@@ -17,11 +17,58 @@ TokenKind kind_of(baker::tools::TextTokenKind k) {
         case baker::tools::TextTokenKind::Variable: return TokenKind::Variable;
         case baker::tools::TextTokenKind::Directive: return TokenKind::Directive;
         case baker::tools::TextTokenKind::Macro: return TokenKind::Macro;
+        case baker::tools::TextTokenKind::PathKey: return TokenKind::PathKey;
         default: return TokenKind::Symbol;
     }
 }
 
+// The segments of a row's key `t`, written /a.b.'c d'/e, into `out`, as Baker reads them;
+// false, with none added, if the key does not read.
+bool split_key(const Token& t, std::vector<Segment>& out) {
+    constexpr size_t kMaxSegments = 16;  // as many as a Path holds
+    const std::string_view key = t.text.substr(1);
+    const size_t first = out.size();
+    const auto bad = [&] {
+        out.resize(first);
+        return false;
+    };
+    for (size_t i = 0, from = 0; i < key.size(); from = i) {
+        if (out.size() - first == kMaxSegments) return bad();
+        std::string_view name;
+        if (key[i] == '\'') {
+            i = key.find('\'', i + 1);
+            if (i == std::string_view::npos) return bad();
+            name = key.substr(from + 1, i++ - from - 1);
+        } else {
+            i = std::min(key.find_first_of("./", i), key.size());
+            name = key.substr(from, i - from);
+            if (name.find_first_not_of("0123456789") == std::string_view::npos) return bad();
+        }
+        if (name.empty()) return bad();
+        out.push_back({name, t.begin + 1 + from, t.begin + 1 + i});
+        if (i == key.size()) break;
+        if ((key[i] != '.' && key[i] != '/') || ++i == key.size()) return bad();
+    }
+    return out.size() > first;
+}
+
 }  // namespace
+
+std::string_view Structure::name(int b) const {
+    if (is_row(b)) return key(b).back().name;
+    return tag(b);
+}
+
+bool Structure::is_row(int b) const {
+    return b >= 0 && brackets[static_cast<size_t>(b)].segments > 0;
+}
+
+std::span<const Segment> Structure::key(int b) const {
+    if (!is_row(b)) return {};
+    const Bracket& br = brackets[static_cast<size_t>(b)];
+    return std::span<const Segment>(segments).subspan(static_cast<size_t>(br.segment),
+                                                      static_cast<size_t>(br.segments));
+}
 
 std::string_view Structure::tag(int b) const {
     if (b < 0 || brackets[static_cast<size_t>(b)].tag < 0) return {};
@@ -48,6 +95,12 @@ std::vector<std::string> Structure::data_path(int b) const {
         if (br.open != '(' || br.tag < 0 || tokens[static_cast<size_t>(br.tag)].quote == '"' ||
             br.declares >= 0)  // a declaration's form is not in the tree
             return {};
+        if (tokens[static_cast<size_t>(br.tag)].kind == TokenKind::PathKey) {
+            if (!is_row(b)) return {};  // a key that does not read names no path
+            const std::span<const Segment> k = key(b);
+            for (size_t i = k.size(); i-- > 0;) tags.emplace_back(k[i].name);
+            continue;
+        }
         tags.emplace_back(tokens[static_cast<size_t>(br.tag)].text);  // a copy
     }
     std::reverse(tags.begin(), tags.end());
@@ -95,8 +148,15 @@ Structure read_structure(std::string_view text) {
             token.text = token.text.substr(1, token.text.size() - 2);
         token.bracket = open.empty() ? -1 : open.back();
         token.index = counts.empty() ? 0 : counts.back() - 1;
-        if (token.bracket >= 0 && token.index == 0)
-            s.brackets[static_cast<size_t>(token.bracket)].tag = static_cast<int>(s.tokens.size());
+        if (token.bracket >= 0 && token.index == 0) {
+            Bracket& br = s.brackets[static_cast<size_t>(token.bracket)];
+            br.tag = static_cast<int>(s.tokens.size());
+            if (token.kind == TokenKind::PathKey) {
+                br.segment = static_cast<int>(s.segments.size());
+                if (split_key(token, s.segments))
+                    br.segments = static_cast<int>(s.segments.size()) - br.segment;
+            }
+        }
         ours[i] = static_cast<int>(s.tokens.size());
         s.tokens.push_back(token);
     }

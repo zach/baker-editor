@@ -15,6 +15,9 @@ struct Frame {
     std::string tag;       // its first token, unquoted; empty until one is written
     int count = 0;         // tokens and arrays inside it so far
     std::string declared;  // "#pack", "#origin" or "#shape" for a declaration's form; data: empty
+    // A row's key's segments, the path it stands for: (/fighters.kestrel.health ...) gives
+    // fighters, kestrel, health, and `tag` is the last. Empty for an array that is no row.
+    std::vector<std::string> keys;
 };
 
 struct Cursor {
@@ -27,12 +30,17 @@ struct Cursor {
     bool quiet = false;      // in a comment or a string: nothing to complete
     bool in_string = false;  // in a string: `token` is its text, which may name a file
     std::string previous;    // the token before the cursor's, in the same bracket or file
+    // On a row's key: `token` is the segment the cursor is on, and these the ones before it.
+    std::vector<std::string> key_before;
 
     // The tags of the enclosing arrays, if every enclosing bracket is an array, so the
     // cursor is in data with a path; else empty.
     [[nodiscard]] std::vector<std::string> data_path() const;
     // The same for the brackets around the innermost one: where an array being named sits.
     [[nodiscard]] std::vector<std::string> parent_path() const;
+    // The path of the array the cursor's tag names (index 0): parent_path() and the token,
+    // or on a row's key, the segments up to the cursor's. Empty if it has none.
+    [[nodiscard]] std::vector<std::string> named_path() const;
 };
 
 // `s` is `text`'s structure, as read_structure gives it.

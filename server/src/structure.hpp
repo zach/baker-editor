@@ -5,6 +5,7 @@
 // that does not parse (an unclosed bracket runs to the end of the file) and cannot disagree
 // with Baker about what a token is. Outline, folding, references and rename are built on it.
 #include <cstdint>
+#include <span>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -25,6 +26,17 @@ struct Bracket {
     // The #pack, #origin or #shape token in Structure::tokens whose one form it is, at the
     // top level: a declaration, which is not data. -1 for data.
     int declares = -1;
+    // A row, (/fighters.kestrel.health 1100): its key's segments in Structure::segments, from
+    // `segment`, `segments` of them. 0 for an array that is no row, or a key that does not
+    // read (an empty segment, an element's, more than 16).
+    int segment = 0, segments = 0;
+};
+
+// A segment of a row's key: (/fighters.kestrel.health 1100) has three, each the key of an
+// array the row stands for.
+struct Segment {
+    std::string_view name;      // into the file's text, unquoted
+    size_t begin = 0, end = 0;  // its bytes, quotes included
 };
 
 // What a token is, as Baker's lexer reads it.
@@ -37,6 +49,7 @@ enum class TokenKind : uint8_t {
     Variable,   // $name
     Directive,  // #name
     Macro,      // a use of a macro this text defines ([name ...] at the top level)
+    PathKey,    // a row's key: (/a.b.c ...) at the top level
 };
 
 struct Token {
@@ -57,16 +70,22 @@ struct Structure {
     std::vector<Bracket> brackets;  // in order of their opening
     std::vector<Token> tokens;      // in order
     std::vector<Comment> comments;  // in order
+    std::vector<Segment> segments;  // the rows' keys', by Bracket::segment
 
     // Whether bracket `b` is metadata: an array tagged @ and more, (@range 0 10). A lone @ is a
     // symbol.
     [[nodiscard]] bool is_metadata(int b) const;
     // The directive that declares bracket `b` ("#shape", "#pack", "#origin"), or empty.
     [[nodiscard]] std::string_view declared_by(int b) const;
-    // The tag text of bracket `b`, or empty.
+    // The tag text of bracket `b`, or empty: a row's whole key, /fighters.kestrel.health.
     [[nodiscard]] std::string_view tag(int b) const;
-    // The tags of `b` and its enclosing arrays from the top, if all are tagged arrays; else
-    // empty. A data path, as Cursor::data_path gives.
+    // The key bracket `b` is named by: its tag, or a row's last segment (health). Empty if none.
+    [[nodiscard]] std::string_view name(int b) const;
+    // Whether bracket `b` is a row whose key reads, and its key's segments.
+    [[nodiscard]] bool is_row(int b) const;
+    [[nodiscard]] std::span<const Segment> key(int b) const;
+    // The tags of `b` and its enclosing arrays from the top, if all are tagged arrays, a row's
+    // key as its segments; else empty. A data path, as Cursor::data_path gives.
     [[nodiscard]] std::vector<std::string> data_path(int b) const;
 };
 

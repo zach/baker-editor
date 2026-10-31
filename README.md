@@ -246,6 +246,18 @@ color, and `decorator` to the grammar's own scope for an `@` tag
 tokens from the server; tree-sitter still colors them where no server runs. On the 2 MB Duel, the tokens answer in 25 to 28 ms after an edit, the
 file's read included (the same read the outline, folds and colors use).
 
+## Rows keyed by a path
+
+A row, `(/fighters.kestrel.health 1100)`, is the nested form it stands for (Baker 0.7.0): the
+server reads its key segment by segment, as Baker reads it, so everything that works on a
+value works on a row. Hover on a segment shows that array's path, shape and layers
+(`health` in the row above shows the same table as `(health ...)` written nested; `kestrel`
+shows `fighters/kestrel` and its shape); the layer hints sit at the end of the row, and a
+value a row overrides is faded where it is written; a problem Baker locates by its line
+underlines the row's key; colors, live values ("Try this value" sends the row's path) and
+go-to-definition work on its value. A key that does not read (an empty segment, an element's)
+names no path.
+
 ## Which layer wins, in the text
 
 Where one layer overrides another's value, both lines say so, as inlay hints at the end of

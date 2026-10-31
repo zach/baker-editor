@@ -646,3 +646,51 @@ TEST_CASE("formatting with many edits answers one edit of the whole text") {
     CHECK(edits[0]["range"]["start"] == json{{"line", 0}, {"character", 0}});
     CHECK(edits[0]["newText"] == laid);
 }
+
+TEST_CASE("a layer of rows: its hint at the row, and a problem on the row's key") {
+    const std::string local = kProject + "/data/local.dta";
+    std::vector<json> sent;
+    Server server(Setup{}, [&sent](const json& m) { sent.push_back(m); });
+    const Server::Clock::time_point now{};
+    server.handle(
+        {{"jsonrpc", "2.0"},
+         {"id", 1},
+         {"method", "initialize"},
+         {"params", {{"rootUri", uri_from_path(kProject)}, {"capabilities", json::object()}}}},
+        now);
+    server.handle({{"jsonrpc", "2.0"}, {"method", "initialized"}, {"params", json::object()}}, now);
+    server.handle({{"jsonrpc", "2.0"},
+                   {"method", "textDocument/didOpen"},
+                   {"params",
+                    {{"textDocument",
+                      {{"uri", uri_from_path(local)},
+                       {"text", "(/units.knight.health 50)\n(/units.archer.health 5000)\n"}}}}}},
+                  now);
+    sent.clear();
+    server.check_now();
+    json range;  // 5000 is out of the shape's range: an error at the row
+    for (const json& m : sent)
+        if (m.value("method", "") == "textDocument/publishDiagnostics" &&
+            m["params"]["uri"] == uri_from_path(local))
+            for (const json& d : m["params"]["diagnostics"])
+                if (d["severity"] == 1) range = d["range"];
+    REQUIRE(range.is_object());
+    CHECK(range["start"] == json{{"line", 1}, {"character", 0}});
+    CHECK(range["end"] == json{{"line", 1}, {"character", 21}});  // (/units.archer.health
+    sent.clear();
+    server.handle({{"jsonrpc", "2.0"},
+                   {"id", 7},
+                   {"method", "textDocument/inlayHint"},
+                   {"params",
+                    {{"textDocument", {{"uri", uri_from_path(local)}}},
+                     {"range",
+                      {{"start", {{"line", 0}, {"character", 0}}},
+                       {"end", {{"line", 9}, {"character", 0}}}}}}}},
+                  now);
+    json hints;
+    for (const json& m : sent)
+        if (m.contains("id") && m["id"] == 7) hints = m["result"];
+    REQUIRE(hints.size() >= 1);
+    CHECK(hints[0]["label"] == "over default.dta:5 (100)");
+    CHECK(hints[0]["position"] == json{{"line", 0}, {"character", 25}});  // after the row
+}

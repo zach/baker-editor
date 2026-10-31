@@ -258,10 +258,9 @@ std::optional<Hover> hover(const FileRead& read, size_t offset, const Loaded& lo
     // Data: the array the cursor's token names, or holds.
     std::vector<std::string> tags = c.data_path();
     if (tags.empty() && !(c.index == 0 && !c.stack.empty())) return std::nullopt;
-    if (c.index == 0) {  // the tag of an array being named
-        tags = c.parent_path();
-        if (c.stack.size() > 1 && tags.empty()) return std::nullopt;
-        tags.push_back(c.token);
+    if (c.index == 0) {  // the tag of an array being named, or a segment of a row's key
+        tags = c.named_path();
+        if (tags.empty()) return std::nullopt;
     }
     if (tags.empty()) return std::nullopt;
     const std::string path = path_text(tags);
@@ -327,9 +326,8 @@ std::string data_path_at(const FileRead& read, size_t offset) {
     if (c.quiet) return {};
     std::vector<std::string> tags = c.data_path();
     if (c.index == 0 && !c.token.empty()) {
-        tags = c.parent_path();
-        if (c.stack.size() > 1 && tags.empty()) return {};
-        tags.push_back(c.token);
+        tags = c.named_path();
+        if (tags.empty()) return {};
     }
     tags = value_tags(std::move(tags));
     return tags.empty() ? std::string() : path_text(tags);
@@ -387,9 +385,8 @@ std::vector<Location> definition(const FileRead& read, size_t offset, const std:
 
     std::vector<std::string> tags = c.data_path();
     if (c.index == 0) {
-        tags = c.parent_path();
-        if (c.stack.size() > 1 && tags.empty()) return out;
-        tags.push_back(c.token);
+        tags = c.named_path();
+        if (tags.empty()) return out;
     }
     if (tags.empty() || !loaded.config) return out;
     // The line the cursor is on, to leave out the contributor it is.
@@ -481,14 +478,20 @@ std::vector<std::pair<std::string, int>> symbols_in_use(
         const Structure& s = f == file ? here.structure : own_structure;
         for (size_t b = 0; b < s.brackets.size(); ++b) {
             const Bracket& br = s.brackets[b];
-            if (br.open != '(' || br.tag < 0 || s.tokens[br.tag].text != tag) continue;
+            if (br.open != '(' || br.tag < 0 || s.name(static_cast<int>(b)) != tag) continue;
             if (f == file && br.begin < offset && offset <= br.end) continue;  // being typed
             const size_t first = static_cast<size_t>(br.tag) + 1;
             if (first >= s.tokens.size() || s.tokens[first].bracket != static_cast<int>(b) ||
                 !symbol_like(s.tokens[first]))
                 continue;
-            if (br.parent < 0) continue;
-            const std::vector<std::string> where = s.data_path(br.parent);
+            // Where it is: its parent's path, or a row's key but its last segment.
+            std::vector<std::string> where;
+            if (s.is_row(static_cast<int>(b))) {
+                where = s.data_path(static_cast<int>(b));
+                if (!where.empty()) where.pop_back();
+            } else if (br.parent >= 0) {
+                where = s.data_path(br.parent);
+            }
             if (where.empty()) continue;
             if (shape ? governing(loaded.shapes, where) != shape : where.back() != parent.back())
                 continue;

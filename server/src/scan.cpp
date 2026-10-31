@@ -13,7 +13,12 @@ std::vector<std::string> tags_of(const std::vector<Frame>& stack, size_t count) 
     for (size_t i = 0; i < count; ++i) {
         const Frame& f = stack[i];
         if (f.open != '(' || f.tag.empty() || !f.declared.empty()) return {};
-        tags.push_back(f.tag);
+        if (!f.keys.empty())
+            tags.insert(tags.end(), f.keys.begin(), f.keys.end());
+        else if (f.tag.size() > 1 && f.tag.front() == '/')
+            return {};  // a row's key that does not read
+        else
+            tags.push_back(f.tag);
     }
     return tags;
 }
@@ -25,6 +30,15 @@ std::vector<std::string> Cursor::data_path() const {
 
 std::vector<std::string> Cursor::parent_path() const {
     return stack.empty() ? std::vector<std::string>() : tags_of(stack, stack.size() - 1);
+}
+
+std::vector<std::string> Cursor::named_path() const {
+    if (token.empty()) return {};
+    std::vector<std::string> tags = parent_path();
+    if (stack.size() > 1 && tags.empty()) return {};
+    tags.insert(tags.end(), key_before.begin(), key_before.end());
+    tags.push_back(token);
+    return tags;
 }
 
 Cursor scan(const Structure& s, std::string_view text, size_t offset) {
@@ -78,9 +92,13 @@ Cursor scan(const Structure& s, std::string_view text, size_t offset) {
         Frame f{b.open,
                 {},
                 k == 0 ? count : brackets[static_cast<size_t>(chain[k - 1])].index + 1,
-                std::string(s.declared_by(chain[k]))};
-        if (b.tag >= 0 && tokens[static_cast<size_t>(b.tag)].end < offset)
+                std::string(s.declared_by(chain[k])),
+                {}};
+        if (b.tag >= 0 && tokens[static_cast<size_t>(b.tag)].end < offset) {
             f.tag = std::string(tokens[static_cast<size_t>(b.tag)].text);
+            for (const Segment& seg : s.key(chain[k])) f.keys.emplace_back(seg.name);
+            if (!f.keys.empty()) f.tag = f.keys.back();
+        }
         c.stack.push_back(std::move(f));
     }
     c.index = c.stack.empty() ? 0 : c.stack.back().count;
@@ -88,6 +106,17 @@ Cursor scan(const Structure& s, std::string_view text, size_t offset) {
         c.token = std::string(touching->text);
         c.begin = touching->begin;
         c.end = touching->end;
+        if (touching->kind == TokenKind::PathKey)  // the segment the cursor is on
+            for (const Segment& seg : s.key(touching->bracket)) {
+                if (offset > seg.end) {
+                    c.key_before.emplace_back(seg.name);
+                    continue;
+                }
+                c.token = std::string(seg.name);
+                c.begin = seg.begin;
+                c.end = seg.end;
+                break;
+            }
         const bool closed = c.end - c.begin >= 2 && text[c.end - 1] == '"';
         if (touching->quote == '"' && offset > c.begin && (offset < c.end || !closed))
             c.quiet = c.in_string = true;

@@ -577,3 +577,16 @@ TEST_CASE("a value with metadata after it is a value: tried, and its live edit s
     for (const std::string& cmd : game.commands())
         CHECK_MESSAGE(cmd.find("@") == std::string::npos, cmd);  // no metadata asked about
 }
+
+TEST_CASE("a row is a value: tried at the path its key names") {
+    MockConsole game([](const std::string& cmd) -> json {
+        if (cmd.rfind("{config.explain", 0) == 0) return explained(kDefault, true, 2);
+        if (cmd.rfind("{config.set ", 0) == 0) return {{"ok", true}, {"text", "120"}};
+        return not_a_function(cmd);
+    });
+    const std::string text =
+        "#require \"../packs/game/core.dta\"\n(/units.knight.health 120 (@note \"tuned\"))\n";
+    Client c(game.port(), false, text);
+    REQUIRE(c.run(c.at(1, 23), "Try this value in the game"));
+    CHECK(game.commands().back() == "{config.set units/knight/health 120}");
+}

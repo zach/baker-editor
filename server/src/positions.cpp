@@ -64,12 +64,32 @@ size_t tag_end(std::string_view line, size_t i) {
     return tag < line.size() && !is_bracket(line[tag]) ? token_end(line, tag) : i + 1;
 }
 
-// The byte offset of an array tagged `key` in `line`, or npos.
+// The last segment of a row's key, /fighters.kestrel.'max hp', unquoted.
+std::string_view last_segment(std::string_view key) {
+    size_t start = 1;
+    bool quoted = false;
+    for (size_t i = 1; i < key.size(); ++i) {
+        if (key[i] == '\'')
+            quoted = !quoted;
+        else if ((key[i] == '.' || key[i] == '/') && !quoted)
+            start = i + 1;
+    }
+    std::string_view last = key.substr(start);
+    if (last.size() >= 2 && last.front() == '\'' && last.back() == '\'')
+        last = last.substr(1, last.size() - 2);
+    return last;
+}
+
+// The byte offset of an array tagged `key` in `line`, or of a row whose key ends with it
+// ((/units.knight.health 50) for health), or npos.
 size_t find_tagged(std::string_view line, std::string_view key) {
     for (size_t i = 0; i < line.size(); ++i) {
         if (!is_open(line[i])) continue;
         const size_t tag = skip_spaces(line, i + 1);
         if (line.substr(tag, key.size()) == key && token_end(line, tag) == tag + key.size())
+            return i;
+        if (tag < line.size() && line[tag] == '/' &&
+            last_segment(line.substr(tag, token_end(line, tag) - tag)) == key)
             return i;
     }
     return std::string_view::npos;

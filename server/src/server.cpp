@@ -1015,7 +1015,7 @@ std::optional<size_t> hint_place(std::string_view text, const std::vector<size_t
     const std::string_view here = text.substr(begin, end - begin);
     const Structure s = read_structure(here);
     for (size_t b = 0; b < s.brackets.size(); ++b)
-        if (s.brackets[b].open == '(' && s.tag(static_cast<int>(b)) == key &&
+        if (s.brackets[b].open == '(' && s.name(static_cast<int>(b)) == key &&
             s.brackets[b].end <= here.size() && here[s.brackets[b].end - 1] == ')')
             return begin + s.brackets[b].end;
     while (end > begin && (text[end - 1] == '\r' || text[end - 1] == ' ' || text[end - 1] == '\t'))
