@@ -116,7 +116,10 @@ every layer that contributes to it from the files, with its value, file and line
 one wins (`Config::explain`). On a command's head it shows the function's signatures and doc
 from the game's reference; on a macro or a script function, where it is defined; on an
 object the game names, its type and methods, and on a method of a call on it (`{scheduler
-delay_task ...}`), its signatures and doc, from the reference's `types`.
+delay_task ...}`), its signatures and doc, from the reference's `types`. On a metadata or shape
+word (`@range`, `@keyed`, ...) it shows what the word takes and does, and that a word Baker
+does not know (`@rnage`) is one `check` warns of; in a `#shape`, on a type (`int`, `list`,
+`key_of`), what it holds.
 
 **Completion** offers, where the cursor is:
 
@@ -132,7 +135,16 @@ delay_task ...}`), its signatures and doc, from the reference's `types`.
   order declared (in Duel, `(button ` offers `light heavy kick special`, and `check` reports
   `(button lite)`); for a field with no list, the values the project's files give it, most
   used first; then the data's macros. In `(requires ...)`, the packs. Choosing a field with
-  a list and no value yet offers the list as a choice.
+  a list and no value yet offers the list as a choice;
+- metadata, after a value or a field (`(health 100 `, or `(health 100 (@`): Baker's words with
+  their `@`, `@range @step @kind @desc @note @one_of @group @was`, each writing its arguments
+  as a snippet to fill in (`(@range 0 1)`);
+- in a `#shape`: beside its fields, the shape's words (`@at @keyed @rule @desc @note`); after a
+  field's name, the types and the project's shapes (`int` ... `curve`, `(list T)`, `(key_of
+  TABLE)`); after the type, the field's words (`@range` ... `@one_of @optional`); after a
+  rule's expression, `@warn`; in `(list `, the element types; in `(key_of `, the keyed
+  tables, by the last tag of each keyed shape's `(@at ...)`. In Duel's `duel_core.dta`,
+  `(health int ` offers `@range` and the rest.
 
 **Colors:** a swatch, and VS Code's color picker, on every value Baker calls a color: `(@kind
 color)`, or 3 or 4 numbers ranged 0 to 1 with no kind, such as `(tint 0.9 0.5 0.2 (@range 0

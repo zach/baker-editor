@@ -25,6 +25,7 @@ add_library(baker_lsp_core STATIC
   src/server.cpp
   src/setup.cpp
   src/structure.cpp
+  src/words.cpp
   src/reference.cpp)
 target_include_directories(baker_lsp_core PUBLIC src)
 target_link_libraries(baker_lsp_core PUBLIC baker::baker baker::tools nlohmann_json::nlohmann_json)

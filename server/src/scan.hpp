@@ -11,10 +11,10 @@
 namespace baker_lsp {
 
 struct Frame {
-    char open = '(';        // '(' an array, '{' a command, '[' a macro or list
-    std::string tag;        // its first token, unquoted; empty until one is written
-    int count = 0;          // tokens and arrays inside it so far
-    bool declared = false;  // a #pack, #origin or #shape form: a declaration, not data
+    char open = '(';       // '(' an array, '{' a command, '[' a macro or list
+    std::string tag;       // its first token, unquoted; empty until one is written
+    int count = 0;         // tokens and arrays inside it so far
+    std::string declared;  // "#pack", "#origin" or "#shape" for a declaration's form; data: empty
 };
 
 struct Cursor {

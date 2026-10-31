@@ -241,3 +241,75 @@ TEST_CASE("hover on a list tweak names its elements") {
     REQUIRE(h);
     CHECK(has(h->markdown, "`list of int32`"));
 }
+
+TEST_CASE("completion offers the metadata words after a value, with their arguments") {
+    Fixture f;
+    auto [text, at] = cursor("(units (knight (health 100 |");
+    Completions c = complete(FileRead(text), at, *f.loaded, f.reference);
+    std::vector<std::string> offered = labels(c);
+    CHECK(offered == std::vector<std::string>{"@range", "@step", "@kind", "@desc", "@note",
+                                              "@one_of", "@group", "@was", "SPEEDY"});
+    CHECK(c.items[0].snippet == "(@range ${1:0} ${2:1})");
+    CHECK(c.items[0].detail == "(@range LO HI)");
+    // After the ( is typed, the word alone; not at a value's place, nor in a word's arguments.
+    std::tie(text, at) = cursor("(units (knight (health 100 (@r|");
+    c = complete(FileRead(text), at, *f.loaded, f.reference);
+    CHECK(labels(c) == std::vector<std::string>{"@range"});
+    CHECK(c.items[0].snippet == "@range ${1:0} ${2:1}");
+    std::tie(text, at) = cursor("(units (knight (health |");
+    CHECK(labels(complete(FileRead(text), at, *f.loaded, f.reference)) ==
+          std::vector<std::string>{"SPEEDY"});
+    std::tie(text, at) = cursor("(units (knight (health 100 (@range 0 |");
+    CHECK(labels(complete(FileRead(text), at, *f.loaded, f.reference)) ==
+          std::vector<std::string>{"SPEEDY"});
+}
+
+TEST_CASE("completion in a #shape: its words, a field's type and words, tables, a rule's") {
+    Fixture f;
+    const auto offered = [&f](const std::string& with_bar) {
+        const auto [text, at] = cursor(with_bar);
+        return labels(complete(FileRead(text), at, *f.loaded, f.reference));
+    };
+    CHECK(offered("#shape (tower |") ==
+          std::vector<std::string>{"@at", "@keyed", "@rule", "@desc", "@note"});
+    CHECK(offered("#shape (tower (@at towers) (@k|") == std::vector<std::string>{"@keyed"});
+    CHECK(offered("#shape (tower (aim |") ==
+          std::vector<std::string>{"int", "float", "bool", "symbol", "string", "any", "curve",
+                                   "list", "key_of", "unit"});
+    CHECK(offered("#shape (tower (aim (|") == std::vector<std::string>{"list", "key_of"});
+    CHECK(offered("#shape (tower (aim int |") == std::vector<std::string>{"@range", "@step",
+                                                                          "@kind", "@desc", "@note",
+                                                                          "@one_of", "@optional"});
+    CHECK(offered("#shape (tower (aim int (@o|") ==
+          std::vector<std::string>{"@one_of", "@optional"});
+    CHECK(offered("#shape (tower (target (key_of |") == std::vector<std::string>{"units"});
+    CHECK(offered("#shape (tower (targets (list (key_of u|") == std::vector<std::string>{"units"});
+    const std::vector<std::string> elements = offered("#shape (tower (aims (list |");
+    CHECK(std::find(elements.begin(), elements.end(), "list") == elements.end());
+    CHECK(std::find(elements.begin(), elements.end(), "float") != elements.end());
+    CHECK(offered("#shape (tower (@rule \"aims\" {> $aim 0} |") ==
+          std::vector<std::string>{"@warn"});
+    CHECK(offered("#shape (tower (aim int) (@rule \"aims\" {> $aim 0} (|").empty());
+    CHECK(offered("#shape (tower (aim |)) (more)").size() == 10);
+}
+
+TEST_CASE("hover on a metadata word says what it does and takes") {
+    Fixture f;
+    auto [text, at] = cursor("(units (knight (health 100 (@ra|nge 1 1000))))");
+    auto h = hover(FileRead(text), at, *f.loaded, f.reference);
+    REQUIRE(h);
+    CHECK(has(h->markdown, "`(@range LO HI)`"));
+    CHECK(text.substr(h->begin, h->end - h->begin) == "@range");
+    std::tie(text, at) = cursor("(units (knight (health 100 (@rn|age 1 1000))))");
+    h = hover(FileRead(text), at, *f.loaded, f.reference);
+    REQUIRE(h);
+    CHECK(has(h->markdown, "not a word Baker reads"));
+    std::tie(text, at) = cursor("#shape (tower (@ke|yed) (aim (list float 2)))");
+    h = hover(FileRead(text), at, *f.loaded, f.reference);
+    REQUIRE(h);
+    CHECK(has(h->markdown, "`(@keyed)`"));
+    std::tie(text, at) = cursor("#shape (tower (@keyed) (aim (li|st float 2)))");
+    h = hover(FileRead(text), at, *f.loaded, f.reference);
+    REQUIRE(h);
+    CHECK(has(h->markdown, "`(list T N)` holds exactly N"));
+}

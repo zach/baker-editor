@@ -2,6 +2,7 @@
 
 #include "hints.hpp"
 #include "structure.hpp"
+#include "words.hpp"
 
 #include <baker/std_interop.hpp>
 #include <baker/tools/layers.hpp>
@@ -112,6 +113,11 @@ const Definition* defined(const std::vector<Definition>& list, const std::string
     return nullptr;
 }
 
+// Whether the cursor is in a #shape's form.
+bool in_shape(const Cursor& c) {
+    return !c.stack.empty() && c.stack.front().declared == "#shape";
+}
+
 }  // namespace
 
 const baker::shape::Shape* governing(const baker::shape::Set& shapes,
@@ -133,6 +139,23 @@ std::optional<Hover> hover(const FileRead& read, size_t offset, const Loaded& lo
     const Cursor c = scan(read.structure, read.text, offset);
     if (c.quiet || c.token.empty()) return std::nullopt;
     Hover h{{}, c.begin, c.end, {}};
+
+    // A metadata or shape word: (@range 0 10).
+    if (!c.stack.empty() && c.stack.back().open == '(' && c.index == 0 && c.token.size() > 1 &&
+        c.token.front() == '@') {
+        const Word* w = word_named(c.token);
+        h.markdown = w ? word_markdown(*w)
+                       : "`" + c.token + "` is not a word Baker reads: `check` warns of it";
+        return h;
+    }
+    // A type in a #shape's field: (health int), (list float 3), (key_of units).
+    if (in_shape(c) && c.stack.back().open == '(' &&
+        ((c.stack.size() == 2 && c.index == 1) || (c.stack.size() > 2 && c.index == 0)))
+        for (const TypeWord& t : type_words())
+            if (t.name == c.token) {
+                h.markdown = std::string(t.doc);
+                return h;
+            }
 
     // A command's head: one of the game's functions, or a script function or object.
     if (!c.stack.empty() && c.stack.back().open == '{' && c.index == 0) {
@@ -412,6 +435,88 @@ std::vector<std::pair<std::string, int>> symbols_in_use(
     return out;
 }
 
+// A word as completion offers it: written whole, `(@range 0 1)`, where a value is typed, or
+// after the `(` already typed.
+Completion word_item(const Word& w, bool paren) {
+    std::string snippet = std::string(w.name) + std::string(w.args);
+    if (paren) snippet = "(" + snippet + ")";
+    return {std::string(w.name),
+            Kind::Keyword,
+            "(" + std::string(w.name) + (w.takes.empty() ? "" : " ") + std::string(w.takes) + ")",
+            std::string(w.doc),
+            snippet,
+            "~" + std::string(w.name)};  // after a shape's fields and the macros
+}
+
+// Completion in a #shape (NAME ...): the shape's words beside its fields, a field's type after
+// its name and its words after the type, a rule's words, a list's element types, and the keyed
+// tables in (key_of ...).
+void complete_shape(const Cursor& c, const std::string& typed, const Loaded& loaded,
+                    const std::function<void(Completion)>& offer) {
+    const size_t depth = c.stack.size();
+    const Frame& top = c.stack.back();
+    const bool at = !typed.empty() && typed.front() == '@';
+    const auto words = [&](Place place, bool paren) {
+        for (const Word* w : words_at(place)) offer(word_item(*w, paren));
+    };
+    // The types, or a list's element types (no list of lists), and the shapes.
+    const auto types = [&](bool element) {
+        for (const TypeWord& t : type_words())
+            if (!(element && t.name == "list"))
+                offer({std::string(t.name), Kind::Keyword, "type", std::string(t.doc),
+                       std::string(t.snippet)});
+        for (const baker::shape::Shape& s : loaded.shapes.shapes())
+            offer({std::string(s.name.str()), Kind::Struct, "shape",
+                   "declared at " + where(s.file, s.line)});
+    };
+    if (top.open != '(') return;
+    if (top.tag == "key_of" && c.index >= 1) {  // the keyed tables, by their last tag
+        std::vector<std::string> tables;
+        for (const baker::shape::Shape& s : loaded.shapes.shapes()) {
+            if (!s.keyed || s.at.empty()) continue;
+            const std::string table(s.at.begin()[s.at.size() - 1].str());
+            if (table == "*" || std::find(tables.begin(), tables.end(), table) != tables.end())
+                continue;
+            tables.push_back(table);
+            offer({table, Kind::Field, "keyed by shape `" + std::string(s.name.str()) + "`",
+                   "declared at " + where(s.file, s.line)});
+        }
+        return;
+    }
+    if (top.tag == "list" && c.index == 1) return types(true);
+    if (depth == 1) {
+        if (c.index >= 1) words(Place::Shape, true);
+        return;
+    }
+    const Frame& parent = c.stack[depth - 2];
+    if (c.index == 0) {  // naming a child: of the shape, of a field, of a rule
+        if (!at && depth > 2 && parent.tag == "list" && parent.count == 2) {
+            offer({"key_of", Kind::Keyword, "type", {}, "key_of ${1:table}"});
+        } else if (depth == 2) {
+            if (at) words(Place::Shape, false);
+        } else if (depth == 3 && parent.tag == "@rule") {
+            if (at) words(Place::Rule, false);
+        } else if (depth == 3 && !parent.tag.empty() && parent.tag.front() != '@') {
+            if (!at && parent.count == 2) {  // the type's place: (health (|
+                offer({"list", Kind::Keyword, "type", {}, "list ${1:float}"});
+                offer({"key_of", Kind::Keyword, "type", {}, "key_of ${1:table}"});
+            } else if (at && parent.count >= 3) {
+                words(Place::Field, false);
+            }
+        }
+        return;
+    }
+    if (depth != 2) return;
+    if (top.tag == "@rule") {
+        if (c.index >= 3) words(Place::Rule, true);
+    } else if (!top.tag.empty() && top.tag.front() != '@') {  // a field
+        if (c.index == 1)
+            types(false);
+        else
+            words(Place::Field, true);
+    }
+}
+
 }  // namespace
 
 Completions complete(const FileRead& here, size_t offset, const Loaded& loaded,
@@ -425,6 +530,17 @@ Completions complete(const FileRead& here, size_t offset, const Loaded& loaded,
     const std::string typed(text.substr(c.begin, offset - c.begin));
     const auto offer = [&](Completion item) {
         if (item.label.compare(0, typed.size(), typed) == 0) out.items.push_back(std::move(item));
+    };
+    if (in_shape(c)) {
+        complete_shape(c, typed, loaded, offer);
+        return out;
+    }
+    if (!c.stack.empty() && !c.stack.front().declared.empty() &&
+        c.stack.back().tag != "requires")  // #pack's and #origin's forms
+        return out;
+    // Data's metadata: after a value, (health 100 |, or naming a child, (health 100 (@|.
+    const auto metadata = [&](bool paren) {
+        for (const Word* w : words_at(Place::Data)) offer(word_item(*w, paren));
     };
 
     // The method of a call on one of the game's objects: its type's methods.
@@ -459,6 +575,9 @@ Completions complete(const FileRead& here, size_t offset, const Loaded& loaded,
         if (inner.open == '(') {  // naming an array: the governing shape's fields
             const std::vector<std::string> parent = c.parent_path();
             if (parent.empty()) return out;
+            if (c.stack.size() >= 2 && c.stack[c.stack.size() - 2].count >= 3)
+                metadata(false);  // after a value or field: (box (w 1) (|
+            if (!typed.empty() && typed.front() == '@') return out;
             // Choosing one writes a value after it, as a placeholder to change.
             const auto with_value = [&](Completion item, const baker::shape::Field* f) {
                 std::vector<std::string> tags = parent;
@@ -544,6 +663,7 @@ Completions complete(const FileRead& here, size_t offset, const Loaded& loaded,
             }
         }
     }
+    if (c.index >= 2 && !c.data_path().empty() && c.stack.back().tag.front() != '@') metadata(true);
     for (const Definition& d : loaded.macros)
         offer({d.name,
                Kind::Constant,

@@ -38,8 +38,10 @@ enum class Kind {
     Field = 5,
     Variable = 6,
     Module = 9,
+    Keyword = 14,  // a metadata or shape word, a type
     EnumMember = 20,
     Constant = 21,
+    Struct = 22,  // a shape
 };
 
 struct Completion {
