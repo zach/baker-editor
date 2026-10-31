@@ -986,8 +986,17 @@ json Server::rename(const json& params, std::string& error) {
     json changes = json::object();
     Ranges ranges(buffers_);
     const bool spaced = name.find_first_of(" \t") != std::string::npos;
-    for (const Occurrence& o : occurrences(*target, files, *c->loaded, read)) {
-        const std::string written = o.quoted || spaced ? "'" + name + "'" : name;
+    const std::vector<Occurrence> found = occurrences(*target, files, *c->loaded, read);
+    // A row's key holds no space; a segment with a separator in it is quoted.
+    const bool separated = name.find_first_of("./") != std::string::npos;
+    for (const Occurrence& o : found)
+        if (o.in_key && spaced) {
+            error = "'" + name + "' cannot be written in a row's key, which holds no space";
+            return nullptr;
+        }
+    for (const Occurrence& o : found) {
+        const std::string written =
+            o.quoted || spaced || (o.in_key && separated) ? "'" + name + "'" : name;
         changes[uri_for(o.file)].push_back(
             {{"range", ranges(o.file, o.begin, o.end)}, {"newText", written}});
     }

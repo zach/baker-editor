@@ -267,3 +267,66 @@ TEST_CASE("the outline: a #shape with its fields and their types, a #pack, no me
     CHECK(t1.children[0].detail == "knight");
     CHECK(t1.children[1].detail == "2");
 }
+
+TEST_CASE("references and rename: a field in a row's key, segment by segment") {
+    const std::string rows = "(/units.knight.health 50)\n(/units.archer (health 60))\n";
+    Fixture f(rows);
+    const std::vector<Occurrence> found = f.find(kLocal, "health");  // in the first row's key
+    std::vector<std::string> where;
+    for (const Occurrence& o : found) {
+        std::string t;
+        REQUIRE(f.buffers.read(o.file, t));
+        where.push_back(o.file.substr(o.file.rfind('/') + 1) + ":" + std::to_string(o.begin) +
+                        (o.in_key ? " key" : ""));
+        CHECK(t.substr(o.begin, o.end - o.begin) == "health");
+    }
+    std::sort(where.begin(), where.end());
+    const size_t nested = rows.find("(health") + 1;
+    CHECK(where.size() == 5);  // the declaration, default's two, the row's key and its record's
+    CHECK(std::count(where.begin(), where.end(), "local.dta:15 key") == 1);
+    CHECK(std::count(where.begin(), where.end(), "local.dta:" + std::to_string(nested)) == 1);
+    // Not a field of the shape: units, and a segment no shape governs.
+    Fixture g("(/units.knight.health 50)\n(/world.gravity 9)\n");
+    const std::string text = g.text(kLocal);
+    CHECK(!target_at(read_structure(text), 3, *g.loaded, g.reference));
+    CHECK(!target_at(read_structure(text), text.find("gravity"), *g.loaded, g.reference));
+}
+
+TEST_CASE("rename over LSP in a row's key: quoted when it must be, refused with a space") {
+    std::vector<json> sent;
+    Setup s;
+    s.project = kProject + "/baker-project.dta";
+    s.reference = kProject + "/reference.json";
+    Server server(s, [&sent](const json& m) { sent.push_back(m); });
+    const auto request = [&](int id, const std::string& method, json params) {
+        sent.clear();
+        server.handle({{"jsonrpc", "2.0"}, {"id", id}, {"method", method}, {"params", params}}, {});
+        for (const json& m : sent)
+            if (m.contains("id") && m["id"] == id) return m;
+        return json();
+    };
+    request(1, "initialize", json::object());
+    server.handle({{"jsonrpc", "2.0"},
+                   {"method", "textDocument/didOpen"},
+                   {"params",
+                    {{"textDocument",
+                      {{"uri", uri_from_path(kLocal)}, {"text", "(/units.knight.speed 3)\n"}}}}}},
+                  {});
+    const auto rename = [&](const std::string& name) {
+        return request(2, "textDocument/rename",
+                       {{"textDocument", {{"uri", uri_from_path(kLocal)}}},
+                        {"position", {{"line", 0}, {"character", 17}}},
+                        {"newName", name}});
+    };
+    json edit = rename("pace")["result"]["changes"];
+    REQUIRE(edit[uri_from_path(kLocal)].size() == 1);
+    CHECK(edit[uri_from_path(kLocal)][0]["newText"] == "pace");
+    CHECK(edit[uri_from_path(kLocal)][0]["range"]["start"] == json{{"line", 0}, {"character", 15}});
+    CHECK(edit[uri_from_path(kDefault)].size() == 2);
+    CHECK(edit[uri_from_path(kDefault)][0]["newText"] == "pace");
+    edit = rename("top.speed")["result"]["changes"];
+    CHECK(edit[uri_from_path(kLocal)][0]["newText"] == "'top.speed'");
+    CHECK(edit[uri_from_path(kDefault)][0]["newText"] == "top.speed");  // a tag needs no quote
+    const json refused = rename("top speed");
+    CHECK(refused.contains("error"));
+}

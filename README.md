@@ -255,7 +255,10 @@ value works on a row. Hover on a segment shows that array's path, shape and laye
 shows `fighters/kestrel` and its shape); the layer hints sit at the end of the row, and a
 value a row overrides is faded where it is written; a problem Baker locates by its line
 underlines the row's key; colors, live values ("Try this value" sends the row's path) and
-go-to-definition work on its value. A key that does not read (an empty segment, an element's)
+go-to-definition work on its value. References and rename of a shape field find it in rows'
+keys too, segment by segment: renaming `health` renames it in `(/units.knight.health 50)`. In a
+key, a new name with `.` or `/` in it is quoted (`'top.speed'`), and one with a space is
+refused, since a key holds none. A key that does not read (an empty segment, an element's)
 names no path.
 
 ## Which layer wins, in the text

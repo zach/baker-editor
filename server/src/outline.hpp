@@ -68,6 +68,7 @@ struct Occurrence {
     std::string file;
     size_t begin = 0, end = 0;
     bool quoted = false;  // written as a quoted symbol
+    bool in_key = false;  // a segment of a row's key, (/units.knight.health 50)
 };
 
 // Every place `target` is written in `files`, read through `read`.

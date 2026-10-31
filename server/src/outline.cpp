@@ -70,6 +70,37 @@ std::string type_text(const Structure& s, std::string_view text, int b) {
     return out;
 }
 
+// The shape whose field segment `i` of row `b`'s key names, or null: the shape governing the
+// segments before it, as it governs the arrays they stand for.
+const baker::shape::Shape* segment_shape(const Structure& s, int b, size_t i,
+                                         const Loaded& loaded) {
+    const std::span<const Segment> key = s.key(b);
+    std::vector<std::string> parent;
+    for (size_t k = 0; k < i; ++k) parent.emplace_back(key[k].name);
+    if (parent.empty()) return nullptr;
+    const baker::shape::Shape* sh = governing(loaded.shapes, parent);
+    return sh && sh->field(baker::Symbol(key[i].name)) ? sh : nullptr;
+}
+
+// A field named by the segment of row key `tok` at `offset`.
+std::optional<Target> segment_target(const Structure& s, const Token& tok, size_t offset,
+                                     const Loaded& loaded) {
+    const std::span<const Segment> key = s.key(tok.bracket);
+    for (size_t i = 0; i < key.size(); ++i) {
+        if (offset > key[i].end) continue;
+        const baker::shape::Shape* sh = segment_shape(s, tok.bracket, i, loaded);
+        if (!sh) return std::nullopt;
+        Target target;
+        target.kind = Target::Kind::Field;
+        target.name = key[i].name;
+        target.shape = std::string(sh->name.str());
+        target.begin = key[i].begin;
+        target.end = key[i].end;
+        return target;
+    }
+    return std::nullopt;
+}
+
 }  // namespace
 
 std::vector<OutlineSymbol> outline(const Structure& s, std::string_view text, size_t limit) {
@@ -220,6 +251,7 @@ std::optional<Target> target_at(const Structure& s, size_t offset, const Loaded&
     if (t < 0) return std::nullopt;
     const Token& tok = s.tokens[static_cast<size_t>(t)];
     if (tok.quote == '"') return std::nullopt;
+    if (tok.kind == TokenKind::PathKey) return segment_target(s, tok, offset, loaded);
     Target target;
     target.name = tok.text;
     target.begin = tok.begin;
@@ -284,6 +316,18 @@ std::vector<Occurrence> occurrences(
         const Structure s = read_structure(text);
         for (size_t t = 0; t < s.tokens.size(); ++t) {
             const Token& tok = s.tokens[t];
+            if (tok.kind == TokenKind::PathKey) {  // a row's key: each segment the field names
+                if (target.kind != Target::Kind::Field) continue;
+                const std::span<const Segment> key = s.key(tok.bracket);
+                for (size_t i = 0; i < key.size(); ++i) {
+                    if (key[i].name != target.name) continue;
+                    const baker::shape::Shape* sh = segment_shape(s, tok.bracket, i, loaded);
+                    if (sh && sh->name.str() == target.shape)
+                        out.push_back(
+                            {file, key[i].begin, key[i].end, text[key[i].begin] == '\'', true});
+                }
+                continue;
+            }
             if (tok.text != target.name || tok.quote == '"') continue;
             const int b = tok.bracket;
             const Bracket* br = b >= 0 ? &s.brackets[static_cast<size_t>(b)] : nullptr;
