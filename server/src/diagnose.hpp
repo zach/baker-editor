@@ -144,6 +144,13 @@ struct Kept {
     std::string key;                        // the project's layers and setup, as text
     std::shared_ptr<baker::Config> config;  // null until a check keeps one
     std::shared_ptr<KeptRead> read;         // its reader's state, and its merge's warnings
+    // Each file's old forms (tools::migrate_text), by a hash of the text they were found in:
+    // a file found again only once its text changes.
+    struct OldForms {
+        size_t hash = 0;
+        std::vector<Problem> problems;
+    };
+    std::map<std::string, OldForms> old_forms;
 };
 
 // `ctx` holds the game's functions (reference.hpp); `undefined_fails`: a call to a function

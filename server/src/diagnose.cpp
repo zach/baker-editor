@@ -10,6 +10,7 @@
 #include <baker/shape.hpp>
 #include <baker/std_interop.hpp>
 #include <baker/tools/layers.hpp>
+#include <baker/tools/migrate.hpp>
 #include <baker/tools/reference.hpp>
 
 #include <algorithm>
@@ -241,6 +242,56 @@ std::string shown(const baker::RowValues& values) {
     return packed(unpacked(values));
 }
 
+namespace {
+
+// A warning at each old form of the .dta files of `files` that a migration of Baker's rewrites
+// (tools::migrate_text), found again in a file only when its text changed since `kept` kept it.
+void find_old_forms(const std::set<std::string>& files, const Buffers& buffers, Kept* kept,
+                    Collector& found) {
+    for (const std::string& file : files) {
+        if (file.size() < 4 || file.compare(file.size() - 4, 4, ".dta") != 0) continue;
+        std::string text;
+        if (!buffers.read(file, text)) continue;
+        const size_t hash = std::hash<std::string>{}(text);
+        if (kept)
+            if (const auto it = kept->old_forms.find(file);
+                it != kept->old_forms.end() && it->second.hash == hash) {
+                found.problems.insert(found.problems.end(), it->second.problems.begin(),
+                                      it->second.problems.end());
+                continue;
+            }
+        baker::tools::MigrateOptions options;
+        options.file = baker::Symbol(file);
+        const baker::tools::Migrated m =
+            baker::tools::migrate_text(text, baker::TextSink{}, options);
+        std::vector<Problem> problems;
+        size_t line = 1, line_start = 0, at = 0;  // a finding's place, counted on from the last
+        for (const baker::tools::MigrationFinding& f : m.findings) {
+            for (; at < f.begin && at < text.size(); ++at)
+                if (text[at] == '\n') {
+                    ++line;
+                    line_start = at + 1;
+                }
+            int column = 1;  // code points
+            for (size_t i = line_start; i < f.begin && i < text.size(); ++i)
+                if ((static_cast<unsigned char>(text[i]) & 0xC0) != 0x80) ++column;
+            Problem p;
+            p.file = file;
+            p.line = static_cast<int>(line);
+            p.column = column;
+            p.severity = Severity::Warning;
+            p.code = "migration";
+            p.message = std::string(f.warning.message()) + " (baker_migrate --only " +
+                        baker::tools::migration_name(f.migration) + " rewrites it)";
+            problems.push_back(std::move(p));
+        }
+        found.problems.insert(found.problems.end(), problems.begin(), problems.end());
+        if (kept) kept->old_forms[file] = {hash, std::move(problems)};
+    }
+}
+
+}  // namespace
+
 Problem problem_of(const baker::Error& e, Severity severity) {
     Problem p;
     if (!e.file().str().empty()) p.file = canonical_path(std::string(e.file().str()));
@@ -425,7 +476,11 @@ Diagnosis diagnose(const Setup& setup, const baker::Context& ctx, const Buffers&
                     }
             }
         }
-        if (kept && out.every_layer_read) *kept = {key, loaded->config, stack_read};
+        if (kept && out.every_layer_read) {
+            kept->key = key;
+            kept->config = loaded->config;
+            kept->read = stack_read;
+        }
     }
     baker::Config& cfg = *loaded->config;
     files.insert(stack_read->files.begin(), stack_read->files.end());
@@ -547,6 +602,7 @@ Diagnosis diagnose(const Setup& setup, const baker::Context& ctx, const Buffers&
         if (!loaded->texts.count(h.file)) buffers.read(h.file, loaded->texts[h.file]);
     loaded->files.assign(files.begin(), files.end());
     out.loaded = std::move(loaded);
+    find_old_forms(files, buffers, kept, found);
     return finish(out, found, files, start);
 }
 

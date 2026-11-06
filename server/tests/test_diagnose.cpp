@@ -430,3 +430,28 @@ TEST_CASE("a kept stack is reloaded, and checks as a fresh load does") {
     same_as_fresh(f, kept);
     CHECK(kept.config.get() != held);
 }
+
+TEST_CASE("an old form is a warning at its place, found again only once its file changes") {
+    Fixture f;
+    f.buffers.set(kLocal, "; tuned\n(units (knight (health 50 (range 1 900))))\n");
+    Kept kept;
+    Diagnosis d = diagnose(f.setup, f.ctx, f.buffers, true, &kept);
+    const Problem* p = find(d, "migration");
+    REQUIRE(p);
+    CHECK(p->file == kLocal);
+    CHECK(p->line == 2);
+    CHECK(p->column == 28);  // its tag, range
+    CHECK(p->severity == Severity::Warning);
+    CHECK(p->message ==
+          "(range ...) after a value is metadata; write (@range ...) "
+          "(baker_migrate --only metadata rewrites it)");
+    REQUIRE(kept.old_forms.count(kLocal));
+    // Kept: the same warning from what was found, until the text changes.
+    kept.old_forms[kLocal].problems[0].message = "kept";
+    d = diagnose(f.setup, f.ctx, f.buffers, true, &kept);
+    REQUIRE(find(d, "migration"));
+    CHECK(find(d, "migration")->message == "kept");
+    f.buffers.set(kLocal, "(units (knight (health 50 (@range 1 900))))\n");
+    d = diagnose(f.setup, f.ctx, f.buffers, true, &kept);
+    CHECK(!find(d, "migration"));
+}

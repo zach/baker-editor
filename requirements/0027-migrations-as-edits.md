@@ -62,6 +62,9 @@ Built in Baker as D276 (merged to baker-dev's main, not yet in a release):
 editor takes it up at the release that has it: each finding a warning in every project file,
 with a quick fix for it and one for the whole file, and the README naming `baker_migrate`.
 
+Met by Baker 0.8.0, and taken up: each finding is a warning in every file the project reads,
+with Baker's edits as the quick fixes "Migrate this form" and "Migrate the whole file".
+
 ## Not included
 
 This note contains no code, identifiers, structure or documentation from any other

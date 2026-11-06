@@ -872,3 +872,35 @@ TEST_CASE("a layer's rows: restate a verb, update a stale pin, pin a value, writ
     CHECK(q.text[local] == "(world (spawns #append 6))\n");
     CHECK(q.titles(local, "#append") == Titles{"Write as a row", "Restate as a list"});
 }
+
+TEST_CASE("an old form's quick fixes: Baker's migration of the form, and of the whole file") {
+    const std::string local = kProject + "/data/local.dta";
+    Project p("", "(units (knight (health 50 (range 1 900)) (speed 3 (step 0.5))))\n");
+    const auto fixes = [&](const std::string& part) {
+        const std::string& t = p.text[local];
+        const Position at = position_of(t, t.find(part));
+        const json pos = {{"line", at.line}, {"character", at.character}};
+        json actions = p.request(
+            2, "textDocument/codeAction",
+            {{"textDocument", {{"uri", uri_from_path(local)}}},
+             {"range", {{"start", pos}, {"end", pos}}},
+             {"context",
+              {{"diagnostics", json::array({{{"code", "migration"},
+                                             {"range", {{"start", pos}, {"end", pos}}}}})}}}});
+        json out = json::object();
+        for (const json& a : actions)
+            if (a.value("kind", "") == "quickfix") out[a["title"].get<std::string>()] = a;
+        return out;
+    };
+    const json at_range = fixes("range");
+    REQUIRE(at_range.contains("Migrate this form (metadata)"));
+    REQUIRE(at_range.contains("Migrate the whole file"));
+    const json one =
+        at_range["Migrate this form (metadata)"]["edit"]["changes"][uri_from_path(local)];
+    REQUIRE(one.size() == 1);
+    CHECK(one[0]["newText"] == "@");  // before the tag, as baker_migrate writes it
+    CHECK(one[0]["range"]["start"] == one[0]["range"]["end"]);
+    const json all = at_range["Migrate the whole file"]["edit"]["changes"][uri_from_path(local)];
+    CHECK(all.size() == 2);                   // (range and (step
+    CHECK(fixes("knight").empty() == false);  // the whole file, from any old form's warning
+}

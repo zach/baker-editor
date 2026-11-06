@@ -15,6 +15,7 @@
 #include "verbs.hpp"
 
 #include <baker/project.hpp>
+#include <baker/tools/migrate.hpp>
 
 #include <algorithm>
 #include <cctype>
@@ -633,6 +634,13 @@ std::optional<Leaf> leaf_at(std::string_view text, size_t offset) {
     return Leaf{path_text(tags), std::string(value), b.end};
 }
 
+json lsp_range(const LineIndex& lines, size_t begin, size_t end) {
+    const auto [l0, c0] = lines.position(begin);
+    const auto [l1, c1] = lines.position(end);
+    return {{"start", {{"line", l0}, {"character", c0}}},
+            {"end", {{"line", l1}, {"character", c1}}}};
+}
+
 json command_json(const std::string& title, const std::string& command, json arguments) {
     return {
         {"title", title},
@@ -697,6 +705,35 @@ json Server::code_actions(const json& params) {
     json at = params;
     at["position"] = params.value("range", json::object()).value("start", json::object());
     if (!place(at, buffers_, path, text, offset)) return out;
+    // An old form's warning: Baker's migration of it, and of the whole file.
+    bool old = false;
+    for (const json& d :
+         params.value("context", json::object()).value("diagnostics", json::array()))
+        old = old || d.value("code", json()) == "migration";
+    if (old) {
+        const baker::tools::Migrated m = baker::tools::migrate_text(text, baker::TextSink{});
+        const LineIndex lines(text);
+        const auto fix = [&](const std::string& title, const auto& which) {
+            json edits = json::array();
+            for (const baker::tools::MigrationFinding& f : m.findings)
+                if (which(f))
+                    for (const baker::tools::TextEdit& e : f.edits)
+                        edits.push_back({{"range", lsp_range(lines, e.begin, e.end)},
+                                         {"newText", std::string(e.text)}});
+            if (edits.empty()) return;
+            out.push_back({{"title", title},
+                           {"kind", "quickfix"},
+                           {"edit", {{"changes", {{uri_for(path), std::move(edits)}}}}}});
+        };
+        for (const baker::tools::MigrationFinding& f : m.findings)
+            if (f.begin <= offset && offset <= f.end && !f.edits.empty()) {
+                fix(std::string("Migrate this form (") + baker::tools::migration_name(f.migration) +
+                        ")",
+                    [&f](const baker::tools::MigrationFinding& g) { return &g == &f; });
+                break;
+            }
+        fix("Migrate the whole file", [](const baker::tools::MigrationFinding&) { return true; });
+    }
     // Between a row and the nested form, with or without a game; made when chosen.
     const Structure& s = read_of(path)->structure;
     const auto rewrite = [&](const char* title, const char* which) {
@@ -854,13 +891,6 @@ json Server::execute(const json& params) {
 }
 
 namespace {
-
-json lsp_range(const LineIndex& lines, size_t begin, size_t end) {
-    const auto [l0, c0] = lines.position(begin);
-    const auto [l1, c1] = lines.position(end);
-    return {{"start", {{"line", l0}, {"character", c0}}},
-            {"end", {{"line", l1}, {"character", c1}}}};
-}
 
 json symbol_json(const LineIndex& lines, const OutlineSymbol& s) {
     json children = json::array();

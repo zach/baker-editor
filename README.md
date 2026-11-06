@@ -102,15 +102,20 @@ The files of the project's `(scenarios ...)` and `(objectives ...)`, open or not
 other open `.dta` file of the project that its layers do not read, are read on their own and
 checked beside them, as a game's `check` command checks its scenarios.
 
-**The forms before Baker 0.7.0** are not flagged in a project's own files: Baker warns of
-`(shapes ...)`, `(pack ...)`, `(origin "...")` and a metadata word without its `@` beside a
-value only when it checks a candidate layer. Such a file reads, but its old forms are data
-now (`(range 0 10)` beside a value is a field, so a shape may call the value the wrong type).
-Run Baker's migrators over the project: `baker_migrate_declarations --write` for the
-declarations and `#define`, and `baker_migrate_metadata --write` for the `@` (both in Baker's
-`tools/`, with `--report` to see what they would change). Note 0027 asks Baker for the
-migrations as a call on a file's text, giving each old form, located, with its rewrite; the
-editor will then show each as a warning with a quick fix.
+**The forms before Baker 0.7.0** are warnings in every file the project reads, open or not,
+where Baker's migrations would rewrite them (`tools::migrate_text`, Baker 0.8.0, note 0027): a
+first `(pack ...)`, an `(origin "...")`, a top-level `(shapes ...)`, `#define NAME (body)`,
+and a metadata word without its `@` (after a value, in a shape, in a `{func}`), each worded
+as Baker's `check` words it and naming the migration: `(range ...) after a value is
+metadata; write (@range ...) (baker_migrate --only metadata rewrites it)`. Such a file reads,
+but its old forms are data now (`(range 0 10)` beside a value is a field). Two quick fixes
+make Baker's own rewrite: **Migrate this form** and **Migrate the whole file**; a form the
+migration leaves to a person (`(limits (min 0) (step 0.5))`, all value under both rules) is a
+warning with no fix. For a whole project, `baker_migrate --write $(git ls-files '*.dta')`
+(`--check` for CI). Each file is scanned when its text changes, not at every check: on the
+2 MB Duel, the first check took 140 to 158 ms against 131 to 172 ms before, and later ones
+69 to 85 ms (one of 113 ms) against 69 to 92 ms, RelWithDebInfo build (GCC), three runs each.
+None of Baker's stacks at 0.8.0 has an old form.
 
 Problems Baker locates by line alone (shape and call errors) underline the array the error's
 path or message names on that line, else the line's first token. Columns are converted to
