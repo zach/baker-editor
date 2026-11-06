@@ -104,6 +104,10 @@ struct LayerRow {
     friend bool operator==(const LayerRow&, const LayerRow&) = default;
 };
 
+// A row's values as the editor shows them, each as Baker text: one is itself, several a list
+// in parentheses, (3 4); none is ().
+std::string shown(const baker::RowValues& values);
+
 // What a check loaded, kept for hover and completion until the next check.
 struct Loaded {
     std::shared_ptr<baker::Config> config;  // the stack as the game merges it

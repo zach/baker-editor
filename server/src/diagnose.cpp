@@ -112,18 +112,11 @@ std::string packed(const std::vector<std::string>& values) {
     return values.size() == 1 ? out : "(" + out + ")";
 }
 
-// A packed value as its values, each as Baker text (or as `show` shows it): several are an
-// array, one is itself.
-std::vector<std::string> unpacked(const baker::Node& value,
+// A row's values, each as Baker text (or as `show` shows it).
+std::vector<std::string> unpacked(const baker::RowValues& values,
                                   std::string (*show)(const baker::Node&) = nullptr) {
     std::vector<std::string> out;
-    const auto add = [&](const baker::Node& n) {
-        out.push_back(show ? show(n) : baker::to_string(n));
-    };
-    if (const baker::Array* a = value.try_array())
-        for (const baker::Node& n : *a) add(n);
-    else
-        add(value);
+    for (const baker::Node& n : values) out.push_back(show ? show(n) : baker::to_string(n));
     return out;
 }
 
@@ -160,7 +153,7 @@ void find_hints(const baker::Config& cfg, const baker::Project& project, Loaded&
             // A declaration combines with the ones below it: it overrides nothing.
             if (!e.declares.empty()) continue;
             const std::string file = canonical_path(std::string(e.source.file.str()));
-            const std::string value = baker::to_string(e.value);
+            const std::string value = shown(e.values);
             const std::string key = last_dotted(e.path.str());
             LayerRow row;
             row.path = baker::to_string(baker::Path(e.path.str()));
@@ -176,8 +169,8 @@ void find_hints(const baker::Config& cfg, const baker::Project& project, Loaded&
                 }
                 row.operands = packed(shown);
             } else {
-                row.values = unpacked(e.value);
-                row.operands = packed(unpacked(e.value, brief));
+                row.values = unpacked(e.values);
+                row.operands = packed(unpacked(e.values, brief));
             }
             row.file = file;
             row.line = e.source.line;
@@ -233,7 +226,7 @@ void find_hints(const baker::Config& cfg, const baker::Project& project, Loaded&
             if (e.below && e.below_source && !e.below_source->file.str().empty()) {
                 const std::string below_file =
                     canonical_path(std::string(e.below_source->file.str()));
-                const std::string below = baker::to_string(*e.below);
+                const std::string below = shown(*e.below);
                 loaded.hints.push_back({file, e.source.line, std::string(e.path.str()), key,
                                         "over " + short_name(below_file) + ":" +
                                             std::to_string(e.below_source->line) + " (" + below +
@@ -262,6 +255,10 @@ void find_hints(const baker::Config& cfg, const baker::Project& project, Loaded&
 }
 
 }  // namespace
+
+std::string shown(const baker::RowValues& values) {
+    return packed(unpacked(values));
+}
 
 Problem problem_of(const baker::Error& e, Severity severity) {
     Problem p;

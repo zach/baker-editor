@@ -171,10 +171,10 @@ std::optional<View> layer_view(const baker::Config& cfg, std::string_view layer,
         const std::string file(e.source.file.str());
         const bool verb = e.op.str() == "#append" || e.op.str() == "#drop";
         out.text += "  " + std::string(e.path.str()) + "  " +
-                    (e.below ? baker::to_string(*e.below) : std::string("(new)")) + " -> " +
-                    (verb ? std::string(e.op.str()) + " " : "") + baker::to_string(e.value) +
-                    "  (" + file + ":" + std::to_string(e.source.line) + ")" +
-                    (e.shadowed ? "  shadowed" : "") + (e.stale ? "  stale" : "") + "\n";
+                    (e.below ? shown(*e.below) : std::string("(new)")) + " -> " +
+                    (verb ? std::string(e.op.str()) + " " : "") + shown(e.values) + "  (" + file +
+                    ":" + std::to_string(e.source.line) + ")" + (e.shadowed ? "  shadowed" : "") +
+                    (e.stale ? "  stale" : "") + "\n";
         if (!file.empty()) out.sources.push_back({line, canonical_path(file), e.source.line});
         ++line;
     }

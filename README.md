@@ -149,11 +149,14 @@ does not know (`@rnage`) is one `check` warns of; in a `#shape`, on a type (`int
   used first; then the data's macros. In `(requires ...)`, the packs. Choosing a field with
   a list and no value yet offers the list as a choice;
 - metadata, after a value or a field (`(health 100 `, or `(health 100 (@`): Baker's words with
-  their `@`, `@range @step @kind @desc @note @one_of @group @was`, each writing its arguments
-  as a snippet to fill in (`(@range 0 1)`);
-- in a `#shape`: beside its fields, the shape's words (`@at @keyed @rule @desc @note`); after a
-  field's name, the types and the project's shapes (`int` ... `curve`, `(list T)`, `(key_of
-  TABLE)`); after the type, the field's words (`@range` ... `@one_of @optional`); after a
+  their `@`, `@range @step @kind @desc @note @one_of @group @was`, and a record's identity,
+  `@id @aka` (Baker 0.8.0), each writing its arguments as a snippet to fill in (`(@range 0
+  1)`);
+- in a `#shape`: beside its fields, the shape's words (`@at @keyed @rule @desc @note`, and
+  `@view @cxx_name` for a C++ view); after a field's name, the types and the project's shapes
+  (`int` ... `curve`, `(list T)`, `(key_of TABLE)`, `(asset KIND)`); after the type, the
+  field's words (`@range` ... `@one_of @optional`, `@renamed_from`, and `@view @cxx
+  @cxx_name`); after a
   rule's expression, `@warn`; in `(list `, the element types; in `(key_of `, the keyed
   tables, by the last tag of each keyed shape's `(@at ...)`. In Duel's `duel_core.dta`,
   `(health int ` offers `@range` and the rest.
@@ -683,7 +686,7 @@ requests about one frame (6–20 ms).
 
 ## Baker
 
-The server builds against a released Baker, `zach/baker` `v0.7.0`, through its public headers
+The server builds against a released Baker, `zach/baker` `v0.8.0`, through its public headers
 and `baker::tools`.
 `-DBAKER_EDITOR_BAKER_DIR=PATH` builds against a local checkout instead. The stacks it is
 tried on come from Baker's development repository, `zach/baker-dev` (`stacks/`), which the

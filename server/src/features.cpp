@@ -36,6 +36,7 @@ std::string type_name(const baker::shape::Field& f) {
             case Type::List: return "list";
             case Type::Shape: return std::string(f.shape.str());
             case Type::Curve: return "curve";
+            case Type::Asset: return "(asset " + std::string(f.asset.str()) + ")";
             case Type::Key: {  // as the shape writes it: (key_of weapons)
                 std::string table;
                 for (const baker::Symbol part : f.table)
@@ -326,9 +327,8 @@ std::optional<Hover> hover(const FileRead& read, size_t offset, const Loaded& lo
             h.markdown += "\n\n| layer | value | where | |\n|---|---|---|---|";
             for (const baker::tools::ExplainEntry& e : *chain)
                 h.markdown +=
-                    "\n| " + std::string(e.layer.str()) + " | `" + baker::to_string(e.value) +
-                    "` | " + where(e.source.file, e.source.line) + " | " +
-                    standing_name(e.standing) +
+                    "\n| " + std::string(e.layer.str()) + " | `" + shown(e.values) + "` | " +
+                    where(e.source.file, e.source.line) + " | " + standing_name(e.standing) +
                     (e.op.str().empty() ? "" : " `" + std::string(e.op.str()) + "`") + " |";
             h.markdown += "\n\n*from the files*";
         }
@@ -575,6 +575,7 @@ void complete_shape(const Cursor& c, const std::string& typed, const Loaded& loa
     if (c.index == 0) {  // naming a child: of the shape, of a field, of a rule
         if (!at && depth > 2 && parent.tag == "list" && parent.count == 2) {
             offer({"key_of", Kind::Keyword, "type", {}, "key_of ${1:table}"});
+            offer({"asset", Kind::Keyword, "type", {}, "asset ${1:kind}"});
         } else if (depth == 2) {
             if (at) words(Place::Shape, false);
         } else if (depth == 3 && parent.tag == "@rule") {
@@ -583,6 +584,7 @@ void complete_shape(const Cursor& c, const std::string& typed, const Loaded& loa
             if (!at && parent.count == 2) {  // the type's place: (health (|
                 offer({"list", Kind::Keyword, "type", {}, "list ${1:float}"});
                 offer({"key_of", Kind::Keyword, "type", {}, "key_of ${1:table}"});
+                offer({"asset", Kind::Keyword, "type", {}, "asset ${1:kind}"});
             } else if (at && parent.count >= 3) {
                 words(Place::Field, false);
             }

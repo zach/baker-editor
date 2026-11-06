@@ -44,13 +44,39 @@ constexpr std::array kWords{
          "a warning with `(@warn)`.",
          " \"${1:message}\" {${2:expression}}"},
     Word{"@warn", "", "The rule's failure is a warning, not an error.", ""},
+    // Baker 0.8.0: a record's identity, and a shape's C++ view.
+    Word{"@id", "HEX",
+         "The record's identity, 32 hex digits, minted by a tool (`format --baker-mint-ids`): "
+         "it travels with the record and survives a rename of its key.",
+         " ${1:id}"},
+    Word{"@aka", "OLD",
+         "A key the record had: a layer or a `(key_of ...)` naming the old key reaches it "
+         "(a key wins over an alias).",
+         " ${1:old}"},
+    Word{"@renamed_from", "OLD",
+         "The field's old name: a record spelling it is checked as the field, with a warning, "
+         "and `format` rewrites it.",
+         " ${1:old}"},
+    Word{"@view", "[no]",
+         "On a shape, generate a C++ struct its records are read into; on a field, `(@view no)` "
+         "leaves it out of the struct.",
+         ""},
+    Word{"@cxx", "TYPE",
+         "The C++ type of the field's member in the view: `int8` to `uint64` for an `int`, "
+         "`float` or `double` for a `float`.",
+         " ${1:int64}"},
+    Word{"@cxx_name", "NAME",
+         "The C++ name of the view's struct or member, where the data's is not a C++ name.",
+         " ${1:name}"},
 };
 
-constexpr std::string_view kData[] = {"@range", "@step",   "@kind",  "@desc",
-                                      "@note",  "@one_of", "@group", "@was"};
-constexpr std::string_view kShape[] = {"@at", "@keyed", "@rule", "@desc", "@note"};
-constexpr std::string_view kField[] = {"@range", "@step",   "@kind",    "@desc",
-                                       "@note",  "@one_of", "@optional"};
+constexpr std::string_view kData[] = {"@range",  "@step",  "@kind", "@desc", "@note",
+                                      "@one_of", "@group", "@was",  "@id",   "@aka"};
+constexpr std::string_view kShape[] = {"@at",   "@keyed", "@rule",    "@desc",
+                                       "@note", "@view",  "@cxx_name"};
+constexpr std::string_view kField[] = {"@range", "@step",   "@kind",     "@desc",
+                                       "@note",  "@one_of", "@optional", "@renamed_from",
+                                       "@view",  "@cxx",    "@cxx_name"};
 constexpr std::string_view kRule[] = {"@warn"};
 
 }  // namespace
@@ -97,6 +123,10 @@ const std::vector<TypeWord>& type_words() {
          "`(key_of TABLE)`: the key of a record in a keyed table, looked up outward from the "
          "record.",
          "(key_of ${1:table})"},
+        {"asset",
+         "`(asset KIND)`: the path of a file, relative to the project file, of a kind the "
+         "project's `(assets ...)` declares; `check` fails on a missing file.",
+         "(asset ${1:kind})"},
     };
     return kTypes;
 }

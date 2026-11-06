@@ -248,7 +248,8 @@ TEST_CASE("completion offers the metadata words after a value, with their argume
     Completions c = complete(FileRead(text), at, *f.loaded, f.reference);
     std::vector<std::string> offered = labels(c);
     CHECK(offered == std::vector<std::string>{"@range", "@step", "@kind", "@desc", "@note",
-                                              "@one_of", "@group", "@was", "SPEEDY"});
+                                              "@one_of", "@group", "@was", "@id", "@aka",
+                                              "SPEEDY"});
     CHECK(c.items[0].snippet == "(@range ${1:0} ${2:1})");
     CHECK(c.items[0].detail == "(@range LO HI)");
     // After the ( is typed, the word alone; not at a value's place, nor in a word's arguments.
@@ -270,16 +271,16 @@ TEST_CASE("completion in a #shape: its words, a field's type and words, tables, 
         const auto [text, at] = cursor(with_bar);
         return labels(complete(FileRead(text), at, *f.loaded, f.reference));
     };
-    CHECK(offered("#shape (tower |") ==
-          std::vector<std::string>{"@at", "@keyed", "@rule", "@desc", "@note"});
+    CHECK(offered("#shape (tower |") == std::vector<std::string>{"@at", "@keyed", "@rule", "@desc",
+                                                                 "@note", "@view", "@cxx_name"});
     CHECK(offered("#shape (tower (@at towers) (@k|") == std::vector<std::string>{"@keyed"});
     CHECK(offered("#shape (tower (aim |") ==
           std::vector<std::string>{"int", "float", "bool", "symbol", "string", "any", "curve",
-                                   "list", "key_of", "unit"});
-    CHECK(offered("#shape (tower (aim (|") == std::vector<std::string>{"list", "key_of"});
-    CHECK(offered("#shape (tower (aim int |") == std::vector<std::string>{"@range", "@step",
-                                                                          "@kind", "@desc", "@note",
-                                                                          "@one_of", "@optional"});
+                                   "list", "key_of", "asset", "unit"});
+    CHECK(offered("#shape (tower (aim (|") == std::vector<std::string>{"list", "key_of", "asset"});
+    CHECK(offered("#shape (tower (aim int |") ==
+          std::vector<std::string>{"@range", "@step", "@kind", "@desc", "@note", "@one_of",
+                                   "@optional", "@renamed_from", "@view", "@cxx", "@cxx_name"});
     CHECK(offered("#shape (tower (aim int (@o|") ==
           std::vector<std::string>{"@one_of", "@optional"});
     CHECK(offered("#shape (tower (target (key_of |") == std::vector<std::string>{"units"});
@@ -290,7 +291,7 @@ TEST_CASE("completion in a #shape: its words, a field's type and words, tables, 
     CHECK(offered("#shape (tower (@rule \"aims\" {> $aim 0} |") ==
           std::vector<std::string>{"@warn"});
     CHECK(offered("#shape (tower (aim int) (@rule \"aims\" {> $aim 0} (|").empty());
-    CHECK(offered("#shape (tower (aim |)) (more)").size() == 10);
+    CHECK(offered("#shape (tower (aim |)) (more)").size() == 11);
 }
 
 TEST_CASE("hover on a metadata word says what it does and takes") {

@@ -199,10 +199,12 @@ TEST_CASE("a verb row on a list of records: by their keys, the one operand read 
     CHECK(r.values == std::vector<std::string>{"(c (x 3) (y 4))"});  // one operand, not three
     CHECK(r.operands == "c");
     CHECK(r.below == "(a b)");
+    CHECK(r.below_file == kDefault);  // Baker 0.8.0 gives the list a verb changes, and its row
+    CHECK(r.below_line == 12);
     CHECK(r.result == "(a b c)");
     CHECK(r.result_values.size() == 3);
     bool hinted = false;
     for (const LayerHint& h : stack.loaded->hints)
-        hinted = hinted || h.label == "(a b) #append c → (a b c)";
+        hinted = hinted || h.label == "← default.dta:12 (a b) #append c → (a b c)";
     CHECK(hinted);
 }
