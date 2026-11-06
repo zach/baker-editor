@@ -46,6 +46,11 @@ takes the list below to be the merged list without the operands the row appends,
 list of records shows nothing below it. A value below that is one array is still read as its
 parts when a pin is written; a check of the project after the edit refuses the pin then.
 
+Met by Baker 0.8.0: `RowValues`, a row's values one node each, in `LayerEffectEntry::values`
+and `below`, `ExplainEntry::values` and `DiffEntry::a` and `b`; under a verb, `below` is the
+list it changes, records included, with `below_source`. The editor reads them as they come,
+and its reading of a layer's own tree and its list below an `#append` are gone.
+
 ## Not included
 
 This note contains no code, identifiers, structure or documentation from any other

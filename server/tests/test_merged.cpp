@@ -208,3 +208,17 @@ TEST_CASE("a verb row on a list of records: by their keys, the one operand read 
         hinted = hinted || h.label == "← default.dta:12 (a b) #append c → (a b c)";
     CHECK(hinted);
 }
+
+TEST_CASE("a #drop on a list of records, and a value that is one array: as Baker gives them") {
+    Stack drop("(world (crowd #drop (a (x 1))))\n", "(world (crowd (a (x 1)) (b (x 2))))\n");
+    REQUIRE(drop.loaded->rows.size() == 1);
+    const LayerRow& d = drop.loaded->rows[0];
+    CHECK(d.below == "(a b)");
+    CHECK(d.below_line == 12);
+    CHECK(d.result == "b");
+    // (aim (0 0)) is one value, an array: a pin would write (@was (0 0)), not (@was 0 0).
+    Stack aim("(world (aim (1 1)))\n", "(world (aim (0 0)))\n");
+    REQUIRE(aim.loaded->rows.size() == 1);
+    CHECK(aim.loaded->rows[0].values == std::vector<std::string>{"(1 1)"});
+    CHECK(aim.loaded->rows[0].below_values == std::vector<std::string>{"(0 0)"});
+}

@@ -328,11 +328,10 @@ writes it as Baker's `diff` does, `(rope torch) -> #append lamp`, with `stale` w
 below, so it is not shown as an override either.
 
 A list of records shows by its keys: on Duel, `(fighters (kestrel (moves #append (jab2 ...))))`
-in `local.dta` shows `(jab low_kick side_kick heavy palm) #append jab2 → (jab low_kick
-side_kick heavy palm jab2)`. Baker's effect holds a list of records below as no values (its
-records are keys), so for an `#append` the list below is what it makes without what it adds;
-and it packs several values as one array, which it does not tell from one array value, so a
-row's values are read from its layer's own tree (`Config::layer_root`).
+in `local.dta` shows `← default.dta:20 (jab low_kick side_kick heavy palm) #append jab2 →
+(jab low_kick side_kick heavy palm jab2)`. Baker gives a row's values one node each, so
+`(aim (0 0))` is one value and an appended record one operand, and under a verb the list it
+changes, records included, with the row that wrote it (Baker 0.8.0, note 0028).
 
 **Code actions on a layer's rows,** from what the last check says of each:
 

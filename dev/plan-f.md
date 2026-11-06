@@ -111,10 +111,10 @@ leave a file that checks clean and merges to the same tree.
 
 **Effort:** about two days.
 
-**Done:** as the acceptance has it, on Duel's `(moves #append (jab2 ...))`. Baker gives a list of
-records below an `#append` as no values, and packs several values as one array, which a single
-array value looks like; the editor reads a row's values from its layer's own tree and derives
-the list below from what the row makes. Each code action is checked by a check of the project
+**Done:** as the acceptance has it, on Duel's `(moves #append (jab2 ...))`. Baker 0.7.0 gave a list of
+records below an `#append` as no values, and packed several values as one array, which a single
+array value looks like; the editor read a row's values from its layer's own tree and derived
+the list below from what the row makes, until Baker 0.8.0 gave both (note 0028). Each code action is checked by a check of the project
 with the edit in place before it is made.
 
 ## F4. Infix braces

@@ -145,9 +145,6 @@ void find_hints(const baker::Config& cfg, const baker::Project& project, Loaded&
         }
         const auto effect = baker::tools::layer_effect(cfg, layer.name.str());
         if (!effect) continue;
-        // The layer's own tree: a row as written, its verb and each operand, which the effect's
-        // packed value does not tell from one array (several values pack as one array).
-        const baker::Ref<baker::Array> own = cfg.layer_root(layer.name.str());
         for (const baker::LayerEffectEntry& e : *effect) {
             if (e.source.file.str().empty()) continue;
             // A declaration combines with the ones below it: it overrides nothing.
@@ -159,19 +156,8 @@ void find_hints(const baker::Config& cfg, const baker::Project& project, Loaded&
             row.path = baker::to_string(baker::Path(e.path.str()));
             row.layer = std::string(layer.name.str());
             row.op = std::string(e.op.str());
-            if (const baker::Array* written = array_in(own.get(), e.path.str())) {
-                std::vector<std::string> shown;
-                bool verb = !e.op.empty();  // the first value, written before the operands
-                for (const baker::Node& v : written->values()) {
-                    if (std::exchange(verb, false)) continue;
-                    row.values.push_back(baker::to_string(v));
-                    shown.push_back(brief(v));
-                }
-                row.operands = packed(shown);
-            } else {
-                row.values = unpacked(e.values);
-                row.operands = packed(unpacked(e.values, brief));
-            }
+            row.values = unpacked(e.values);
+            row.operands = packed(unpacked(e.values, brief));
             row.file = file;
             row.line = e.source.line;
             row.stale = e.stale;
@@ -196,11 +182,6 @@ void find_hints(const baker::Config& cfg, const baker::Project& project, Loaded&
                         shown.push_back(brief(v));
                     }
                     row.result = packed(shown);
-                    // A list of records below is keys, not values, to Baker's effect: the list
-                    // an #append adds after, then, is what it makes without what it adds.
-                    const size_t added = row.values.size();
-                    if (row.op == "#append" && row.below_values.empty() && shown.size() > added)
-                        row.below = packed({shown.begin(), shown.end() - static_cast<long>(added)});
                 }
                 std::string label;
                 if (!row.below.empty()) {
