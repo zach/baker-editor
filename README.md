@@ -688,6 +688,15 @@ them to the figures above. Baker 0.2.0's console sends a frame's replies in one 
 (a Debug build of the server, the connection included, five runs), and 60 or 200 pipelined
 requests about one frame (6–20 ms).
 
+Baker 0.8.0 against 0.7.0, on Duel grown to 2 MB (1,773 fighters), RelWithDebInfo builds
+(GCC), three runs each, by clients that do not poll: the outline after an edit (each request
+reads the file again) 65 to 96 ms, against 89 to 155 ms; the code actions on a cursor move
+1.2 to 3.2 ms, the first after a read 30 to 35 ms (1.2 to 2.6 and 30 to 41 ms); choosing
+"Write as a row" 127 to 250 ms (159 to 240 ms); choosing a stale pin's quick fix or "Restate
+as a list", two checks of the project, 295 to 347 ms (310 to 391 ms). A check after an edit to
+the one-line `local.dta` takes 69 to 85 ms (one of 113 ms), the old forms' scan included.
+Each of Baker's stacks at 0.8.0 (baker-dev 711db00) opens with no error or warning.
+
 ## Baker
 
 The server builds against a released Baker, `zach/baker` `v0.8.0`, through its public headers
