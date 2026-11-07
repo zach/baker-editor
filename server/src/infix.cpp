@@ -50,7 +50,57 @@ bool comparison(std::string_view op) {
     return op == "<" || op == "<=" || op == ">" || op == ">=" || op == "==" || op == "!=";
 }
 
+// The innermost brace around `offset`, closed and with no comment in it; or -1.
+int brace_at(const Structure& s, size_t offset) {
+    int b = -1;
+    for (size_t k = 0; k < s.brackets.size() && s.brackets[k].begin <= offset; ++k)
+        if (offset < s.brackets[k].end && s.brackets[k].open == '{') b = static_cast<int>(k);
+    if (b < 0 || !s.brackets[static_cast<size_t>(b)].closed) return -1;
+    const Bracket& br = s.brackets[static_cast<size_t>(b)];
+    for (const Comment& c : s.comments)
+        if (c.begin > br.begin && c.begin < br.end) return -1;
+    return b;
+}
+
 }  // namespace
+
+std::vector<BraceEdit> infix_spellings(const Structure& s, std::string_view text, size_t offset) {
+    std::vector<BraceEdit> out;
+    const int b = brace_at(s, offset);
+    if (b < 0) return out;
+    const Bracket& br = s.brackets[static_cast<size_t>(b)];
+    const std::vector<Element> e = elements_of(s, b);
+    const auto at = [&](const Element& x) {
+        return std::string(text.substr(x.begin, x.end - x.begin));
+    };
+    // Baker's word on the new text: it reads with no error, infix or not as asked.
+    const auto reads_as = [](const std::string& brace, bool infix) {
+        const baker::tools::TextStructure read = baker::tools::read_structure(brace);
+        return read.errors.empty() && !read.brackets.empty() &&
+               (read.brackets[0].infix >= 0) == infix;
+    };
+    if (br.infix >= 0) {  // {a op b op c} -> {op a b c}
+        std::string fixed = "{" + at(e[1]);
+        for (size_t i = 0; i < e.size(); i += 2) fixed += " " + at(e[i]);
+        fixed += "}";
+        if (reads_as(fixed, false))
+            out.push_back(
+                {"Write prefix", "refactor.rewrite", {br.begin, br.end, std::move(fixed)}});
+        return out;
+    }
+    // {op a b c} -> {a op b op c}: a head that is an operator, two operands or more.
+    if (e.size() < 3 || !e[0].op ||
+        std::any_of(e.begin() + 1, e.end(), [](const Element& x) { return x.op; }))
+        return out;
+    if (!error_at_brace(text.substr(br.begin, br.end - br.begin)).empty()) return out;
+    const std::string op = at(e[0]);
+    std::string fixed = "{" + at(e[1]);
+    for (size_t i = 2; i < e.size(); ++i) fixed += " " + op + " " + at(e[i]);
+    fixed += "}";
+    if (reads_as(fixed, true))
+        out.push_back({"Write infix", "refactor.rewrite", {br.begin, br.end, std::move(fixed)}});
+    return out;
+}
 
 std::vector<BraceEdit> infix_fixes(const Structure& s, std::string_view text, size_t offset) {
     std::vector<BraceEdit> out;

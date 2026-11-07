@@ -44,3 +44,30 @@ TEST_CASE("a brace that reads, as infix or as a call, has nothing to fix") {
     CHECK(fixed("(r {wheat -|> flour})").empty());
     CHECK(fixed("(pass {$value <|=})").empty());  // ends with its operator: the person's to finish
 }
+
+namespace {
+std::vector<std::string> respelled(std::string text) {
+    const size_t bar = text.find('|');
+    text.erase(bar, 1);
+    std::vector<std::string> out;
+    for (const BraceEdit& e : infix_spellings(read_structure(text), text, bar)) {
+        std::string t = text;
+        t.replace(e.edit.begin, e.edit.end - e.edit.begin, e.edit.text);
+        out.push_back(e.title + ": " + t);
+    }
+    return out;
+}
+}  // namespace
+
+TEST_CASE("a call written both ways: infix to prefix and back, only where Baker reads it so") {
+    CHECK(respelled("(pass {2 <= $va|lue <= 10})") ==
+          std::vector<std::string>{"Write prefix: (pass {<= 2 $value 10})"});
+    CHECK(respelled("(pass {<= 2 $va|lue 10})") ==
+          std::vector<std::string>{"Write infix: (pass {2 <= $value <= 10})"});
+    CHECK(respelled("(x {{$a + $b} |/ 2})") ==
+          std::vector<std::string>{"Write prefix: (x {/ {$a + $b} 2})"});
+    CHECK(respelled("(x {- |5})").empty());             // one operand: no infix spelling
+    CHECK(respelled("(x {+ a| b})").empty());           // bare symbols would read as a call of a
+    CHECK(respelled("(x {game.wait |1})").empty());     // no operator
+    CHECK(respelled("(x {<= 1 |2 ; why\n})").empty());  // a comment would be lost
+}

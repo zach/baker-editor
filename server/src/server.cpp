@@ -745,7 +745,9 @@ json Server::code_actions(const json& params) {
     // A brace written infix: Baker's errors' fixes.
     {
         const LineIndex lines(text);
-        for (const BraceEdit& e : infix_fixes(s, text, offset))
+        std::vector<BraceEdit> braces = infix_fixes(s, text, offset);
+        for (BraceEdit& e : infix_spellings(s, text, offset)) braces.push_back(std::move(e));
+        for (const BraceEdit& e : braces)
             out.push_back({{"title", e.title},
                            {"kind", e.kind},
                            {"edit",

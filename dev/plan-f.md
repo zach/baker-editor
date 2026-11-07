@@ -138,6 +138,11 @@ signatures (Ledger's and Wayfarer's objectives are written infix too); the fixes
 
 **Effort:** a day.
 
+**Done:** as the acceptance has it, on Cube's, Ledger's and Wayfarer's objectives. Baker
+tells a malformed brace and each fix's reading: the editor reads a brace's text with Baker's
+`read_structure`. "Nest under and" is offered for comparisons only; mixed arithmetic has no
+fix, as Baker has no precedence to assume.
+
 ## F5. List counts and conditional layers
 
 **Why:** shapes now say how many values a list holds, and a project's layer may wait on a
@@ -172,5 +177,5 @@ manual Windows pass (D1) is still the owner's.
 | F1 Metadata and declarations | note 0027 for the old forms' warnings and quick fix: migrations as edits (Baker 0.8.0) | Done |
 | F2 Rows keyed by a path | none | Done |
 | F3 Layer verbs and pins | none | Done |
-| F4 Infix braces | none | In progress: hover, highlighting, quick fixes done |
+| F4 Infix braces | none | Done |
 | F5 List counts and conditional layers | none | Planned |

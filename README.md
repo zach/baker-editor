@@ -141,7 +141,12 @@ needs '<=' between every two operands" puts it there, `{0.3 <= $value 0.7}` to `
 <= 0.7}`; "mixed operators" in a chain of comparisons nests each pair under `and`, as Baker's
 docs say, `{0 < $value <= 10}` to `{and {0 < $value} {$value <= 10}}` (mixed arithmetic has no
 fix: which applies first is the author's). Which brace is malformed, and that a fix reads, is
-Baker's own reader's word (`read_structure`) on the brace's text. On a metadata or shape
+Baker's own reader's word (`read_structure`) on the brace's text. A call that can be written both ways has
+"Write infix" (`{<= 2 $value 10}` to `{2 <= $value <= 10}`) or "Write prefix", each offered only
+where Baker reads the result as that spelling, with no error: not `{+ a b}`, whose infix
+`{a + b}` would call `a`. Data an older build reads, such as a live-ops overlay for a game
+already shipped, stays prefix: Baker before 0.7.0 reads `{2 <= $value <= 10}` as a call of 2.
+In Ledger's and Wayfarer's objectives, hover on `<=` and `>=` shows their signatures. On a metadata or shape
 word (`@range`, `@keyed`, ...) it shows what the word takes and does, and that a word Baker
 does not know (`@rnage`) is one `check` warns of; in a `#shape`, on a type (`int`, `list`,
 `key_of`), what it holds; on a shape's name (a field's type, a table in `(key_of ...)`,

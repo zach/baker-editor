@@ -27,4 +27,10 @@ struct BraceEdit {
 // `and`. Each reads infix as Baker reads it, with no error.
 std::vector<BraceEdit> infix_fixes(const Structure& s, std::string_view text, size_t offset);
 
+// The call around `offset` in the other spelling, where it can be written both ways: "Write
+// infix" for {<= 0.3 $value 0.7}, "Write prefix" for {0.3 <= $value <= 0.7}. Each only if
+// Baker reads the result as that spelling of the same call, with no error. A build of Baker
+// before 0.7.0 reads only the prefix spelling (an overlay for a game already shipped).
+std::vector<BraceEdit> infix_spellings(const Structure& s, std::string_view text, size_t offset);
+
 }  // namespace baker_lsp
