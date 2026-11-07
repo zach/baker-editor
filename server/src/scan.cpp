@@ -99,9 +99,16 @@ Cursor scan(const Structure& s, std::string_view text, size_t offset) {
             for (const Segment& seg : s.key(chain[k])) f.keys.emplace_back(seg.name);
             if (!f.keys.empty()) f.tag = f.keys.back();
         }
+        if (b.infix >= 0) f.tag = std::string(tokens[static_cast<size_t>(b.infix)].text);
         c.stack.push_back(std::move(f));
     }
     c.index = c.stack.empty() ? 0 : c.stack.back().count;
+    // In an infix brace, the operator is the head and every operand comes after it.
+    if (inner >= 0 && brackets[static_cast<size_t>(inner)].infix >= 0)
+        c.index = touching && touching->bracket == inner &&
+                          s.is_head(static_cast<size_t>(touching - tokens.data()))
+                      ? 0
+                      : std::max(c.index, 1);
     if (touching) {
         c.token = std::string(touching->text);
         c.begin = touching->begin;

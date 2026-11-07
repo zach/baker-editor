@@ -261,7 +261,7 @@ std::optional<Target> target_at(const Structure& s, size_t offset, const Loaded&
     const Token* prev = previous(s, static_cast<size_t>(t));
 
     // A script function: called, or defined by {func NAME}.
-    if ((br && br->open == '{' && tok.index == 0) ||
+    if ((br && br->open == '{' && s.is_head(static_cast<size_t>(t))) ||
         (br && br->open == '{' && tok.index == 1 && s.tag(b) == "func")) {
         if (tok.text == "func") return std::nullopt;
         target.kind = Target::Kind::Function;
@@ -336,7 +336,7 @@ std::vector<Occurrence> occurrences(
                 case Target::Kind::Macro: hit = tok.quote == 0; break;
                 case Target::Kind::Function:
                     hit = br && br->open == '{' &&
-                          (tok.index == 0 || (tok.index == 1 && s.tag(b) == "func"));
+                          (s.is_head(t) || (tok.index == 1 && s.tag(b) == "func"));
                     break;
                 case Target::Kind::Pack:
                     hit = br && ((s.declared_by(b) == "#pack" && tok.index == 0) ||

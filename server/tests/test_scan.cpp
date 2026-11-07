@@ -106,3 +106,22 @@ TEST_CASE("a row's key is the path it names, segment by segment") {
     c = at("(/units.0.health 1|00)");
     CHECK(c.data_path().empty());
 }
+
+TEST_CASE("an infix brace: its operator is the head, each operand after it") {
+    Cursor c = at("(pass {2 <|= $value <= 10})");
+    CHECK(c.token == "<=");
+    CHECK(c.index == 0);
+    CHECK(c.stack.back().tag == "<=");
+    c = at("(pass {2 <= $value <|= 10})");  // the second operator too
+    CHECK(c.index == 0);
+    c = at("(pass {|2 <= $value <= 10})");  // the first operand is no head
+    CHECK(c.token == "2");
+    CHECK(c.index >= 1);
+    CHECK(c.stack.back().tag == "<=");
+    c = at("(pass {<= 2 $va|lue 10})");  // a prefix command, as before
+    CHECK(c.stack.back().tag == "<=");
+    CHECK(c.index == 2);
+    c = at("(r {wheat -|> flour})");  // bare symbols: a call of wheat
+    CHECK(c.stack.back().tag == "wheat");
+    CHECK(c.index == 1);
+}

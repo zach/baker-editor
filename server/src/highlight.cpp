@@ -53,7 +53,8 @@ std::vector<SemanticToken> semantic_tokens(
         const Bracket* br = t.bracket >= 0 ? &s.brackets[static_cast<size_t>(t.bracket)] : nullptr;
         if (br && br->open == '{') {
             const std::string_view head = s.tag(t.bracket);
-            if (t.index == 0) {
+            // The command's head: its first token, or each operator of an infix brace.
+            if (s.is_head(static_cast<size_t>(&t - s.tokens.data()))) {
                 if (functions.count(t.text))
                     add(t, TokenType::Function);
                 else if (objects.count(t.text))
@@ -62,11 +63,11 @@ std::vector<SemanticToken> semantic_tokens(
                     add(t, TokenType::Function, kDefaultLibrary);
                 continue;
             }
-            if (t.index == 1 && head == "func") {
+            if (br->infix < 0 && t.index == 1 && head == "func") {
                 add(t, TokenType::Function, kDeclaration);
                 continue;
             }
-            if (t.index == 1 && objects.count(head)) {
+            if (br->infix < 0 && t.index == 1 && objects.count(head)) {
                 add(t, TokenType::Method, kDefaultLibrary);
                 continue;
             }

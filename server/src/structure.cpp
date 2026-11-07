@@ -54,6 +54,22 @@ bool split_key(const Token& t, std::vector<Segment>& out) {
 
 }  // namespace
 
+std::string_view Structure::head(int b) const {
+    if (b < 0) return {};
+    const Bracket& br = brackets[static_cast<size_t>(b)];
+    if (br.infix >= 0) return tokens[static_cast<size_t>(br.infix)].text;
+    return tag(b);
+}
+
+bool Structure::is_head(size_t t) const {
+    const Token& tok = tokens[t];
+    if (tok.bracket < 0) return false;
+    const Bracket& br = brackets[static_cast<size_t>(tok.bracket)];
+    if (br.infix < 0) return tok.index == 0;
+    return (tok.index & 1) && tok.quote == 0 &&
+           tok.text == tokens[static_cast<size_t>(br.infix)].text;
+}
+
 std::string_view Structure::name(int b) const {
     if (is_row(b)) return key(b).back().name;
     return tag(b);
@@ -160,6 +176,10 @@ Structure read_structure(std::string_view text) {
         ours[i] = static_cast<int>(s.tokens.size());
         s.tokens.push_back(token);
     }
+    // An infix brace's operator, which Baker names by its own token's index.
+    for (size_t b = 0; b < s.brackets.size(); ++b)
+        if (const int32_t op = read.brackets[b].infix; op >= 0)
+            s.brackets[b].infix = ours[static_cast<size_t>(op)];
     // Each bracket's tag is known now: a child other than metadata makes its parent hold one.
     for (size_t b = 0; b < s.brackets.size(); ++b)
         if (const int p = s.brackets[b].parent; p >= 0 && !s.is_metadata(static_cast<int>(b)))

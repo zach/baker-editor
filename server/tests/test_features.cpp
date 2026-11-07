@@ -1,4 +1,5 @@
 #include "features.hpp"
+#include "highlight.hpp"
 
 #include <doctest.h>
 
@@ -417,4 +418,32 @@ TEST_CASE("definition from a row's segment: where that key is set in the stack")
     REQUIRE(to.size() == 1);
     CHECK(to[0].file == kDefault);
     CHECK(to[0].line == 5);
+}
+
+TEST_CASE("hover on an infix brace's operator shows the operator's signatures") {
+    Fixture f;
+    Reference r = f.reference;
+    r.all.push_back(
+        {"<=", {"{<= number number number...}"}, "Less than or equal", "normal", "native", {}, 0});
+    auto [text, at] = cursor("(pass {2 <= $value <|= 10})");
+    auto h = hover(FileRead(text), at, *f.loaded, r);
+    REQUIRE(h);
+    CHECK(has(h->markdown, "{<= number number number...}"));
+    std::tie(text, at) = cursor("(pass {|2 <= $value <= 10})");
+    CHECK(!hover(FileRead(text), at, *f.loaded, r));  // 2 is no function
+}
+
+TEST_CASE("highlighting: each operator of an infix brace is its call, its operands are not") {
+    Reference r;
+    r.all.push_back({"<=", {"{<= number number number...}"}, "", "normal", "native", {}, 0});
+    r.all.push_back({"wheat", {"{wheat symbol symbol}"}, "", "normal", "native", {}, 0});
+    const std::string text = "(pass {2 <= $value <= 10}) (r {wheat <= flour}) (p {<= 1 2})";
+    const FileRead read(text);
+    std::vector<std::string> functions;
+    for (const SemanticToken& t : semantic_tokens(read, nullptr, r, {}))
+        if (t.type == TokenType::Function)
+            functions.push_back(std::to_string(t.begin) + ":" +
+                                text.substr(t.begin, t.end - t.begin));
+    // Both operators of the infix brace; wheat in a brace of bare symbols; a prefix head.
+    CHECK(functions == std::vector<std::string>{"9:<=", "19:<=", "31:wheat", "52:<="});
 }

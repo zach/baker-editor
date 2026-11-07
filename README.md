@@ -132,7 +132,11 @@ every layer that contributes to it from the files, with its value, file and line
 one wins (`Config::explain`). On a command's head it shows the function's signatures and doc
 from the game's reference; on a macro or a script function, where it is defined; on an
 object the game names, its type and methods, and on a method of a call on it (`{scheduler
-delay_task ...}`), its signatures and doc, from the reference's `types`. On a metadata or shape
+delay_task ...}`), its signatures and doc, from the reference's `types`. A brace written infix,
+`{2 <= $value <= 10}` (Baker 0.7.0), calls its operator, as Baker reads it
+(`TextBracket::infix`): hover on either `<=` shows `<=`'s signatures (in Cube's objectives),
+an operand is never taken for the call, and rename and references see the operator as the
+call, not the first operand. On a metadata or shape
 word (`@range`, `@keyed`, ...) it shows what the word takes and does, and that a word Baker
 does not know (`@rnage`) is one `check` warns of; in a `#shape`, on a type (`int`, `list`,
 `key_of`), what it holds; on a shape's name (a field's type, a table in `(key_of ...)`,
@@ -240,7 +244,7 @@ full and by range, from the open file's kept read):
 | `$n` | variable | |
 | `[SPEEDY 9]`'s name; a use of it | macro | declaration; none |
 | `{func game.twice ...}`'s name; a call of it | function | declaration; none |
-| a call of the game's function, `{duel.reset}` | function | defaultLibrary |
+| a call of the game's function, `{duel.reset}`; each operator of an infix brace | function | defaultLibrary |
 | a named object and its method, `{clock thread_task ...}` | variable, method | defaultLibrary |
 | an array the game reads as a tweak, `(buffer 5)` | property | tweak |
 | an array a higher layer overrides | property | shadowed |

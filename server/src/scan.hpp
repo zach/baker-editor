@@ -11,8 +11,10 @@
 namespace baker_lsp {
 
 struct Frame {
-    char open = '(';       // '(' an array, '{' a command, '[' a macro or list
-    std::string tag;       // its first token, unquoted; empty until one is written
+    char open = '(';  // '(' an array, '{' a command, '[' a macro or list
+    // Its first token, unquoted; empty until one is written. For an infix brace,
+    // {2 <= $value <= 10}, its operator: the command's head.
+    std::string tag;
     int count = 0;         // tokens and arrays inside it so far
     std::string declared;  // "#pack", "#origin" or "#shape" for a declaration's form; data: empty
     // A row's key's segments, the path it stands for: (/fighters.kestrel.health ...) gives
@@ -26,7 +28,9 @@ struct Cursor {
     // begin == end == the cursor.
     std::string token;
     size_t begin = 0, end = 0;
-    int index = 0;           // the token's place in the innermost frame: 0 is the tag (or command)
+    // The token's place in the innermost frame: 0 is the tag (or command), and an infix
+    // brace's operator; its operands are 1 and on.
+    int index = 0;
     bool quiet = false;      // in a comment or a string: nothing to complete
     bool in_string = false;  // in a string: `token` is its text, which may name a file
     std::string previous;    // the token before the cursor's, in the same bracket or file

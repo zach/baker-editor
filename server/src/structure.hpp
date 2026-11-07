@@ -30,6 +30,9 @@ struct Bracket {
     // `segment`, `segments` of them. 0 for an array that is no row, or a key that does not
     // read (an empty segment, an element's, more than 16).
     int segment = 0, segments = 0;
+    // A brace that reads infix, {0.3 <= $value <= 0.7}: its first operator's token in
+    // Structure::tokens, the command's head; -1 for any other bracket.
+    int infix = -1;
 };
 
 // A segment of a row's key: (/fighters.kestrel.health 1100) has three, each the key of an
@@ -77,6 +80,11 @@ struct Structure {
     [[nodiscard]] bool is_metadata(int b) const;
     // The directive that declares bracket `b` ("#shape", "#pack", "#origin"), or empty.
     [[nodiscard]] std::string_view declared_by(int b) const;
+    // The head of command `b`: its first token, or an infix brace's operator. Empty if none.
+    [[nodiscard]] std::string_view head(int b) const;
+    // Whether token `t` is the head of the command it is in: its first, or an infix brace's
+    // operator, each of them ({2 <= $v <= 10} has two).
+    [[nodiscard]] bool is_head(size_t t) const;
     // The tag text of bracket `b`, or empty: a row's whole key, /fighters.kestrel.health.
     [[nodiscard]] std::string_view tag(int b) const;
     // The key bracket `b` is named by: its tag, or a row's last segment (health). Empty if none.
