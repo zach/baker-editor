@@ -6,6 +6,7 @@
 // tweaks read them.
 #include "diagnose.hpp"
 #include "reference.hpp"
+#include "structure.hpp"
 
 #include <baker/array.hpp>
 #include <baker/shape.hpp>
@@ -50,6 +51,21 @@ bool is_color(const Loaded& loaded, const Hints& h, const std::vector<std::strin
 
 // The merged array at `tags`, or null.
 const baker::Array* array_at(const Loaded& loaded, const std::vector<std::string>& tags);
+
+// A list value of a shape field that declares its count, (pos (list float 3)): how many it
+// holds of how many, shown after it.
+struct CountHint {
+    size_t at = 0;       // one past the value's closing bracket
+    std::string label;   // "2 of 3", "2 of 1 to 4"
+    bool wrong = false;  // outside the count, which check reports
+};
+
+// Whether a shape of the last check declares a list's count: else there is nothing to hint.
+bool counts_lists(const Loaded& loaded);
+
+// The count hints of the arrays of `read`'s text that open on lines `first` to `last`
+// (1-based), by the shapes of the last check.
+std::vector<CountHint> count_hints(const FileRead& read, const Loaded& loaded, int first, int last);
 
 // Values outside their range where only the running game would enforce it: metadata in the
 // data, and the game's tweaks. A shape's range is check's, and is not repeated here, nor is a

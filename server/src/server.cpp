@@ -1165,6 +1165,13 @@ json Server::inlay_hints(const json& params) {
                                     h.shadowed ? "`" + h.path + "`: a higher layer overrides it"
                                                : "`" + h.path + "`: overrides a lower layer"));
     }
+    // A counted list's value: how many it holds of how many.
+    if (counts_lists(*c->loaded))  // else the file need not be read for them
+        for (const CountHint& h : count_hints(*read_of(path), *c->loaded, first, last))
+            out.push_back(hint_json(lines, h.at, h.label,
+                                    h.wrong
+                                        ? "outside the count its shape declares"
+                                        : "the values it holds, of the count its shape declares"));
     Live& live = live_of(*c);
     if (!given_.live_inlays || live.port() == 0) return out;
 

@@ -8,6 +8,7 @@
 #include <baker/std_interop.hpp>
 #include <baker/tweak.hpp>
 
+#include <algorithm>
 #include <cstdio>
 
 namespace baker_lsp {
@@ -103,6 +104,57 @@ bool is_meta_tag(std::string_view tag) {
 
 bool has_meta(const baker::Array& a) {
     return a.metadata().begin() != a.metadata().end();
+}
+
+namespace {
+
+bool counted(const baker::shape::Field& f) {
+    return f.type == baker::shape::Type::List && (f.min_count > 0 || f.max_count != UINT32_MAX);
+}
+
+}  // namespace
+
+bool counts_lists(const Loaded& loaded) {
+    for (const baker::shape::Shape& sh : loaded.shapes.shapes())
+        if (std::any_of(sh.fields.begin(), sh.fields.end(), counted)) return true;
+    return false;
+}
+
+std::vector<CountHint> count_hints(const FileRead& read, const Loaded& loaded, int first,
+                                   int last) {
+    std::vector<CountHint> out;
+    if (!counts_lists(loaded)) return out;
+    const Structure& s = read.structure;
+    // The arrays that open on the lines asked for.
+    const size_t from = read.lines.start(first - 1), to = read.lines.start(last);
+    auto b = static_cast<size_t>(
+        std::lower_bound(s.brackets.begin(), s.brackets.end(), from,
+                         [](const Bracket& x, size_t at) { return x.begin < at; }) -
+        s.brackets.begin());
+    for (; b < s.brackets.size() && s.brackets[b].begin < to; ++b) {
+        const Bracket& br = s.brackets[b];
+        if (br.open != '(' || br.tag < 0 || !br.closed) continue;
+        std::vector<std::string> path = s.data_path(static_cast<int>(b));
+        if (path.size() < 2) continue;
+        const std::string field = path.back();
+        path.pop_back();
+        const baker::shape::Shape* shape = governing(loaded.shapes, path);
+        const baker::shape::Field* f = shape ? shape->field(baker::Symbol(field)) : nullptr;
+        if (!f || !counted(*f)) continue;
+        // Its elements: its values after its tag, and its arrays but metadata.
+        uint32_t n = 0;
+        for (size_t t = static_cast<size_t>(br.tag) + 1;
+             t < s.tokens.size() && s.tokens[t].begin < br.end; ++t)
+            n += s.tokens[t].bracket == static_cast<int>(b) ? 1 : 0;
+        for (size_t c = b + 1; c < s.brackets.size() && s.brackets[c].begin < br.end; ++c)
+            n += s.brackets[c].parent == static_cast<int>(b) && !s.is_metadata(static_cast<int>(c))
+                     ? 1
+                     : 0;
+        std::string label = std::to_string(n) + " of " + std::to_string(f->min_count);
+        if (f->max_count != f->min_count) label += " to " + std::to_string(f->max_count);
+        out.push_back({br.end, std::move(label), n < f->min_count || n > f->max_count});
+    }
+    return out;
 }
 
 const baker::Array* array_at(const Loaded& loaded, const std::vector<std::string>& tags) {

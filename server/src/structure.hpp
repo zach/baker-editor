@@ -109,6 +109,8 @@ public:
     explicit LineIndex(std::string_view text);
     // Line (0-based) and UTF-16 column of byte `offset`.
     [[nodiscard]] std::pair<int, int> position(size_t offset) const;
+    // The byte line `line` (0-based) starts at; the text's size past its last line.
+    [[nodiscard]] size_t start(int line) const;
 
 private:
     std::string_view text_;

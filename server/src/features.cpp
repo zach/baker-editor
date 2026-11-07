@@ -46,7 +46,14 @@ std::string type_name(const baker::shape::Field& f) {
         }
         return "any";
     };
-    if (f.type == Type::List) return "(list " + name(f.element) + ")";
+    if (f.type == Type::List) {  // with its count, as the shape writes it: (list float 1 4)
+        std::string count;
+        if (f.min_count == f.max_count)
+            count = " " + std::to_string(f.min_count);
+        else if (f.max_count != UINT32_MAX)
+            count = " " + std::to_string(f.min_count) + " " + std::to_string(f.max_count);
+        return "(list " + name(f.element) + count + ")";
+    }
     return name(f.type);
 }
 
@@ -531,6 +538,25 @@ Completion word_item(const Word& w, bool paren) {
             "~" + std::string(w.name)};  // after a shape's fields and the macros
 }
 
+// How many values each array tagged `field` holds, below `a` (at `path`), whose parent `shape`
+// governs: by count, how many hold it.
+void count_uses(const baker::Array& a, std::vector<std::string> path,
+                const baker::shape::Shape& shape, baker::Symbol field,
+                const baker::shape::Set& shapes, std::map<size_t, int>& uses) {
+    const bool governed = !path.empty() && governing(shapes, path) == &shape;
+    for (const baker::Node& n : a) {
+        const baker::Array* child = n.try_array();
+        if (!child || child->tag().empty()) continue;
+        if (governed && child->tag() == field) {
+            ++uses[child->values().size()];
+            continue;
+        }
+        path.emplace_back(child->tag().str());
+        count_uses(*child, path, shape, field, shapes, uses);
+        path.pop_back();
+    }
+}
+
 // Completion in a #shape (NAME ...): the shape's words beside its fields, a field's type after
 // its name and its words after the type, a rule's words, a list's element types, and the keyed
 // tables in (key_of ...).
@@ -567,6 +593,40 @@ void complete_shape(const Cursor& c, const std::string& typed, const Loaded& loa
         return;
     }
     if (top.tag == "list" && c.index == 1) return types(true);
+    if (top.tag == "list" && c.index == 2 && depth == 3) {  // its count: what the stack holds
+        const baker::shape::Shape* shape = loaded.shapes.find(baker::Symbol(c.stack[0].tag));
+        std::map<size_t, int> uses;  // by count
+        if (shape && loaded.config)
+            if (const baker::Ref<baker::Array> root = loaded.config->root())
+                count_uses(*root, {}, *shape, baker::Symbol(c.stack[1].tag), loaded.shapes, uses);
+        std::vector<std::pair<size_t, int>> by_use(uses.begin(), uses.end());
+        std::stable_sort(by_use.begin(), by_use.end(),
+                         [](const auto& a, const auto& b) { return a.second > b.second; });
+        int rank = 0;
+        for (const auto& [n, k] : by_use) {
+            char sort[16];
+            std::snprintf(sort, sizeof sort, "%05d", rank++);
+            offer({std::to_string(n),
+                   Kind::Constant,
+                   "exactly " + std::to_string(n) + ": " + std::to_string(k) +
+                       (k == 1 ? " list" : " lists") + " in the stack hold " + std::to_string(n),
+                   {},
+                   {},
+                   sort});
+        }
+        if (uses.size() > 1) {
+            const std::string range =
+                std::to_string(uses.begin()->first) + " " + std::to_string(uses.rbegin()->first);
+            offer({range,
+                   Kind::Constant,
+                   "from " + range.substr(0, range.find(' ')) + " to " +
+                       range.substr(range.find(' ') + 1) + ": what the stack's lists hold",
+                   {},
+                   {},
+                   "~"});
+        }
+        return;
+    }
     if (depth == 1) {
         if (c.index >= 1) words(Place::Shape, true);
         return;

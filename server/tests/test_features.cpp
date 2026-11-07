@@ -1,5 +1,6 @@
 #include "features.hpp"
 #include "highlight.hpp"
+#include "hints.hpp"
 
 #include <doctest.h>
 
@@ -446,4 +447,30 @@ TEST_CASE("highlighting: each operator of an infix brace is its call, its operan
                                 text.substr(t.begin, t.end - t.begin));
     // Both operators of the infix brace; wheat in a brace of bare symbols; a prefix head.
     CHECK(functions == std::vector<std::string>{"9:<=", "19:<=", "31:wheat", "52:<="});
+}
+
+TEST_CASE("a list's count: in its type, a hint on each value, and completed from the stack") {
+    const std::string local =
+        "#shape (tower (@at towers) (@keyed) (pos (list float 3)) (tags (list symbol 1 4)))\n"
+        "(towers (t1 (pos 1 2) (tags a b)) (t2 (pos 1 2 3) (tags c)) (t3 (pos 4 5 6)))\n";
+    Fixture f(local);
+    auto [text, at] = cursor("(towers (t1 (po|s 1 2)))");
+    auto h = hover(FileRead(text), at, *f.loaded, f.reference);
+    REQUIRE(h);
+    CHECK(has(h->markdown, "`(list float 3)`"));
+    std::tie(text, at) = cursor("(towers (t1 (ta|gs a)))");
+    h = hover(FileRead(text), at, *f.loaded, f.reference);
+    REQUIRE(h);
+    CHECK(has(h->markdown, "`(list symbol 1 4)`"));
+
+    std::vector<std::string> hints;
+    for (const CountHint& c : count_hints(FileRead(local), *f.loaded, 1, 9))
+        hints.push_back(c.label + (c.wrong ? " wrong" : ""));
+    CHECK(hints == std::vector<std::string>{"2 of 3 wrong", "2 of 1 to 4", "3 of 3", "1 of 1 to 4",
+                                            "3 of 3"});
+
+    std::tie(text, at) = cursor("#shape (tower (pos (list float |");
+    const Completions c = complete(FileRead(text), at, *f.loaded, f.reference);
+    CHECK(labels(c) == std::vector<std::string>{"3", "2", "2 3"});  // most used first
+    CHECK(c.items[0].detail == "exactly 3: 2 lists in the stack hold 3");
 }

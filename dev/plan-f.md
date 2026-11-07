@@ -178,4 +178,4 @@ manual Windows pass (D1) is still the owner's.
 | F2 Rows keyed by a path | none | Done |
 | F3 Layer verbs and pins | none | Done |
 | F4 Infix braces | none | Done |
-| F5 List counts and conditional layers | none | Planned |
+| F5 List counts and conditional layers | none | In progress: counts done |

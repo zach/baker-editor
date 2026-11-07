@@ -203,6 +203,12 @@ LineIndex::LineIndex(std::string_view text) : text_(text) {
         if (text[i] == '\n') starts_.push_back(i + 1);
 }
 
+size_t LineIndex::start(int line) const {
+    if (line < 0) return 0;
+    return static_cast<size_t>(line) < starts_.size() ? starts_[static_cast<size_t>(line)]
+                                                      : text_.size();
+}
+
 std::pair<int, int> LineIndex::position(size_t offset) const {
     offset = std::min(offset, text_.size());
     const auto it = std::upper_bound(starts_.begin(), starts_.end(), offset) - 1;

@@ -176,7 +176,9 @@ does not know (`@rnage`) is one `check` warns of; in a `#shape`, on a type (`int
   (`int` ... `curve`, `(list T)`, `(key_of TABLE)`, `(asset KIND)`); after the type, the
   field's words (`@range` ... `@one_of @optional`, `@renamed_from`, and `@view @cxx
   @cxx_name`); after a
-  rule's expression, `@warn`; in `(list `, the element types; in `(key_of `, the keyed
+  rule's expression, `@warn`; in `(list `, the element types, and after them the counts the
+  stack's lists of that field hold, most used first, and the range they span (on Duel, with
+  `hitbox` made `(list float `, `4`); in `(key_of `, the keyed
   tables, by the last tag of each keyed shape's `(@at ...)`. In Duel's `duel_core.dta`,
   `(health int ` offers `@range` and the rest.
 
@@ -206,6 +208,15 @@ running game refuses it. A shape's range is `check`'s error.
   `explain`'s `#shape.unit.health`;
 - a file `#include`, `#require` or `#merge` names, or a path in the project file (a layer's
   file, the reference), to that file.
+
+**List counts** (Baker 0.7.0): a field's type names its count as the shape writes it, `(list
+float 3)` or `(list symbol 1 4)`, in hover, completion and the outline; each value of a counted
+field has an inlay hint after it, how many it holds of how many, `2 of 3` or `2 of 1 to 4`,
+the hint's tooltip saying when it is outside the count (which `check` reports). A stack whose
+shapes count no list pays nothing for them: on the 2 MB Duel, a screen's inlay hints answer in
+1.8 to 3.2 ms, against 2.5 to 3.8 ms before; with `hitbox` counted, 2.4 to 2.6 ms for 15
+hints, the first after an edit 31 to 38 ms, which reads the file (RelWithDebInfo build, GCC,
+three runs of ten).
 
 ## Outline, folding, references and rename
 
