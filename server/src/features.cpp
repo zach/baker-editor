@@ -557,6 +557,51 @@ void count_uses(const baker::Array& a, std::vector<std::string> path,
     }
 }
 
+// Whether the cursor is in a project file's layer's condition, (project (layers (local
+// "local.dta" (when (and PC |))))): in (when ...), or in a (not ...), (and ...) or (or ...) in it.
+bool in_condition(const Cursor& c) {
+    const auto& st = c.stack;
+    if (st.size() < 4 || st[0].tag != "project" || st[1].tag != "layers" || st[3].tag != "when")
+        return false;
+    for (size_t i = 0; i < st.size(); ++i)
+        if (st[i].open != '(' || (i > 3 && !st[i].tag.empty() && st[i].tag != "not" &&
+                                  st[i].tag != "and" && st[i].tag != "or"))
+            return false;
+    return true;
+}
+
+// Completion in a layer's condition: the defines it may test, and not, and, or.
+void complete_condition(const Cursor& c, const Loaded& loaded,
+                        const std::function<void(Completion)>& offer) {
+    const Frame& top = c.stack.back();
+    const auto words = [&](bool paren) {
+        for (const auto& [word, snippet] :
+             {std::pair<const char*, const char*>{"not", "not ${1:NAME}"},
+              {"and", "and ${1:A} ${2:B}"},
+              {"or", "or ${1:A} ${2:B}"}})
+            offer({word,
+                   Kind::Keyword,
+                   "condition",
+                   {},
+                   paren ? "(" + std::string(snippet) + ")" : std::string(snippet),
+                   "~"});
+    };
+    if (c.index == 0) {  // (when (| : what the condition is
+        if (c.stack.size() > 4) words(false);
+        return;
+    }
+    // One condition in (when ...) and (not ...), any number in (and ...) and (or ...).
+    if ((top.tag == "when" || top.tag == "not") && c.index != 1) return;
+    for (const auto& [name, from] : loaded.defines)
+        offer({name,
+               Kind::Constant,
+               from == "not defined" ? "not defined now" : "defined, by the " + from,
+               {},
+               {},
+               from == "not defined" ? "1" + name : "0" + name});
+    words(true);
+}
+
 // Completion in a #shape (NAME ...): the shape's words beside its fields, a field's type after
 // its name and its words after the type, a rule's words, a list's element types, and the keyed
 // tables in (key_of ...).
@@ -742,6 +787,10 @@ Completions complete(const FileRead& here, size_t offset, const Loaded& loaded,
     };
     if (in_shape(c)) {
         complete_shape(c, typed, loaded, offer);
+        return out;
+    }
+    if (in_condition(c)) {
+        complete_condition(c, loaded, offer);
         return out;
     }
     if (!c.stack.empty() && !c.stack.front().declared.empty() &&

@@ -134,6 +134,36 @@ bool top_contributor(const baker::Config& cfg, std::string_view path, baker::Sym
     return after;
 }
 
+// Each layer's state in the merge, and the defines its conditions may name.
+void find_conditions(const baker::Config& cfg, const baker::Project& project, Loaded& loaded) {
+    std::vector<std::string> named;  // each name in order, once
+    const auto add = [&](std::string_view name, std::string from) {
+        if (name.empty() || std::find(named.begin(), named.end(), name) != named.end()) return;
+        named.emplace_back(name);
+        loaded.defines.emplace_back(std::string(name), std::move(from));
+    };
+    const baker::LoadSession& session = cfg.read_session();
+    for (const baker::ActiveDefine& d : session.active_defines())
+        add(d.name.str(), std::string(baker::define_from_name(d.from)));
+    for (const baker::ConditionalSection& c : session.conditional_sections())
+        add(c.name.str(), "not defined");
+    for (const baker::ProjectLayer& l : project.layers) {
+        loaded.layers.push_back({std::string(l.name.str()), std::string(l.when.str()),
+                                 cfg.layer_enabled(l.name.str())});
+        // The names its condition tests, (and PC (not DEMO)): its words but the three.
+        const std::string_view when = l.when.str();
+        for (size_t i = 0; i < when.size();) {
+            const size_t end = when.find_first_of(" ()\t\n", i);
+            const std::string_view word =
+                when.substr(i, end == std::string_view::npos ? end : end - i);
+            if (!word.empty() && word != "not" && word != "and" && word != "or")
+                add(word, "not defined");
+            if (end == std::string_view::npos) break;
+            i = end + 1;
+        }
+    }
+}
+
 // The hints of every layer but the bottom one, and of what they override.
 void find_hints(const baker::Config& cfg, const baker::Project& project, Loaded& loaded,
                 Collector& found) {
@@ -598,6 +628,7 @@ Diagnosis diagnose(const Setup& setup, const baker::Context& ctx, const Buffers&
         loaded->functions.push_back(
             {std::string(d.name.str()), canonical_path(std::string(d.file.str())), d.line});
     find_hints(cfg, project, *loaded, found);
+    find_conditions(cfg, project, *loaded);
     for (const LayerHint& h : loaded->hints)
         if (!loaded->texts.count(h.file)) buffers.read(h.file, loaded->texts[h.file]);
     loaded->files.assign(files.begin(), files.end());

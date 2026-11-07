@@ -904,3 +904,67 @@ TEST_CASE("an old form's quick fixes: Baker's migration of the form, and of the 
     CHECK(all.size() == 2);                   // (range and (step
     CHECK(fixes("knight").empty() == false);  // the whole file, from any old form's warning
 }
+
+TEST_CASE("a conditional layer: skipped while its condition does not hold, and completed") {
+    const std::string local = kProject + "/data/local.dta";
+    const std::string file = kProject + "/baker-project.dta";
+    Project p("", "(units (knight (health 50)))\n");
+    std::string project;
+    REQUIRE(Buffers().read(file, project));
+    const std::string conditional = "(local \"data/local.dta\" optional (when HANDHELD))";
+    project.replace(project.find("(local \"data/local.dta\" optional)"),
+                    std::string("(local \"data/local.dta\" optional)").size(), conditional);
+    p.open(file, project);
+    p.server.check_now();
+    // The layer's lens and its inlay hint; the merged stack without it, as the game has it.
+    const auto lens_titles = [&]() {
+        std::vector<std::string> out;
+        for (const json& l : p.request(4, "textDocument/codeLens",
+                                       {{"textDocument", {{"uri", uri_from_path(file)}}}}))
+            out.push_back(l["command"]["title"]);
+        return out;
+    };
+    const auto hint_labels = [&]() {
+        std::vector<std::string> out;
+        for (const json& h : p.request(5, "textDocument/inlayHint",
+                                       {{"textDocument", {{"uri", uri_from_path(file)}}},
+                                        {"range",
+                                         {{"start", {{"line", 0}, {"character", 0}}},
+                                          {"end", {{"line", 20}, {"character", 0}}}}}}))
+            out.push_back(h["label"]);
+        return out;
+    };
+    const auto merged = [&]() {
+        return p.request(6, "baker/merged", {{"uri", uri_from_path(file)}})["text"]
+            .get<std::string>();
+    };
+    CHECK(lens_titles() == std::vector<std::string>{"Show the merged stack",
+                                                    "Show what this layer changes",
+                                                    "Skipped: (when HANDHELD) does not hold"});
+    CHECK(hint_labels() == std::vector<std::string>{"skipped: its condition does not hold"});
+    CHECK(merged().find("(health 100)") != std::string::npos);  // default's: local is skipped
+
+    // Completion in (when ...): the defines it may name, and not, and, or.
+    std::string typed = project;
+    typed.replace(typed.find("(when HANDHELD)"), 15, "(when ");
+    p.open(file, typed);
+    const Position at = position_of(typed, typed.find("(when ") + 6);
+    const json completion =
+        p.request(7, "textDocument/completion",
+                  {{"textDocument", {{"uri", uri_from_path(file)}}},
+                   {"position", {{"line", at.line}, {"character", at.character}}}});
+    std::vector<std::string> offered;
+    for (const json& item : completion["items"]) offered.push_back(item["label"]);
+    CHECK(std::find(offered.begin(), offered.end(), "HANDHELD") != offered.end());
+    CHECK(std::find(offered.begin(), offered.end(), "not") != offered.end());
+    CHECK(std::find(offered.begin(), offered.end(), "or") != offered.end());
+
+    // Defined, the layer is in the stack.
+    std::string defined = project;
+    defined.replace(defined.find("(layers"), 7, "(defines HANDHELD)\n   (layers");
+    p.open(file, defined);
+    p.server.check_now();
+    CHECK(lens_titles()[2] == "Show what this layer changes");
+    CHECK(hint_labels() == std::vector<std::string>{"in the stack"});
+    CHECK(merged().find("(health 50)") != std::string::npos);
+}

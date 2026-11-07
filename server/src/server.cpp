@@ -1134,6 +1134,38 @@ json hint_json(const LineIndex& lines, size_t at, const std::string& label,
 
 }  // namespace
 
+namespace {
+
+// The (layers ...) of a project file, (project ... (layers (name "file" ...) ...)): the
+// bracket, and each layer's entry in it.
+struct LayerEntries {
+    int layers = -1;
+    std::vector<int> entries;
+};
+LayerEntries layer_entries(const Structure& s) {
+    LayerEntries out;
+    for (size_t b = 0; b < s.brackets.size(); ++b) {
+        const Bracket& layers = s.brackets[b];
+        if (layers.open != '(' || s.tag(static_cast<int>(b)) != "layers" || layers.parent < 0 ||
+            s.tag(layers.parent) != "project")
+            continue;
+        out.layers = static_cast<int>(b);
+        for (size_t l = b + 1; l < s.brackets.size() && s.brackets[l].begin < layers.end; ++l)
+            if (s.brackets[l].parent == static_cast<int>(b) && s.brackets[l].tag >= 0)
+                out.entries.push_back(static_cast<int>(l));
+        break;
+    }
+    return out;
+}
+
+const Loaded::LayerState* layer_state(const Loaded& loaded, std::string_view name) {
+    for (const Loaded::LayerState& l : loaded.layers)
+        if (l.name == name) return &l;
+    return nullptr;
+}
+
+}  // namespace
+
 json Server::inlay_hints(const json& params) {
     const std::string path = document_of(params);
     loaded_for(path);
@@ -1164,6 +1196,24 @@ json Server::inlay_hints(const json& params) {
             out.push_back(hint_json(lines, *at, h.label,
                                     h.shadowed ? "`" + h.path + "`: a higher layer overrides it"
                                                : "`" + h.path + "`: overrides a lower layer"));
+    }
+    // In the project file, a conditional layer: whether it is in the stack now.
+    if (path == c->setup.project) {
+        const auto read = read_of(path);
+        std::string defined;  // the defines that stand, for the tooltip
+        for (const auto& [name, from] : c->loaded->defines)
+            if (from != "not defined") defined += (defined.empty() ? "" : ", ") + name;
+        for (const int l : layer_entries(read->structure).entries) {
+            const Bracket& entry = read->structure.brackets[static_cast<size_t>(l)];
+            const int line = lines.position(entry.begin).first + 1;
+            const Loaded::LayerState* state = layer_state(*c->loaded, read->structure.tag(l));
+            if (!state || state->when.empty() || line < first || line > last) continue;
+            out.push_back(hint_json(
+                lines, entry.end,
+                state->in ? "in the stack" : "skipped: its condition does not hold",
+                "(when " + state->when + "), with " +
+                    (defined.empty() ? std::string("no define standing") : "defined: " + defined)));
+        }
     }
     // A counted list's value: how many it holds of how many.
     if (counts_lists(*c->loaded))  // else the file need not be read for them
@@ -1597,17 +1647,18 @@ json Server::code_lenses(const json& params) {
                        {"command",
                         {{"title", title}, {"command", command}, {"arguments", std::move(args)}}}});
     };
-    for (size_t b = 0; b < s.brackets.size(); ++b) {
-        const Bracket& layers = s.brackets[b];
-        if (layers.open != '(' || s.tag(static_cast<int>(b)) != "layers" || layers.parent < 0 ||
-            s.tag(layers.parent) != "project")
-            continue;
-        lens(s.tokens[layers.tag], "Show the merged stack", "baker.showMerged", json::array({uri}));
-        for (size_t l = b + 1; l < s.brackets.size() && s.brackets[l].begin < layers.end; ++l)
-            if (s.brackets[l].parent == static_cast<int>(b) && s.brackets[l].tag >= 0)
-                lens(s.tokens[s.brackets[l].tag], "Show what this layer changes",
-                     "baker.showLayerEffect",
-                     json::array({uri, std::string(s.tag(static_cast<int>(l)))}));
+    const LayerEntries found = layer_entries(s);
+    if (found.layers < 0) return out;
+    lens(s.tokens[s.brackets[found.layers].tag], "Show the merged stack", "baker.showMerged",
+         json::array({uri}));
+    for (const int l : found.entries) {
+        const std::string name(s.tag(l));
+        // A layer its condition leaves out says so: the game skips it now.
+        const Loaded::LayerState* state = c->loaded ? layer_state(*c->loaded, name) : nullptr;
+        const std::string title = state && !state->in && !state->when.empty()
+                                      ? "Skipped: (when " + state->when + ") does not hold"
+                                      : "Show what this layer changes";
+        lens(s.tokens[s.brackets[l].tag], title, "baker.showLayerEffect", json::array({uri, name}));
     }
     return out;
 }

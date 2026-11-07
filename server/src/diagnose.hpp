@@ -122,6 +122,18 @@ struct Loaded {
     std::vector<LayerHint> hints;
     std::vector<Problem> shadowed;  // the hints' faded values, as problems (Hint, Unnecessary)
     std::vector<LayerRow> rows;     // the values and verbs of the layers above the bottom one
+    // Each layer of the project, bottom to top: whether the merge has it now
+    // (Config::layer_enabled), and the condition it waits on, (when HANDHELD), as written.
+    struct LayerState {
+        std::string name;
+        std::string when;  // empty: no condition
+        bool in = true;    // in the merge: enabled, and its condition holding
+    };
+    std::vector<LayerState> layers;
+    // The defines a condition may name: each that stands, with who made it ("host",
+    // "project" or "file"), and each an #ifdef tests or a layer's condition names that does
+    // not ("not defined").
+    std::vector<std::pair<std::string, std::string>> defines;
     // Each hinted file's text as this check read it, so that a later check that does not read
     // can carry the hints to where their lines are now (LineMap).
     std::map<std::string, std::string> texts;

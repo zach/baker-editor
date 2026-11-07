@@ -165,6 +165,10 @@ lens and inlay say the layer is skipped, and turn when `HANDHELD` is defined; co
 
 **Effort:** a day.
 
+**Done:** as the acceptance has it, in the test project. A count's completion offers the
+counts the stack's own lists hold; a stack whose shapes count no list pays nothing for the
+hints.
+
 ## Order and status
 
 F1 first: every file uses metadata and shapes, and its note can go to Baker at once. F2 and F4
@@ -178,4 +182,4 @@ manual Windows pass (D1) is still the owner's.
 | F2 Rows keyed by a path | none | Done |
 | F3 Layer verbs and pins | none | Done |
 | F4 Infix braces | none | Done |
-| F5 List counts and conditional layers | none | In progress: counts done |
+| F5 List counts and conditional layers | none | Done |

@@ -401,6 +401,19 @@ Each game in a workspace of several has its own console: the port its project fi
 each relative to the workspace folder that holds it; else `baker.console.port`. The setting
 wins over the project file.
 
+## Conditional layers
+
+A project file's layer may wait on a define, `(local "data/local.dta" optional (when
+HANDHELD))` (Baker 0.7.0): while its condition does not hold, the game skips it as a disabled
+layer. The project file says which: an inlay hint after each conditional layer, `in the stack`
+or `skipped: its condition does not hold` (its tooltip naming the condition and the defines
+that stand), and the layer's lens reads `Skipped: (when HANDHELD) does not hold`
+(`Config::layer_enabled`, `layer_condition`). Both turn when `HANDHELD` is defined, by the
+project's `(defines ...)`, the server's `--define`, or a file's `#define`. The merged stack,
+and so hover, the hints and the views, leave a skipped layer out, as the game does. Completion
+in `(when ` offers the defines a condition may name: those that stand, with who made them,
+and those an `#ifdef` tests or another layer's condition names; and `not`, `and` and `or`.
+
 ## The merged stack, and what a layer changes
 
 **Baker: Show the merged stack** opens, beside the editor, the stack as the game sees it
