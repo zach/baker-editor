@@ -4,6 +4,7 @@
 #include "format.hpp"
 #include "highlight.hpp"
 #include "hints.hpp"
+#include "infix.hpp"
 #include "merged.hpp"
 #include "outline.hpp"
 #include "positions.hpp"
@@ -741,6 +742,18 @@ json Server::code_actions(const json& params) {
                        {"kind", "refactor.rewrite"},
                        {"data", {{"uri", uri_for(path)}, {"offset", offset}, {"rewrite", which}}}});
     };
+    // A brace written infix: Baker's errors' fixes.
+    {
+        const LineIndex lines(text);
+        for (const BraceEdit& e : infix_fixes(s, text, offset))
+            out.push_back({{"title", e.title},
+                           {"kind", e.kind},
+                           {"edit",
+                            {{"changes",
+                              {{uri_for(path),
+                                json::array({{{"range", lsp_range(lines, e.edit.begin, e.edit.end)},
+                                              {"newText", e.edit.text}}})}}}}}});
+    }
     if (as_row(s, text, offset)) rewrite("Write as a row", "row");
     if (as_nested(s, text, offset)) rewrite("Write nested", "nested");
     // A layer's row, by what the last check says of it: a verb's, a pin's.

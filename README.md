@@ -136,7 +136,12 @@ delay_task ...}`), its signatures and doc, from the reference's `types`. A brace
 `{2 <= $value <= 10}` (Baker 0.7.0), calls its operator, as Baker reads it
 (`TextBracket::infix`): hover on either `<=` shows `<=`'s signatures (in Cube's objectives),
 an operand is never taken for the call, and rename and references see the operator as the
-call, not the first operand. On a metadata or shape
+call, not the first operand. Baker's errors for a malformed brace have quick fixes: "infix {...}
+needs '<=' between every two operands" puts it there, `{0.3 <= $value 0.7}` to `{0.3 <= $value
+<= 0.7}`; "mixed operators" in a chain of comparisons nests each pair under `and`, as Baker's
+docs say, `{0 < $value <= 10}` to `{and {0 < $value} {$value <= 10}}` (mixed arithmetic has no
+fix: which applies first is the author's). Which brace is malformed, and that a fix reads, is
+Baker's own reader's word (`read_structure`) on the brace's text. On a metadata or shape
 word (`@range`, `@keyed`, ...) it shows what the word takes and does, and that a word Baker
 does not know (`@rnage`) is one `check` warns of; in a `#shape`, on a type (`int`, `list`,
 `key_of`), what it holds; on a shape's name (a field's type, a table in `(key_of ...)`,

@@ -172,5 +172,5 @@ manual Windows pass (D1) is still the owner's.
 | F1 Metadata and declarations | note 0027 for the old forms' warnings and quick fix: migrations as edits (Baker 0.8.0) | Done |
 | F2 Rows keyed by a path | none | Done |
 | F3 Layer verbs and pins | none | Done |
-| F4 Infix braces | none | In progress: hover, highlighting done |
+| F4 Infix braces | none | In progress: hover, highlighting, quick fixes done |
 | F5 List counts and conditional layers | none | Planned |

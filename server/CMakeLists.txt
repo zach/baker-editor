@@ -14,6 +14,7 @@ add_library(baker_lsp_core STATIC
   src/live.cpp
   src/merged.cpp
   src/hints.cpp
+  src/infix.cpp
   src/highlight.cpp
   src/scenarios.cpp
   src/tweaks.cpp
@@ -55,6 +56,7 @@ if(BAKER_EDITOR_BUILD_TESTS)
     tests/test_live.cpp
     tests/test_merged.cpp
     tests/test_hints.cpp
+    tests/test_infix.cpp
     tests/test_scenarios.cpp
     tests/test_tweaks.cpp
     tests/test_outline.cpp
