@@ -739,6 +739,15 @@ as a list", two checks of the project, 295 to 347 ms (310 to 391 ms). A check af
 the one-line `local.dta` takes 69 to 85 ms (one of 113 ms), the old forms' scan included.
 Each of Baker's stacks at 0.8.0 (baker-dev 711db00) opens with no error or warning.
 
+Baker 0.9.0 against 0.8.0, the same measures, three runs each by a client that does not
+poll, RelWithDebInfo builds (GCC), on Duel grown to 2 MB: Format Document 82 to 106 ms (70 to
+104), the first check 126 to 135 ms (126 to 142) and a check after an edit 56 to 101 ms (57
+to 94), the outline after an edit 76 to 125 ms (76 to 107), a screen of 15 count hints 2.4 to
+3.8 ms (2.5 to 21, one outlier), all within the noise. 0.9.0's formatting fix (alignment in
+n log n, 44 s to 148 ms on 2.8 MB) is for text with long aligned runs, which the grown Duel
+does not have. Each of Baker's stacks at 0.9.0 (baker-dev ecd6cb0) opens with no error,
+warning or note.
+
 ## Baker
 
 The server builds against a released Baker, `zach/baker` `v0.9.0`, through its public headers
