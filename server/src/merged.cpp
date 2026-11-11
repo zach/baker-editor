@@ -170,7 +170,7 @@ std::optional<View> layer_view(const baker::Config& cfg, std::string_view layer,
     for (const baker::LayerEffectEntry& e : *effect) {
         const std::string file(e.source.file.str());
         const bool verb = e.op.str() == "#append" || e.op.str() == "#drop";
-        out.text += "  " + std::string(e.path.str()) + "  " +
+        out.text += "  " + std::string(e.path->view()) + "  " +
                     (e.below ? shown(*e.below) : std::string("(new)")) + " -> " +
                     (verb ? std::string(e.op.str()) + " " : "") + shown(e.values) + "  (" + file +
                     ":" + std::to_string(e.source.line) + ")" + (e.shadowed ? "  shadowed" : "") +

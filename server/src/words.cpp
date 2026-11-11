@@ -57,9 +57,10 @@ constexpr std::array kWords{
          "The field's old name: a record spelling it is checked as the field, with a warning, "
          "and `format` rewrites it.",
          " ${1:old}"},
-    Word{"@view", "[no]",
-         "On a shape, generate a C++ struct its records are read into; on a field, `(@view no)` "
-         "leaves it out of the struct.",
+    Word{"@view", "[no | by_id]",
+         "On a shape, generate a C++ struct its records are read into; `(@view by_id)` on a "
+         "keyed shape also keeps each record's `(@id ...)` in its baked table, for a lookup by "
+         "ID. On a field, `(@view no)` leaves it out of the struct.",
          ""},
     Word{"@cxx", "TYPE",
          "The C++ type of the field's member in the view: `int8` to `uint64` for an `int`, "

@@ -182,9 +182,9 @@ void find_hints(const baker::Config& cfg, const baker::Project& project, Loaded&
             if (!e.declares.empty()) continue;
             const std::string file = canonical_path(std::string(e.source.file.str()));
             const std::string value = shown(e.values);
-            const std::string key = last_dotted(e.path.str());
+            const std::string key = last_dotted(e.path->view());
             LayerRow row;
-            row.path = baker::to_string(baker::Path(e.path.str()));
+            row.path = baker::to_string(baker::Path(e.path->view()));
             row.layer = std::string(layer.name.str());
             row.op = std::string(e.op.str());
             row.values = unpacked(e.values);
@@ -203,8 +203,8 @@ void find_hints(const baker::Config& cfg, const baker::Project& project, Loaded&
             if (row.composes()) {
                 // It changes the list below, which stands: not an override, nothing faded.
                 const baker::Ref<baker::Array> root = cfg.root();
-                const baker::Array* now = top_contributor(cfg, e.path.str(), layer.name)
-                                              ? array_in(root.get(), e.path.str())
+                const baker::Array* now = top_contributor(cfg, e.path->view(), layer.name)
+                                              ? array_in(root.get(), e.path->view())
                                               : nullptr;
                 if (now && !now->values().empty()) {
                     std::vector<std::string> shown;
@@ -224,10 +224,10 @@ void find_hints(const baker::Config& cfg, const baker::Project& project, Loaded&
                 label += row.op + " " + capped(row.operands) +
                          (row.result.empty() ? "" : " \u2192 " + capped(row.result));
                 loaded.hints.push_back(
-                    {file, row.line, std::string(e.path.str()), key, label, false, value});
+                    {file, row.line, std::string(e.path->view()), key, label, false, value});
                 if (!row.below_file.empty())
                     loaded.hints.push_back(
-                        {row.below_file, row.below_line, std::string(e.path.str()), key,
+                        {row.below_file, row.below_line, std::string(e.path->view()), key,
                          "composed by " + short_name(file) + ":" + std::to_string(row.line) + " (" +
                              row.op + " " + row.operands + ")",
                          false, row.below});
@@ -239,14 +239,14 @@ void find_hints(const baker::Config& cfg, const baker::Project& project, Loaded&
                 const std::string below_file =
                     canonical_path(std::string(e.below_source->file.str()));
                 const std::string below = shown(*e.below);
-                loaded.hints.push_back({file, e.source.line, std::string(e.path.str()), key,
+                loaded.hints.push_back({file, e.source.line, std::string(e.path->view()), key,
                                         "over " + short_name(below_file) + ":" +
                                             std::to_string(e.below_source->line) + " (" + below +
                                             ")",
                                         e.shadowed, value});
                 // The value below is shadowed by this one.
-                loaded.hints.push_back({below_file, e.below_source->line, std::string(e.path.str()),
-                                        key,
+                loaded.hints.push_back({below_file, e.below_source->line,
+                                        std::string(e.path->view()), key,
                                         "\u2190 " + short_name(file) + ":" +
                                             std::to_string(e.source.line) + " (" + value + ")",
                                         true, below});

@@ -96,7 +96,8 @@ its layers as the game would, with the text of open editors in place of the file
   (`Context::declare_type`, `declare_object`): `{scheduler dely_task 2 ...}` is an error;
 - **the one-way rule:** a harder pack calling a softer pack's script function (a warning);
 - **shapes:** a value of the wrong type or out of range (an error), a field no shape declares
-  (information).
+  (information, once for its shape, at its first record, saying how many more records have
+  it: Baker 0.9.0).
 
 The files of the project's `(scenarios ...)` and `(objectives ...)`, open or not, and any
 other open `.dta` file of the project that its layers do not read, are read on their own and
@@ -737,7 +738,7 @@ Each of Baker's stacks at 0.8.0 (baker-dev 711db00) opens with no error or warni
 
 ## Baker
 
-The server builds against a released Baker, `zach/baker` `v0.8.0`, through its public headers
+The server builds against a released Baker, `zach/baker` `v0.9.0`, through its public headers
 and `baker::tools`.
 `-DBAKER_EDITOR_BAKER_DIR=PATH` builds against a local checkout instead. The stacks it is
 tried on come from Baker's development repository, `zach/baker-dev` (`stacks/`), which the
