@@ -6,6 +6,7 @@
 #include <doctest.h>
 
 #include <algorithm>
+#include <filesystem>
 #include <fstream>
 #include <sstream>
 
@@ -454,4 +455,29 @@ TEST_CASE("an old form is a warning at its place, found again only once its file
     f.buffers.set(kLocal, "(units (knight (health 50 (@range 1 900))))\n");
     d = diagnose(f.setup, f.ctx, f.buffers, true, &kept);
     CHECK(!find(d, "migration"));
+}
+
+TEST_CASE("a special form's signatures are its usage, the whole call (baker.reference/1.6)") {
+    const std::string path =
+        (std::filesystem::temp_directory_path() / "baker_lsp_usage.json").string();
+    {
+        std::ofstream out(path);
+        out << R"({"reference": {"schema": "baker.reference/1.6", "functions": [
+            {"name": "wait_for", "tier": "native", "status": "normal", "doc": "Waits.",
+             "usage": ["{wait_for seconds}", "{wait_for seconds then}"],
+             "overloads": [{"params": [{"type": "any", "kind": "raw", "raw": true}],
+                            "result": "value", "min_args": 0, "max_args": null}]},
+            {"name": "twice", "tier": "native", "status": "normal", "doc": "", "usage": [],
+             "overloads": [{"params": [{"type": "int", "kind": "value", "raw": false}],
+                            "result": "value", "min_args": 1, "max_args": 1}]}]}})";
+    }
+    baker::Context ctx;
+    Reference r;
+    std::string error;
+    REQUIRE(load_reference(ctx, path, r, error));
+    REQUIRE(r.all.size() == 2);
+    CHECK(r.all[0].signatures ==
+          std::vector<std::string>{"{wait_for seconds}", "{wait_for seconds then}"});
+    CHECK(r.all[1].signatures == std::vector<std::string>{"{twice int}"});  // its parameters
+    std::filesystem::remove(path);
 }

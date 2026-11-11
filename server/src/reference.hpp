@@ -15,7 +15,9 @@ namespace baker_lsp {
 // A function of the game's, for hover and completion.
 struct FunctionInfo {
     std::string name;
-    std::vector<std::string> signatures;  // one per overload: {name symbol [int] values...}
+    // One per overload, {name symbol [int] values...}; a special form's own usage instead,
+    // one per form, {do ((VAR VALUE)...) BODY...} (baker.reference/1.6).
+    std::vector<std::string> signatures;
     std::string doc;
     std::string status;  // normal, stub, provisional or deprecated
     std::string tier;    // native or script

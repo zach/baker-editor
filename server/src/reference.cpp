@@ -276,8 +276,13 @@ bool load_reference(baker::Context& ctx, const std::string& path, Reference& out
         info.tier = f.value("tier", "native");
         info.file = f.value("file", "");
         info.line = f.value("line", 0);
-        for (const nlohmann::json& o : f.value("overloads", nlohmann::json::array()))
-            info.signatures.push_back(signature(info.name, o));
+        // A special form says its whole call (baker.reference/1.6): {wait_for seconds}. Else
+        // each overload's parameters do.
+        for (const nlohmann::json& u : f.value("usage", nlohmann::json::array()))
+            if (u.is_string()) info.signatures.push_back(u.get<std::string>());
+        if (info.signatures.empty())
+            for (const nlohmann::json& o : f.value("overloads", nlohmann::json::array()))
+                info.signatures.push_back(signature(info.name, o));
     }
     for (const nlohmann::json& f : doc["functions"]) {
         if (!f.is_object() || f.value("tier", "") != "native") continue;  // script: the data's

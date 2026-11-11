@@ -131,7 +131,10 @@ beside the value in the data (`(buffer 5 (@range 1 20) (@desc ...))`), the game'
 path (its type, code default, range, whether the data sets it, and whether it is dev only), and
 every layer that contributes to it from the files, with its value, file and line, and which
 one wins (`Config::explain`). On a command's head it shows the function's signatures and doc
-from the game's reference; on a macro or a script function, where it is defined; on an
+from the game's reference (for a special form, its whole call as the reference writes it,
+`{config.get path}` or `{class Name (method ($params...) body...)...}`, Baker 0.9.0's
+`baker.reference/1.6`; the reference documents every `config.*` command); on a macro or a
+script function, where it is defined; on an
 object the game names, its type and methods, and on a method of a call on it (`{scheduler
 delay_task ...}`), its signatures and doc, from the reference's `types`. A brace written infix,
 `{2 <= $value <= 10}` (Baker 0.7.0), calls its operator, as Baker reads it
